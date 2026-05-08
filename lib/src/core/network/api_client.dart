@@ -106,6 +106,8 @@ class ApiClient {
 
   ApiFailure mapError(Object error) {
     if (error is DioException) {
+      final msgFromServer = _extractMessage(error.response?.data);
+
       if (error.type == DioExceptionType.connectionTimeout ||
           error.type == DioExceptionType.receiveTimeout ||
           error.type == DioExceptionType.sendTimeout ||
@@ -115,11 +117,13 @@ class ApiClient {
 
       final status = error.response?.statusCode;
       if (status == 401 || status == 403) {
-        return const UnauthorizedFailure('Unauthorized. Please login again.');
+        return UnauthorizedFailure(
+          msgFromServer ?? 'Unauthorized. Please login again.',
+        );
       }
 
       if (status != null && status >= 400 && status < 500) {
-        final msg = _extractMessage(error.response?.data) ??
+        final msg = msgFromServer ??
             'Request failed. Please check your input and try again.';
         return ValidationFailure(msg);
       }
@@ -146,6 +150,9 @@ class ApiClient {
   }
 
   static String? _extractMessage(Object? data) {
+    if (data is String && data.trim().isNotEmpty) {
+      return data.trim();
+    }
     if (data is Map) {
       final dynamic msg = data['message'] ?? data['Message'] ?? data['error'] ?? data['Error'];
       if (msg is String && msg.trim().isNotEmpty) return msg.trim();

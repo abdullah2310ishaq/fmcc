@@ -1,11 +1,15 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:provider/provider.dart';
 
+import 'package:doctor_app/src/core/auth/google_sign_in_config.dart';
+import 'package:doctor_app/src/core/logging/app_logger.dart';
 import 'package:doctor_app/src/core/session/app_session.dart';
 import 'package:doctor_app/src/core/session/session_controller.dart';
 import 'package:doctor_app/src/core/theme/app_colors.dart';
@@ -22,6 +26,7 @@ class AuthScreen extends StatefulWidget {
 class _AuthScreenState extends State<AuthScreen> {
   bool _busy = false;
   final GoogleSignIn _googleSignIn = GoogleSignIn(
+    serverClientId: GoogleSignInConfig.webClientId,
     scopes: const ['email', 'profile', 'openid'],
   );
 
@@ -213,18 +218,8 @@ class _AuthScreenState extends State<AuthScreen> {
               // Login button with Google icon
               _buildGoogleButton(
                 onPressed: _busy ? null : () => unawaited(_handleLogin()),
-                text: 'Login with Google',
+                text: 'Continue with Google',
                 isLoading: _busy,
-              ),
-
-              SizedBox(height: 16.h),
-
-              // Register button
-              _buildGoogleButton(
-                onPressed: _busy ? null : () => unawaited(_handleRegister()),
-                text: 'Register with Google',
-                isLoading: _busy,
-                isOutlined: true,
               ),
 
               SizedBox(height: 32.h),
@@ -246,7 +241,7 @@ class _AuthScreenState extends State<AuthScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'After login/register, your request goes to admin for approval.',
+                            'After continuing, your request goes to admin for approval.',
                             style: TextStyle(
                               fontSize: 12.sp,
                               color: AppColors.textSecondary,
@@ -257,7 +252,7 @@ class _AuthScreenState extends State<AuthScreen> {
                           Directionality(
                             textDirection: TextDirection.rtl,
                             child: Text(
-                              'لاگ اِن/رجسٹر کے بعد آپ کی درخواست منظوری کے لیے ایڈمن کے پاس جائے گی۔',
+                              'جاری رکھنے کے بعد آپ کی درخواست منظوری کے لیے ایڈمن کے پاس جائے گی۔',
                               style: TextStyle(
                                 fontSize: 12.sp,
                                 color: AppColors.textSecondary,
@@ -388,6 +383,17 @@ class _AuthScreenState extends State<AuthScreen> {
                             color: AppColors.textPrimary,
                           ),
                         ),
+                        const SizedBox(width: 10),
+                        const Directionality(
+                          textDirection: TextDirection.rtl,
+                          child: Text(
+                            'گوگل کے ساتھ جاری رکھیں',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w800,
+                              color: AppColors.textPrimary,
+                            ),
+                          ),
+                        ),
                       ],
                     ),
             )
@@ -433,17 +439,45 @@ class _AuthScreenState extends State<AuthScreen> {
   }
 
   Future<String> _getGoogleIdToken() async {
-    final account = await _googleSignIn.signIn();
-    if (account == null) {
-      throw StateError('Sign-in cancelled • سائن اِن منسوخ کر دیا گیا');
+    try {
+      final account = await _googleSignIn.signIn();
+      if (account == null) {
+        throw StateError('Sign-in cancelled • سائن اِن منسوخ کر دیا گیا');
+      }
+      final auth = await account.authentication;
+      final token = auth.idToken;
+      if (token == null || token.trim().isEmpty) {
+        throw StateError(
+          'Failed to get Google token • گوگل ٹوکن حاصل نہیں ہو سکا',
+        );
+      }
+
+      final claims = _tryDecodeJwtPayload(token);
+      if (claims != null) {
+        AppLogger.instance.i(
+          '[AUTH] Google idToken claims '
+          'iss=${claims['iss']} aud=${claims['aud']} azp=${claims['azp']} '
+          'email=${claims['email']}',
+        );
+      }
+
+      return token;
+    } on PlatformException catch (e, st) {
+      AppLogger.instance.e(
+        '[AUTH] Google sign-in PlatformException '
+        'code=${e.code} message=${e.message} details=${e.details}',
+        error: e,
+        stackTrace: st,
+      );
+      throw StateError(_friendlyGoogleSignInError(e));
+    } catch (e, st) {
+      AppLogger.instance.e(
+        '[AUTH] Google sign-in failed: $e',
+        error: e,
+        stackTrace: st,
+      );
+      rethrow;
     }
-    final auth = await account.authentication;
-    final token = auth.idToken;
-    if (token == null || token.trim().isEmpty) {
-      throw StateError(
-          'Failed to get Google token • گوگل ٹوکن حاصل نہیں ہو سکا');
-    }
-    return token;
   }
 
   Future<void> _handleLogin() async {
@@ -455,20 +489,22 @@ class _AuthScreenState extends State<AuthScreen> {
             idToken: idToken,
             isRegister: false,
           );
-    } catch (e) {
+    } catch (e, st) {
       if (!mounted) return;
+      AppLogger.instance
+          .e('[AUTH] Sign-in failed: $e', error: e, stackTrace: st);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('Login failed. Please try again.'),
+              const Text('Sign-in failed. Please try again.'),
               const SizedBox(height: 4),
               const Directionality(
                 textDirection: TextDirection.rtl,
                 child:
-                    Text('لاگ اِن ناکام ہو گیا۔ براہِ کرم دوبارہ کوشش کریں۔'),
+                    Text('سائن اِن ناکام ہو گیا۔ براہِ کرم دوبارہ کوشش کریں۔'),
               ),
               const SizedBox(height: 6),
               Text(
@@ -492,49 +528,33 @@ class _AuthScreenState extends State<AuthScreen> {
     }
   }
 
-  Future<void> _handleRegister() async {
-    setState(() => _busy = true);
+  static Map<String, dynamic>? _tryDecodeJwtPayload(String jwt) {
     try {
-      final idToken = await _getGoogleIdToken();
-      if (!mounted) return;
-      await context.read<SessionController>().signInWithGoogleIdToken(
-            idToken: idToken,
-            isRegister: true,
-          );
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text('Registration failed. Please try again.'),
-              const SizedBox(height: 4),
-              const Directionality(
-                textDirection: TextDirection.rtl,
-                child:
-                    Text('رجسٹریشن ناکام ہو گئی۔ براہِ کرم دوبارہ کوشش کریں۔'),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                e.toString(),
-                style: TextStyle(
-                  fontSize: 11.sp,
-                  color: Colors.white.withValues(alpha: 0.9),
-                ),
-              ),
-            ],
-          ),
-          backgroundColor: AppColors.danger,
-          behavior: SnackBarBehavior.floating,
-          margin: EdgeInsets.all(16.w),
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.r)),
-        ),
-      );
-    } finally {
-      if (mounted) setState(() => _busy = false);
+      final parts = jwt.split('.');
+      if (parts.length < 2) return null;
+      final payload = base64Url.normalize(parts[1]);
+      final decoded = utf8.decode(base64Url.decode(payload));
+      final obj = jsonDecode(decoded);
+      return obj is Map<String, dynamic> ? obj : null;
+    } catch (_) {
+      return null;
     }
+  }
+
+  static String _friendlyGoogleSignInError(PlatformException e) {
+    final code = e.code.trim();
+    if (code == 'sign_in_canceled' || code == 'sign_in_cancelled') {
+      return 'Sign-in cancelled • سائن اِن منسوخ کر دیا گیا';
+    }
+    if (code == 'network_error') {
+      return 'Network error. Check internet • نیٹ ورک مسئلہ، انٹرنیٹ چیک کریں';
+    }
+    if (code == 'sign_in_failed') {
+      return 'Google sign-in failed. Usually SHA-1/SHA-256 missing in Firebase '
+          'or wrong google-services.json • '
+          'اکثر Firebase میں SHA-1/SHA-256 نہ ہونے یا غلط google-services.json کی وجہ سے';
+    }
+    final msg = e.message?.trim();
+    return 'Google sign-in failed ($code)${msg == null || msg.isEmpty ? '' : ': $msg'}';
   }
 }

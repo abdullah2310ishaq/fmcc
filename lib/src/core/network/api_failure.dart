@@ -1,6 +1,9 @@
 sealed class ApiFailure {
   const ApiFailure(this.message);
   final String message;
+
+  @override
+  String toString() => message;
 }
 
 class NetworkFailure extends ApiFailure {

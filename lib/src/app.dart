@@ -81,11 +81,6 @@ GoRouter _buildRouter(SessionController sessionController) {
       final session = sessionController.state;
       final loc = state.matchedLocation;
 
-      // Let splash show briefly; it will route out using this redirect too.
-      if (loc == SplashScreen.routePath) {
-        return null;
-      }
-
       // If declined: force sign out and show auth with message (auth screen will display it).
       if (session.approvalStatus == ApprovalStatus.declined) {
         sessionController.handleDeclinedOnLaunch();
