@@ -9,36 +9,80 @@ import 'package:doctor_app/src/core/theme/app_theme.dart';
 import 'package:doctor_app/src/features/approval/waiting_screen.dart';
 import 'package:doctor_app/src/features/auth/auth_screen.dart';
 import 'package:doctor_app/src/features/home/home_screen.dart';
+import 'package:doctor_app/src/features/profile/profile_view_screen.dart';
 import 'package:doctor_app/src/features/profile/registration_details_screen.dart';
 import 'package:doctor_app/src/features/role/role_screen.dart';
 import 'package:doctor_app/src/features/splash/splash_screen.dart';
 
 final _rootNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'root');
 
-class DoctorApp extends StatelessWidget {
+/// Signed-in flag must agree with a stored bearer token, otherwise send user to auth.
+bool _hasPersistedAuth(AppSession session) {
+  return session.isSignedIn &&
+      session.accessToken != null &&
+      session.accessToken!.trim().isNotEmpty;
+}
+
+/// Normalized path for redirects (matches `context.push('/profile')`, etc.).
+String _redirectPath(GoRouterState state) {
+  var p = state.uri.path;
+  if (p.isEmpty) return SplashScreen.routePath;
+  if (p.length > 1 && p.endsWith('/')) {
+    p = p.substring(0, p.length - 1);
+  }
+  return p;
+}
+
+/// Single destination for the current session (splash is only for unknown cold-start loading).
+String _sessionDestination(AppSession session) {
+  if (session.role == UserRole.unknown) {
+    return RoleScreen.routePath;
+  }
+  if (!_hasPersistedAuth(session)) {
+    return AuthScreen.routePath;
+  }
+  if (session.approvalStatus == ApprovalStatus.pending) {
+    return WaitingScreen.routePath;
+  }
+  if (session.approvalStatus == ApprovalStatus.approved &&
+      !session.hasCompletedRegistrationDetails) {
+    return RegistrationDetailsScreen.routePath;
+  }
+  return HomeScreen.routePath;
+}
+
+class DoctorApp extends StatefulWidget {
   const DoctorApp({super.key, required this.sessionController});
 
   final SessionController sessionController;
 
   @override
+  State<DoctorApp> createState() => _DoctorAppState();
+}
+
+class _DoctorAppState extends State<DoctorApp> {
+  late final GoRouter _router;
+
+  @override
+  void initState() {
+    super.initState();
+    _router = _buildRouter(widget.sessionController);
+  }
+
+  @override
   Widget build(BuildContext context) {
     return ChangeNotifierProvider<SessionController>.value(
-      value: sessionController,
-      child: Builder(
-        builder: (context) {
-          final router = _buildRouter(context.read<SessionController>());
-          return ScreenUtilInit(
-            designSize: const Size(375, 812),
-            minTextAdapt: true,
-            splitScreenMode: true,
-            builder: (context, child) {
-              return MaterialApp.router(
-                title: 'Doctor App',
-                debugShowCheckedModeBanner: false,
-                theme: AppTheme.light(),
-                routerConfig: router,
-              );
-            },
+      value: widget.sessionController,
+      child: ScreenUtilInit(
+        designSize: const Size(375, 812),
+        minTextAdapt: true,
+        splitScreenMode: true,
+        builder: (context, child) {
+          return MaterialApp.router(
+            title: 'Doctor App',
+            debugShowCheckedModeBanner: false,
+            theme: AppTheme.light(),
+            routerConfig: _router,
           );
         },
       ),
@@ -47,9 +91,10 @@ class DoctorApp extends StatelessWidget {
 }
 
 GoRouter _buildRouter(SessionController sessionController) {
+  final initial = _sessionDestination(sessionController.state);
   return GoRouter(
     navigatorKey: _rootNavigatorKey,
-    initialLocation: SplashScreen.routePath,
+    initialLocation: initial,
     refreshListenable: sessionController,
     routes: [
       GoRoute(
@@ -76,37 +121,29 @@ GoRouter _buildRouter(SessionController sessionController) {
         path: HomeScreen.routePath,
         builder: (context, state) => const HomeScreen(),
       ),
+      GoRoute(
+        path: ProfileViewScreen.routePath,
+        builder: (context, state) => const ProfileViewScreen(),
+      ),
     ],
     redirect: (context, state) {
       final session = sessionController.state;
-      final loc = state.matchedLocation;
+      final loc = _redirectPath(state);
 
       // If declined: force sign out and show auth with message (auth screen will display it).
       if (session.approvalStatus == ApprovalStatus.declined) {
         sessionController.handleDeclinedOnLaunch();
-        return AuthScreen.routePath;
-      }
-
-      if (session.role == UserRole.unknown) {
-        return loc == RoleScreen.routePath ? null : RoleScreen.routePath;
-      }
-
-      if (!session.isSignedIn) {
         return loc == AuthScreen.routePath ? null : AuthScreen.routePath;
       }
 
-      if (session.approvalStatus == ApprovalStatus.pending) {
-        return loc == WaitingScreen.routePath ? null : WaitingScreen.routePath;
+      final dest = _sessionDestination(session);
+
+      // Allow `/profile` whenever user is allowed on home (avoid matchedLocation mismatch).
+      if (dest == HomeScreen.routePath && loc == ProfileViewScreen.routePath) {
+        return null;
       }
 
-      if (session.approvalStatus == ApprovalStatus.approved &&
-          !session.hasCompletedRegistrationDetails) {
-        return loc == RegistrationDetailsScreen.routePath
-            ? null
-            : RegistrationDetailsScreen.routePath;
-      }
-
-      return loc == HomeScreen.routePath ? null : HomeScreen.routePath;
+      return loc == dest ? null : dest;
     },
   );
 }

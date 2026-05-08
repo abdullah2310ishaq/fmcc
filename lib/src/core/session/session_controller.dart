@@ -3,6 +3,8 @@ import 'package:flutter/foundation.dart';
 import 'package:doctor_app/src/core/auth/auth_api.dart';
 import 'package:doctor_app/src/core/network/api_client.dart';
 import 'package:doctor_app/src/core/network/api_failure.dart';
+import 'package:doctor_app/src/core/reference/reference_api.dart';
+import 'package:doctor_app/src/core/reference/reference_models.dart';
 import 'package:doctor_app/src/core/session/app_session.dart';
 import 'package:doctor_app/src/core/session/session_storage.dart';
 import 'package:doctor_app/src/features/profile/health_worker_profile_models.dart';
@@ -18,12 +20,14 @@ class SessionController extends ChangeNotifier {
         _apiClient = (apiClient ?? ApiClient()) {
     _authApi = AuthApi(_apiClient);
     _profileApi = ProfileApi(_apiClient);
+    _referenceApi = ReferenceApi(_apiClient);
   }
 
   final SessionStorage _storage;
   final ApiClient _apiClient;
   late final AuthApi _authApi;
   late final ProfileApi _profileApi;
+  late final ReferenceApi _referenceApi;
   AppSession _state;
 
   AppSession get state => _state;
@@ -127,6 +131,64 @@ class SessionController extends ChangeNotifier {
     try {
       return await _profileApi.getHealthWorkerProfile(
         userId: userId,
+        bearerToken: token,
+      );
+    } catch (e) {
+      throw _apiClient.mapError(e);
+    }
+  }
+
+  Future<List<EducationLevel>> fetchEducationLevels() async {
+    final token = _state.accessToken;
+    if (token == null || token.trim().isEmpty) {
+      throw const UnauthorizedFailure('Unauthorized. Please login again.');
+    }
+    try {
+      return await _referenceApi.getEducationLevels(bearerToken: token);
+    } catch (e) {
+      throw _apiClient.mapError(e);
+    }
+  }
+
+  Future<List<Province>> fetchProvinces() async {
+    final token = _state.accessToken;
+    if (token == null || token.trim().isEmpty) {
+      throw const UnauthorizedFailure('Unauthorized. Please login again.');
+    }
+    try {
+      return await _referenceApi.getProvinces(bearerToken: token);
+    } catch (e) {
+      throw _apiClient.mapError(e);
+    }
+  }
+
+  Future<List<District>> fetchDistricts({required int provinceId}) async {
+    final token = _state.accessToken;
+    if (token == null || token.trim().isEmpty) {
+      throw const UnauthorizedFailure('Unauthorized. Please login again.');
+    }
+    try {
+      return await _referenceApi.getDistricts(
+        provinceId: provinceId,
+        bearerToken: token,
+      );
+    } catch (e) {
+      throw _apiClient.mapError(e);
+    }
+  }
+
+  Future<List<Tehsil>> fetchTehsils({
+    required int provinceId,
+    required int districtId,
+  }) async {
+    final token = _state.accessToken;
+    if (token == null || token.trim().isEmpty) {
+      throw const UnauthorizedFailure('Unauthorized. Please login again.');
+    }
+    try {
+      return await _referenceApi.getTehsils(
+        provinceId: provinceId,
+        districtId: districtId,
         bearerToken: token,
       );
     } catch (e) {

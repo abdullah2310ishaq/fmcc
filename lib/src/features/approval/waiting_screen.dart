@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:provider/provider.dart';
 import 'package:doctor_app/src/core/auth/google_sign_in_config.dart';
@@ -53,20 +54,25 @@ class _WaitingScreenState extends State<WaitingScreen> {
           );
 
       if (!mounted) return;
-      final status =
-          context.read<SessionController>().state.approvalStatus;
+      final status = context.read<SessionController>().state.approvalStatus;
       if (status == ApprovalStatus.pending) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
+          SnackBar(
+            content: const Text(
               'Still pending approval • ابھی منظوری زیرِ التواء ہے',
             ),
             behavior: SnackBarBehavior.floating,
+            margin: EdgeInsets.only(
+              left: 16.w,
+              right: 16.w,
+              bottom: 120.h,
+            ),
           ),
         );
       }
     } catch (e, st) {
-      AppLogger.instance.e('[WAITING] Refresh failed: $e', error: e, stackTrace: st);
+      AppLogger.instance
+          .e('[WAITING] Refresh failed: $e', error: e, stackTrace: st);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -101,36 +107,36 @@ class _WaitingScreenState extends State<WaitingScreen> {
       ),
       body: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.all(16),
+          padding: EdgeInsets.all(16.w),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Card(
                 child: Padding(
-                  padding: EdgeInsets.all(18),
+                  padding: EdgeInsets.all(18.w),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Row(
+                      Row(
                         children: [
                           Expanded(
                             child: Text(
                               'Request sent',
                               style: TextStyle(
-                                fontSize: 18,
+                                fontSize: 18.sp,
                                 fontWeight: FontWeight.w900,
                                 color: AppColors.textPrimary,
                               ),
                             ),
                           ),
-                          SizedBox(width: 12),
+                          SizedBox(width: 12.w),
                           Directionality(
                             textDirection: TextDirection.rtl,
                             child: Text(
                               'درخواست بھیج دی گئی',
                               textAlign: TextAlign.end,
                               style: TextStyle(
-                                fontSize: 13,
+                                fontSize: 13.sp,
                                 fontWeight: FontWeight.w800,
                                 color: AppColors.textSecondary,
                                 height: 1.2,
@@ -139,21 +145,22 @@ class _WaitingScreenState extends State<WaitingScreen> {
                           ),
                         ],
                       ),
-                      const SizedBox(height: 10),
-                      const Text(
+                      SizedBox(height: 10.h),
+                      Text(
                         'Your request has been sent to the admin. Once approved, we’ll automatically move you forward.',
                         style: TextStyle(
                           color: AppColors.textSecondary,
                           height: 1.35,
+                          fontSize: 13.sp,
                         ),
                       ),
-                      const SizedBox(height: 6),
-                      const Directionality(
+                      SizedBox(height: 6.h),
+                      Directionality(
                         textDirection: TextDirection.rtl,
                         child: Text(
                           'آپ کی درخواست ایڈمن کو بھیج دی گئی ہے۔ منظوری کے بعد آپ خودکار طور پر اگلے مرحلے میں چلے جائیں گے۔',
                           style: TextStyle(
-                            fontSize: 12,
+                            fontSize: 12.sp,
                             color: AppColors.textSecondary,
                             height: 1.35,
                           ),
@@ -163,51 +170,53 @@ class _WaitingScreenState extends State<WaitingScreen> {
                   ),
                 ),
               ),
-              const SizedBox(height: 16),
+              SizedBox(height: 16.h),
               DecoratedBox(
                 decoration: BoxDecoration(
                   color: AppColors.surface,
-                  borderRadius: BorderRadius.circular(18),
+                  borderRadius: BorderRadius.circular(18.r),
                   border: Border.all(color: AppColors.border),
                 ),
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+                  padding: EdgeInsets.fromLTRB(16.w, 14.h, 16.w, 14.h),
                   child: Row(
                     children: [
                       Container(
-                        width: 44,
-                        height: 44,
+                        width: 44.w,
+                        height: 44.w,
                         decoration: BoxDecoration(
                           color: AppColors.blue.withValues(alpha: 0.12),
-                          borderRadius: BorderRadius.circular(14),
+                          borderRadius: BorderRadius.circular(14.r),
                         ),
                         child: const Icon(
                           Icons.hourglass_bottom_rounded,
                           color: AppColors.blueDark,
                         ),
                       ),
-                      const SizedBox(width: 12),
+                      SizedBox(width: 12.w),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              _refreshing ? 'Checking status…' : 'Status: Pending',
-                              style: const TextStyle(
+                              _refreshing
+                                  ? 'Checking status…'
+                                  : 'Status: Pending',
+                              style: TextStyle(
                                 color: AppColors.textPrimary,
                                 fontWeight: FontWeight.w900,
-                                fontSize: 16,
+                                fontSize: 16.sp,
                               ),
                             ),
-                            const SizedBox(height: 4),
+                            SizedBox(height: 4.h),
                             Directionality(
                               textDirection: TextDirection.rtl,
                               child: Text(
                                 _refreshing
                                     ? 'اسٹیٹس چیک ہو رہا ہے…'
                                     : 'اسٹیٹس: زیرِ التواء',
-                                style: const TextStyle(
-                                  fontSize: 12,
+                                style: TextStyle(
+                                  fontSize: 12.sp,
                                   color: AppColors.textSecondary,
                                   fontWeight: FontWeight.w700,
                                   height: 1.2,
@@ -223,22 +232,11 @@ class _WaitingScreenState extends State<WaitingScreen> {
               ),
               const Spacer(),
               FilledButton(
-                onPressed: _refreshing ? null : () => unawaited(_refreshStatus()),
+                onPressed:
+                    _refreshing ? null : () => unawaited(_refreshStatus()),
                 child: Text(_refreshing ? 'Refreshing…' : 'Refresh status'),
               ),
-              const SizedBox(height: 8),
-              const Directionality(
-                textDirection: TextDirection.rtl,
-                child: Text(
-                  'اسٹیٹس ریفریش کریں',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: AppColors.textSecondary,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
+              SizedBox(height: 8.h),
             ],
           ),
         ),
@@ -246,4 +244,3 @@ class _WaitingScreenState extends State<WaitingScreen> {
     );
   }
 }
-
