@@ -1,0 +1,84 @@
+{
+  "project_info": {
+    "project_number": "583532200212",
+    "project_id": "blood-donation-a25db",
+    "storage_bucket": "blood-donation-a25db.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:583532200212:android:ba998c8c6efccc29f9c201",
+        "android_client_info": {
+          "package_name": "com.example.blood_donation_app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "583532200212-4pu30p1eku4jt25t6t4nqg39d32opauc.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDALbAKZXTRd0auH7gBEiLid1uqaA_Pwac"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "583532200212-4pu30p1eku4jt25t6t4nqg39d32opauc.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:583532200212:android:68e5977b34fbfec7f9c201",
+        "android_client_info": {
+          "package_name": "com.example.doctor_app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "583532200212-3f8ca58veml3a59govh33iainddiche1.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.doctor_app",
+            "certificate_hash": "a63058f929097749a606d69d3279adaa1726b4c4"
+          }
+        },
+        {
+          "client_id": "583532200212-gnad1ark6bp4etpco7k6r250vjlrmc35.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.doctor_app",
+            "certificate_hash": "85a8b682aab30330051d37ccc07161cc4ee712d0"
+          }
+        },
+        {
+          "client_id": "583532200212-4pu30p1eku4jt25t6t4nqg39d32opauc.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDALbAKZXTRd0auH7gBEiLid1uqaA_Pwac"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "583532200212-4pu30p1eku4jt25t6t4nqg39d32opauc.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

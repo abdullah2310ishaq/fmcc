@@ -1,0 +1,117 @@
+{
+  "info": {
+    "_postman_id": "e6ec7f54-f1ae-4e27-8ca2-94f09d0e098e",
+    "name": "MedicalApi",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "50674501",
+    "_collection_link": "https://go.postman.co/collection/50674501-e6ec7f54-f1ae-4e27-8ca2-94f09d0e098e?source=collection_link"
+  },
+  "item": [
+    {
+      "name": "Google Login",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n    \"IdToken\" : \"eyJhbGciOiJSUzI1NiIsImtpZCI6IjgwNzZkZGJhYjQxNTU1NmUxNjkxNTRjNmE0YTBiZGJkNDQ2OWI3OWMiLCJ0eXAiOiJKV1QifQ.eyJpc3MiOiJodHRwczovL2FjY291bnRzLmdvb2dsZS5jb20iLCJhenAiOiIyNTYxNDA3NzQxNzctdGNhYzVubHJzMDdibW9uMGZlM3R2OWFtZ21nbnViYTcuYXBwcy5nb29nbGV1c2VyY29udGVudC5jb20iLCJhdWQiOiIyNTYxNDA3NzQxNzctdGNhYzVubHJzMDdk2LWMiLCJnaXZlbl9uYW1lIjoiRW1hbiIsImZhbWlseV9uYW1lIjoiQWxpIiwiaWF0IjoxNzc4MTg4ODc0LCJleHAiOjE3NzgxOTI0NzQsImp0aSI6IjcyYjg2MjlhNThiMTE2YTc1ZDA0OTVkNWRlNzA1YTY1MDY4OTUxZTMifQ.nb6QBG9eMAh7DGgNniE2V1bWqrIdPDmJyhdZ2n4qHjeIbQ5vPwjOfBYtUbRbaItwDxjIvxJZEfgeF1U4lg7vxfavU-_N-kuw_zPHR59FzZRMFTa3Lyi3z0ECMQSeZez1ENSEcBo_PjcdwJZGpakIEamifdWDknXsq5Xbd74D2I9Ae3FXV6qVR1DVBDHTqGZ3cpEwXpgXcLpeI0CLqHINTegco54ewr-1x31ck35RO5aHodumvFEwuxpN8F0_0XhFE9O_mQqjOj71rQufaqkG4pg_uLUPw0z1-052dH6T0g7gHPGLySCV9UCwY0rcd9mRZPVvZFsF0xf-_KNMTXG4dA\",\r\n    \"RoleId\" : 2\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "http://aphasia.careho.pk/api/Auth/google-login",
+          "protocol": "http",
+          "host": [
+            "aphasia",
+            "careho",
+            "pk"
+          ],
+          "path": [
+            "api",
+            "Auth",
+            "google-login"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "User Profile",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "eyJhbGciOiJIUzUxMiIsInR5cCI6IkpXVCJ9.eyJuYW1lIjoiMzlCNTlEM0IiLCJJc1ZlcmlmaWVkIjoiVHJ1ZSIsIm5iZiI6MTc3ODE4OTU1NiwiZXhwIjoxNzc4Mjc1OTU2LCJpYXQiOjE3NzgxODk1NTYsImlzcyI6Imh0dHA6Ly9sb2NhbGhvc3Q6NTI0OSIsImF1ZCI6Imh0dHA6Ly9sb2NhbGhvc3Q6NTI0OSJ9.zZwqauwLeM_56haPOFttAiGSKoe394Zo11VRecmJE65hLnKMMFK-0sSdwqpstRaj493C1V7cbp8vVxneaFixfw",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "PUT",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n  \"userId\": \"39B59D3B\",\r\n  \"firstName\": \"Eman\",\r\n  \"lastName\": \"Ali\",\r\n  \"gender\": \"M\",\r\n  \"age\": 18,\r\n  \"cnic\": \"32338-3444556-7\",\r\n  \"phoneNumber\": \"03150415110\",\r\n  \"educationLevelId\": 1,\r\n  \"lhwTrainingCertificate\": \"Certificate\",\r\n  \"provinceId\": 1,\r\n  \"districtId\": 1,\r\n  \"tehsilId\": 1,\r\n  \"address\": \"Address\"\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "http://aphasia.careho.pk//api/Profile/healthworker-profile",
+          "protocol": "http",
+          "host": [
+            "aphasia",
+            "careho",
+            "pk"
+          ],
+          "path": [
+            "",
+            "api",
+            "Profile",
+            "healthworker-profile"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "User Profile",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "eyJhbGciOiJIUzUxMiIsInR5cCI6IkpXVCJ9.eyJuYW1lIjoiMzlCNTlEM0IiLCJJc1ZlcmlmaWVkIjoiVHJ1ZSIsIm5iZiI6MTc3ODE4OTU1NiwiZXhwIjoxNzc4Mjc1OTU2LCJpYXQiOjE3NzgxODk1NTYsImlzcyI6Imh0dHA6Ly9sb2NhbGhvc3Q6NTI0OSIsImF1ZCI6Imh0dHA6Ly9sb2NhbGhvc3Q6NTI0OSJ9.zZwqauwLeM_56haPOFttAiGSKoe394Zo11VRecmJE65hLnKMMFK-0sSdwqpstRaj493C1V7cbp8vVxneaFixfw",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "http://aphasia.careho.pk/api/Profile/health-worker-profile/39B59D3B",
+          "protocol": "http",
+          "host": [
+            "aphasia",
+            "careho",
+            "pk"
+          ],
+          "path": [
+            "api",
+            "Profile",
+            "health-worker-profile",
+            "39B59D3B"
+          ]
+        }
+      },
+      "response": []
+    }
+  ]
+}
