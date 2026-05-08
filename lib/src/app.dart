@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 import 'package:doctor_app/src/core/session/app_session.dart';
 import 'package:doctor_app/src/core/session/session_controller.dart';
@@ -26,11 +27,18 @@ class DoctorApp extends StatelessWidget {
       child: Builder(
         builder: (context) {
           final router = _buildRouter(context.read<SessionController>());
-          return MaterialApp.router(
-            title: 'Doctor App',
-            debugShowCheckedModeBanner: false,
-            theme: AppTheme.light(),
-            routerConfig: router,
+          return ScreenUtilInit(
+            designSize: const Size(375, 812),
+            minTextAdapt: true,
+            splitScreenMode: true,
+            builder: (context, child) {
+              return MaterialApp.router(
+                title: 'Doctor App',
+                debugShowCheckedModeBanner: false,
+                theme: AppTheme.light(),
+                routerConfig: router,
+              );
+            },
           );
         },
       ),

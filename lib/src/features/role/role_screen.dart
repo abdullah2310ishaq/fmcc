@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
-
 import 'package:doctor_app/src/core/session/app_session.dart';
 import 'package:doctor_app/src/core/session/session_controller.dart';
 import 'package:doctor_app/src/core/theme/app_colors.dart';
@@ -17,20 +17,20 @@ class RoleScreen extends StatelessWidget {
     final controller = context.read<SessionController>();
 
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: AppColors.background, // from colors.dart
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(16, 18, 16, 22),
+          padding: EdgeInsets.only(
+            left: 20.w,
+            right: 20.w,
+            top: 24.h,
+            bottom: MediaQuery.of(context).padding.bottom + 20.h,
+          ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              _HeaderCard(
-                titleEn: 'Choose your role',
-                titleUr: 'اپنا کردار منتخب کریں',
-                subtitleEn: 'Select one to continue',
-                subtitleUr: 'جاری رکھنے کے لیے ایک انتخاب کریں',
-              ),
-              const SizedBox(height: 16),
+              const _HeaderCard(),
+              SizedBox(height: 28.h),
               _RoleOptionCard(
                 titleEn: 'Lady Health Worker',
                 titleUr: 'لیڈی ہیلتھ ورکر',
@@ -43,7 +43,7 @@ class RoleScreen extends StatelessWidget {
                   context.go(AuthScreen.routePath);
                 },
               ),
-              const SizedBox(height: 12),
+              SizedBox(height: 16.h),
               _RoleOptionCard(
                 titleEn: 'Doctor',
                 titleUr: 'ڈاکٹر',
@@ -56,7 +56,7 @@ class RoleScreen extends StatelessWidget {
                   context.go(AuthScreen.routePath);
                 },
               ),
-              const SizedBox(height: 18),
+              SizedBox(height: 24.h),
               const _FooterNote(),
             ],
           ),
@@ -67,97 +67,91 @@ class RoleScreen extends StatelessWidget {
 }
 
 class _HeaderCard extends StatelessWidget {
-  const _HeaderCard({
-    required this.titleEn,
-    required this.titleUr,
-    required this.subtitleEn,
-    required this.subtitleUr,
-  });
-
-  final String titleEn;
-  final String titleUr;
-  final String subtitleEn;
-  final String subtitleUr;
+  const _HeaderCard();
 
   @override
   Widget build(BuildContext context) {
-    return DecoratedBox(
+    return Container(
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(18),
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            AppColors.blue.withValues(alpha: 0.10),
-            AppColors.surface,
-          ],
-        ),
+        borderRadius: BorderRadius.circular(24.r),
+        color: AppColors.surface,
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.blue.withValues(alpha: 0.08),
+            blurRadius: 16.r,
+            offset: Offset(0, 4.h),
+          ),
+        ],
         border: Border.all(color: AppColors.border),
       ),
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+        padding: EdgeInsets.all(24.w),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               children: [
                 Container(
-                  width: 44,
-                  height: 44,
+                  width: 56.w,
+                  height: 56.h,
                   decoration: BoxDecoration(
-                    color: AppColors.blue.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(14),
+                    color: AppColors.blue.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(20.r),
                   ),
-                  child: const Icon(
+                  child: Icon(
                     Icons.badge_outlined,
+                    size: 28.sp,
                     color: AppColors.blueDark,
                   ),
                 ),
-                const SizedBox(width: 12),
+                SizedBox(width: 16.w),
                 Expanded(
                   child: Text(
-                    titleEn,
-                    style: const TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.w900,
+                    'Choose your role',
+                    style: TextStyle(
+                      fontSize: 24.sp,
+                      fontWeight: FontWeight.w700,
                       color: AppColors.textPrimary,
-                      letterSpacing: 0.2,
+                      letterSpacing: -0.3,
                     ),
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 10),
+            SizedBox(height: 18.h),
             Directionality(
               textDirection: TextDirection.rtl,
               child: Text(
-                titleUr,
-                style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w800,
+                'اپنا کردار منتخب کریں',
+                style: TextStyle(
+                  fontSize: 20.sp,
+                  fontWeight: FontWeight.w600,
                   color: AppColors.textPrimary,
                   fontFamily: 'NotoNastaliqUrdu',
+                  height: 1.4, // slight spacing, clean
                 ),
               ),
             ),
-            const SizedBox(height: 8),
+            SizedBox(height: 14.h),
             Text(
-              subtitleEn,
-              style: const TextStyle(
+              'Select one to continue',
+              style: TextStyle(
+                fontSize: 14.sp,
                 color: AppColors.textSecondary,
-                height: 1.35,
-                fontWeight: FontWeight.w600,
+                height: 1.4,
+                fontWeight: FontWeight.w500,
               ),
             ),
-            const SizedBox(height: 6),
+            SizedBox(height: 8.h),
             Directionality(
               textDirection: TextDirection.rtl,
               child: Text(
-                subtitleUr,
-                style: const TextStyle(
+                'جاری رکھنے کے لیے ایک انتخاب کریں',
+                style: TextStyle(
+                  fontSize: 14.sp,
                   color: AppColors.textSecondary,
-                  height: 1.35,
-                  fontWeight: FontWeight.w600,
+                  height: 1.4,
+                  fontWeight: FontWeight.w500,
                   fontFamily: 'NotoNastaliqUrdu',
                 ),
               ),
@@ -189,70 +183,86 @@ class _RoleOptionCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: AppColors.surface,
-      borderRadius: BorderRadius.circular(18),
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(20.r),
       child: InkWell(
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(20.r),
         onTap: onTap,
+        splashColor: AppColors.blue.withValues(alpha: 0.08),
+        highlightColor: AppColors.blue.withValues(alpha: 0.04),
         child: Container(
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(18),
+            color: AppColors.surface,
+            borderRadius: BorderRadius.circular(20.r),
             border: Border.all(color: AppColors.border),
+            boxShadow: [
+              BoxShadow(
+                color: AppColors.blue.withValues(alpha: 0.04),
+                blurRadius: 8.r,
+                offset: Offset(0, 2.h),
+              ),
+            ],
           ),
-          padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
+          padding: EdgeInsets.all(18.w),
           child: Row(
             children: [
               Container(
-                width: 52,
-                height: 52,
+                width: 60.w,
+                height: 60.h,
                 decoration: BoxDecoration(
-                  color: AppColors.blue.withValues(alpha: 0.10),
-                  borderRadius: BorderRadius.circular(16),
+                  color: AppColors.blue.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(18.r),
                 ),
-                child: Icon(icon, color: AppColors.blueDark),
+                child: Icon(icon, size: 30.sp, color: AppColors.blueDark),
               ),
-              const SizedBox(width: 12),
+              SizedBox(width: 16.w),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       titleEn,
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w900,
+                      style: TextStyle(
+                        fontSize: 18.sp,
+                        fontWeight: FontWeight.w700,
                         color: AppColors.textPrimary,
+                        letterSpacing: -0.2,
                       ),
                     ),
-                    const SizedBox(height: 4),
+                    SizedBox(height: 4.h),
                     Directionality(
                       textDirection: TextDirection.rtl,
                       child: Text(
                         titleUr,
-                        style: const TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w800,
+                        style: TextStyle(
+                          fontSize: 16.sp,
+                          fontWeight: FontWeight.w600,
                           color: AppColors.textPrimary,
                           fontFamily: 'NotoNastaliqUrdu',
+                          height: 1.4, // clean, not too loose
                         ),
                       ),
                     ),
-                    const SizedBox(height: 6),
+                    SizedBox(height: 12.h),
                     Text(
                       subtitleEn,
-                      style: const TextStyle(
+                      style: TextStyle(
+                        fontSize: 13.sp,
                         color: AppColors.textSecondary,
-                        height: 1.3,
+                        height: 1.4,
+                        fontWeight: FontWeight.w500,
                       ),
                     ),
-                    const SizedBox(height: 4),
+                    SizedBox(height: 6.h),
                     Directionality(
                       textDirection: TextDirection.rtl,
                       child: Text(
                         subtitleUr,
-                        style: const TextStyle(
+                        style: TextStyle(
+                          fontSize: 13.sp,
                           color: AppColors.textSecondary,
-                          height: 1.3,
+                          height: 1.4,
+                          fontWeight: FontWeight.w500,
                           fontFamily: 'NotoNastaliqUrdu',
                         ),
                       ),
@@ -260,16 +270,17 @@ class _RoleOptionCard extends StatelessWidget {
                   ],
                 ),
               ),
-              const SizedBox(width: 10),
+              SizedBox(width: 12.w),
               Container(
-                width: 34,
-                height: 34,
+                width: 34.w,
+                height: 34.h,
                 decoration: BoxDecoration(
-                  color: AppColors.blue.withValues(alpha: 0.08),
-                  borderRadius: BorderRadius.circular(12),
+                  color: AppColors.blue.withValues(alpha: 0.06),
+                  borderRadius: BorderRadius.circular(12.r),
                 ),
-                child: const Icon(
-                  Icons.chevron_right_rounded,
+                child: Icon(
+                  Icons.arrow_forward_rounded,
+                  size: 20.sp,
                   color: AppColors.blueDark,
                 ),
               ),
@@ -286,34 +297,53 @@ class _FooterNote extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return DecoratedBox(
+    return Container(
       decoration: BoxDecoration(
         color: AppColors.surface,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(18.r),
         border: Border.all(color: AppColors.border),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.blue.withValues(alpha: 0.04),
+            blurRadius: 6.r,
+            offset: Offset(0, 2.h),
+          ),
+        ],
       ),
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: const [
-            Text(
-              'Tip: You can change your role later from settings.',
-              style: TextStyle(
-                color: AppColors.textSecondary,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            SizedBox(height: 6),
-            Directionality(
-              textDirection: TextDirection.rtl,
-              child: Text(
-                'ٹِپ: آپ بعد میں سیٹنگز سے اپنا کردار تبدیل کر سکتے ہیں۔',
-                style: TextStyle(
-                  color: AppColors.textSecondary,
-                  fontWeight: FontWeight.w600,
-                  fontFamily: 'NotoNastaliqUrdu',
-                ),
+        padding: EdgeInsets.symmetric(horizontal: 18.w, vertical: 14.h),
+        child: Row(
+          children: [
+            Icon(Icons.lightbulb_outline,
+                size: 20.sp, color: AppColors.blueDark),
+            SizedBox(width: 12.w),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Tip: You can change your role later from settings.',
+                    style: TextStyle(
+                      fontSize: 13.sp,
+                      color: AppColors.textSecondary,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  SizedBox(height: 6.h),
+                  Directionality(
+                    textDirection: TextDirection.rtl,
+                    child: Text(
+                      'ٹِپ: آپ بعد میں سیٹنگز سے اپنا کردار تبدیل کر سکتے ہیں۔',
+                      style: TextStyle(
+                        fontSize: 13.sp,
+                        color: AppColors.textSecondary,
+                        fontWeight: FontWeight.w500,
+                        fontFamily: 'NotoNastaliqUrdu',
+                        height: 1.4,
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
