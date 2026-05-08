@@ -71,50 +71,34 @@ class _AuthScreenState extends State<AuthScreen> {
       appBar: AppBar(
         elevation: 0,
         backgroundColor: Colors.transparent,
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Welcome',
-              style: TextStyle(
-                fontSize: 18.sp,
-                fontWeight: FontWeight.w800,
-                color: AppColors.textPrimary,
-              ),
-            ),
-            const SizedBox(height: 2),
-            const Directionality(
-              textDirection: TextDirection.rtl,
-              child: Text(
-                'خوش آمدید',
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.textSecondary,
-                ),
-              ),
-            ),
-          ],
-        ),
-        centerTitle: false,
-        actions: [
-          TextButton(
+        automaticallyImplyLeading: false,
+        titleSpacing: 0,
+        title: Center(
+          child: TextButton(
             onPressed: _busy
                 ? null
                 : () async {
                     await controller.logout(keepRole: false);
                   },
+            style: TextButton.styleFrom(
+              padding: EdgeInsets.zero,
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              minimumSize: Size.zero,
+            ),
             child: Text(
-              'Change role • کردار تبدیل کریں',
+              'Change role / کردار تبدیل کریں',
+              textAlign: TextAlign.center,
               style: TextStyle(
-                fontSize: 14.sp,
-                fontWeight: FontWeight.w600,
+                fontSize: 13.sp,
+                fontWeight: FontWeight.w800,
                 color: AppColors.blueDark,
+                height: 1.15,
               ),
             ),
           ),
-          SizedBox(width: 8.w),
-        ],
+        ),
+        centerTitle: true,
+        actions: const [],
       ),
       body: SafeArea(
         child: SingleChildScrollView(
