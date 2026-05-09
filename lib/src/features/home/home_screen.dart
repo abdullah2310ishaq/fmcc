@@ -165,63 +165,71 @@ class HomeScreen extends StatelessWidget {
                           ),
                         ),
                       ),
-                      SizedBox(height: 18.h),
-                      Material(
-                        color: AppColors.background,
-                        borderRadius: BorderRadius.circular(12.r),
-                        child: InkWell(
-                          onTap: () => context.push(ProfileViewScreen.routePath),
-                          borderRadius: BorderRadius.circular(12.r),
-                          splashColor: AppColors.blue.withValues(alpha: 0.12),
-                          highlightColor: AppColors.blue.withValues(alpha: 0.06),
-                          child: Padding(
-                            padding: EdgeInsets.symmetric(horizontal: 14.w, vertical: 14.h),
-                            child: Row(
-                              children: [
-                                Container(
-                                  padding: EdgeInsets.all(10.r),
-                                  decoration: BoxDecoration(
-                                    color: AppColors.blue.withValues(alpha: 0.12),
-                                    borderRadius: BorderRadius.circular(10.r),
-                                  ),
-                                  child: Icon(
-                                    Icons.person_rounded,
-                                    color: AppColors.blue,
-                                    size: 22.sp,
-                                  ),
-                                ),
-                                SizedBox(width: 12.w),
-                                Expanded(
-                                  child: Text(
-                                    'Profile',
-                                    style: TextStyle(
-                                      fontSize: 16.sp,
-                                      fontWeight: FontWeight.w800,
-                                      color: AppColors.textPrimary,
-                                    ),
-                                  ),
-                                ),
-                                Text(
-                                  'پروفائل',
-                                  style: TextStyle(
-                                    fontSize: 13.sp,
-                                    fontWeight: FontWeight.w700,
-                                    color: AppColors.textSecondary,
-                                    height: 1.15,
-                                  ),
-                                ),
-                                SizedBox(width: 4.w),
-                                Icon(
-                                  Icons.chevron_right_rounded,
-                                  color: AppColors.textSecondary,
-                                  size: 26.sp,
-                                ),
-                              ],
+                    ],
+                  ),
+                ),
+              ),
+              SizedBox(height: 14.h),
+              Card(
+                elevation: 0,
+                color: AppColors.surface,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16.r),
+                  side: const BorderSide(color: AppColors.border),
+                ),
+                child: Material(
+                  color: Colors.transparent,
+                  borderRadius: BorderRadius.circular(16.r),
+                  child: InkWell(
+                    onTap: () => context.push(ProfileViewScreen.routePath),
+                    borderRadius: BorderRadius.circular(16.r),
+                    splashColor: AppColors.blue.withValues(alpha: 0.12),
+                    highlightColor: AppColors.blue.withValues(alpha: 0.06),
+                    child: Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 16.h),
+                      child: Row(
+                        children: [
+                          Container(
+                            padding: EdgeInsets.all(10.r),
+                            decoration: BoxDecoration(
+                              color: AppColors.blue.withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(10.r),
+                            ),
+                            child: Icon(
+                              Icons.person_rounded,
+                              color: AppColors.blue,
+                              size: 22.sp,
                             ),
                           ),
-                        ),
+                          SizedBox(width: 12.w),
+                          Expanded(
+                            child: Text(
+                              'Profile',
+                              style: TextStyle(
+                                fontSize: 16.sp,
+                                fontWeight: FontWeight.w800,
+                                color: AppColors.textPrimary,
+                              ),
+                            ),
+                          ),
+                          Text(
+                            'پروفائل',
+                            style: TextStyle(
+                              fontSize: 13.sp,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.textSecondary,
+                              height: 1.15,
+                            ),
+                          ),
+                          SizedBox(width: 4.w),
+                          Icon(
+                            Icons.chevron_right_rounded,
+                            color: AppColors.textSecondary,
+                            size: 26.sp,
+                          ),
+                        ],
                       ),
-                    ],
+                    ),
                   ),
                 ),
               ),

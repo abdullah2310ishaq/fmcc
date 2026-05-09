@@ -106,170 +106,176 @@ class _AuthScreenState extends State<AuthScreen> {
         actions: const [],
       ),
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: EdgeInsets.symmetric(horizontal: 20.w, vertical: 16.h),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // Hero / Illustration area
-              _buildHeaderIllustration(),
-              SizedBox(height: 24.h),
+        child: Stack(
+          children: [
+            SingleChildScrollView(
+              padding: EdgeInsets.symmetric(horizontal: 20.w, vertical: 16.h),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // Hero / Illustration area
+                  _buildHeaderIllustration(),
+                  SizedBox(height: 24.h),
 
-              // Role card
-              Container(
-                decoration: BoxDecoration(
-                  color: AppColors.surface,
-                  borderRadius: BorderRadius.circular(20.r),
-                  border: Border.all(color: AppColors.border),
-                  boxShadow: [
-                    BoxShadow(
-                      color: AppColors.blue.withValues(alpha: 0.04),
-                      blurRadius: 12.r,
-                      offset: Offset(0, 4.h),
+                  // Role card
+                  Container(
+                    decoration: BoxDecoration(
+                      color: AppColors.surface,
+                      borderRadius: BorderRadius.circular(20.r),
+                      border: Border.all(color: AppColors.border),
+                      boxShadow: [
+                        BoxShadow(
+                          color: AppColors.blue.withValues(alpha: 0.04),
+                          blurRadius: 12.r,
+                          offset: Offset(0, 4.h),
+                        ),
+                      ],
                     ),
-                  ],
-                ),
-                child: Padding(
-                  padding: EdgeInsets.all(20.w),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Container(
-                            width: 48.w,
-                            height: 48.h,
-                            decoration: BoxDecoration(
-                              color: AppColors.blue.withValues(alpha: 0.1),
-                              borderRadius: BorderRadius.circular(16.r),
-                            ),
-                            child: Icon(
-                              role == UserRole.doctor
-                                  ? Icons.local_hospital_outlined
-                                  : Icons.health_and_safety_outlined,
-                              size: 28.sp,
-                              color: AppColors.blueDark,
-                            ),
-                          ),
-                          SizedBox(width: 16.w),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'Selected Role',
-                                  style: TextStyle(
-                                    fontSize: 12.sp,
-                                    fontWeight: FontWeight.w600,
-                                    color: AppColors.textSecondary,
-                                    letterSpacing: 0.5,
-                                  ),
-                                ),
-                                const SizedBox(height: 2),
-                                const Directionality(
-                                  textDirection: TextDirection.rtl,
-                                  child: Text(
-                                    'منتخب کردہ کردار',
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w700,
-                                      color: AppColors.textSecondary,
-                                    ),
-                                  ),
-                                ),
-                                SizedBox(height: 4.h),
-                                Text(
-                                  role == UserRole.doctor
-                                      ? 'Doctor'
-                                      : 'Lady Health Worker',
-                                  style: TextStyle(
-                                    fontSize: 18.sp,
-                                    fontWeight: FontWeight.w800,
-                                    color: AppColors.textPrimary,
-                                  ),
-                                ),
-                                const SizedBox(height: 2),
-                                Directionality(
-                                  textDirection: TextDirection.rtl,
-                                  child: Text(
-                                    role == UserRole.doctor
-                                        ? 'ڈاکٹر'
-                                        : 'لیڈی ہیلتھ ورکر',
-                                    style: TextStyle(
-                                      fontSize: 14.sp,
-                                      fontWeight: FontWeight.w800,
-                                      color: AppColors.textPrimary,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                      SizedBox(height: 16.h),
-                    ],
-                  ),
-                ),
-              ),
-
-              SizedBox(height: 28.h),
-
-              // Login button with Google icon
-              _buildGoogleButton(
-                onPressed: _busy ? null : () => unawaited(_handleLogin()),
-                text: 'Continue with Google',
-                isLoading: _busy,
-              ),
-
-              SizedBox(height: 32.h),
-
-              // Info note
-              Container(
-                padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 12.h),
-                decoration: BoxDecoration(
-                  color: AppColors.blue.withValues(alpha: 0.05),
-                  borderRadius: BorderRadius.circular(16.r),
-                ),
-                child: Row(
-                  children: [
-                    Icon(Icons.shield_outlined,
-                        size: 20.sp, color: AppColors.blueDark),
-                    SizedBox(width: 12.w),
-                    Expanded(
+                    child: Padding(
+                      padding: EdgeInsets.all(20.w),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
-                            'After continuing, your request goes to admin for approval.',
-                            style: TextStyle(
-                              fontSize: 12.sp,
-                              color: AppColors.textSecondary,
-                              height: 1.4,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Directionality(
-                            textDirection: TextDirection.rtl,
-                            child: Text(
-                              'جاری رکھنے کے بعد آپ کی درخواست منظوری کے لیے ایڈمن کے پاس جائے گی۔',
-                              style: TextStyle(
-                                fontSize: 12.sp,
-                                color: AppColors.textSecondary,
-                                height: 1.4,
+                          Row(
+                            children: [
+                              Container(
+                                width: 48.w,
+                                height: 48.h,
+                                decoration: BoxDecoration(
+                                  color: AppColors.blue.withValues(alpha: 0.1),
+                                  borderRadius: BorderRadius.circular(16.r),
+                                ),
+                                child: Icon(
+                                  role == UserRole.doctor
+                                      ? Icons.local_hospital_outlined
+                                      : Icons.health_and_safety_outlined,
+                                  size: 28.sp,
+                                  color: AppColors.blueDark,
+                                ),
                               ),
-                            ),
+                              SizedBox(width: 16.w),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Selected Role',
+                                      style: TextStyle(
+                                        fontSize: 12.sp,
+                                        fontWeight: FontWeight.w600,
+                                        color: AppColors.textSecondary,
+                                        letterSpacing: 0.5,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    const Directionality(
+                                      textDirection: TextDirection.rtl,
+                                      child: Text(
+                                        'منتخب کردہ کردار',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w700,
+                                          color: AppColors.textSecondary,
+                                        ),
+                                      ),
+                                    ),
+                                    SizedBox(height: 4.h),
+                                    Text(
+                                      role == UserRole.doctor
+                                          ? 'Doctor'
+                                          : 'Lady Health Worker',
+                                      style: TextStyle(
+                                        fontSize: 18.sp,
+                                        fontWeight: FontWeight.w800,
+                                        color: AppColors.textPrimary,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Directionality(
+                                      textDirection: TextDirection.rtl,
+                                      child: Text(
+                                        role == UserRole.doctor
+                                            ? 'ڈاکٹر'
+                                            : 'لیڈی ہیلتھ ورکر',
+                                        style: TextStyle(
+                                          fontSize: 14.sp,
+                                          fontWeight: FontWeight.w800,
+                                          color: AppColors.textPrimary,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
                           ),
+                          SizedBox(height: 16.h),
                         ],
                       ),
                     ),
-                  ],
-                ),
-              ),
+                  ),
 
-              SizedBox(height: 20.h),
-            ],
-          ),
+                  SizedBox(height: 28.h),
+
+                  // Login button with Google icon
+                  _buildGoogleButton(
+                    onPressed: _busy ? null : () => unawaited(_handleLogin()),
+                    text: 'Continue with Google',
+                    isLoading: _busy,
+                  ),
+
+                  SizedBox(height: 32.h),
+
+                  // Info note
+                  Container(
+                    padding:
+                        EdgeInsets.symmetric(horizontal: 16.w, vertical: 12.h),
+                    decoration: BoxDecoration(
+                      color: AppColors.blue.withValues(alpha: 0.05),
+                      borderRadius: BorderRadius.circular(16.r),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.shield_outlined,
+                            size: 20.sp, color: AppColors.blueDark),
+                        SizedBox(width: 12.w),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'After continuing, your request goes to admin for approval.',
+                                style: TextStyle(
+                                  fontSize: 12.sp,
+                                  color: AppColors.textSecondary,
+                                  height: 1.4,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Directionality(
+                                textDirection: TextDirection.rtl,
+                                child: Text(
+                                  'جاری رکھنے کے بعد آپ کی درخواست منظوری کے لیے ایڈمن کے پاس جائے گی۔',
+                                  style: TextStyle(
+                                    fontSize: 12.sp,
+                                    color: AppColors.textSecondary,
+                                    height: 1.4,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  SizedBox(height: 20.h),
+                ],
+              ),
+            ),
+            if (_busy) const _SigningInOverlay(),
+          ],
         ),
       ),
     );
@@ -493,6 +499,8 @@ class _AuthScreenState extends State<AuthScreen> {
       if (!mounted) return;
       AppLogger.instance
           .e('[AUTH] Sign-in failed: $e', error: e, stackTrace: st);
+
+      final friendly = _friendlyBackendError(e);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Column(
@@ -508,7 +516,7 @@ class _AuthScreenState extends State<AuthScreen> {
               ),
               const SizedBox(height: 6),
               Text(
-                e.toString(),
+                friendly ?? e.toString(),
                 style: TextStyle(
                   fontSize: 11.sp,
                   color: Colors.white.withValues(alpha: 0.9),
@@ -526,6 +534,20 @@ class _AuthScreenState extends State<AuthScreen> {
     } finally {
       if (mounted) setState(() => _busy = false);
     }
+  }
+
+  static String? _friendlyBackendError(Object error) {
+    final msg = error.toString();
+    final m = msg.toLowerCase();
+
+    // Backend DB constraint error when creating a new health worker row.
+    if (m.contains('violation of unique key constraint') &&
+        m.contains('healthworkers')) {
+      return 'Server issue while creating profile. Please contact admin/support.\n'
+          'سرور پر پروفائل بناتے وقت مسئلہ آیا ہے۔ براہِ کرم ایڈمن/سپورٹ سے رابطہ کریں۔';
+    }
+
+    return null;
   }
 
   static Map<String, dynamic>? _tryDecodeJwtPayload(String jwt) {
@@ -556,5 +578,74 @@ class _AuthScreenState extends State<AuthScreen> {
     }
     final msg = e.message?.trim();
     return 'Google sign-in failed ($code)${msg == null || msg.isEmpty ? '' : ': $msg'}';
+  }
+}
+
+class _SigningInOverlay extends StatelessWidget {
+  const _SigningInOverlay();
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned.fill(
+      child: ColoredBox(
+        color: Colors.black.withValues(alpha: 0.28),
+        child: Center(
+          child: Container(
+            margin: EdgeInsets.symmetric(horizontal: 22.w),
+            padding: EdgeInsets.fromLTRB(18.w, 18.h, 18.w, 16.h),
+            decoration: BoxDecoration(
+              color: AppColors.surface,
+              borderRadius: BorderRadius.circular(18.r),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.08),
+                  blurRadius: 18,
+                  offset: const Offset(0, 10),
+                ),
+              ],
+            ),
+            child: Row(
+              children: [
+                SizedBox(
+                  width: 22.r,
+                  height: 22.r,
+                  child: const CircularProgressIndicator(
+                    strokeWidth: 2.5,
+                    color: AppColors.blue,
+                  ),
+                ),
+                SizedBox(width: 12.w),
+                Expanded(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Signing in…',
+                        style: TextStyle(
+                          fontSize: 14.sp,
+                          fontWeight: FontWeight.w800,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                      SizedBox(height: 3.h),
+                      Text(
+                        'سائن اِن ہو رہا ہے…',
+                        style: TextStyle(
+                          fontSize: 11.sp,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.textSecondary,
+                          height: 1.25,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }

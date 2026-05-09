@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 
 import 'package:doctor_app/src/core/session/session_controller.dart';
 import 'package:doctor_app/src/core/theme/app_colors.dart';
+import 'package:doctor_app/src/features/profile/edit_profile_screen.dart';
 import 'package:doctor_app/src/features/profile/health_worker_profile_models.dart';
 
 /// Full profile from API — bilingual headings (English + Urdu).
@@ -65,6 +66,18 @@ class _ProfileViewScreenState extends State<ProfileViewScreen> {
         ),
         title: _HeadingPair(en: 'Profile', ur: 'پروفائل'),
         centerTitle: true,
+        actions: [
+          IconButton(
+            tooltip: 'Edit • ترمیم',
+            onPressed: () => context.push(EditProfileScreen.routePath),
+            icon: Icon(
+              Icons.edit_rounded,
+              size: 20.sp,
+              color: AppColors.blueDark,
+            ),
+          ),
+          SizedBox(width: 4.w),
+        ],
       ),
       body: RefreshIndicator(
         color: AppColors.blue,

@@ -9,6 +9,7 @@ import 'package:doctor_app/src/core/theme/app_theme.dart';
 import 'package:doctor_app/src/features/approval/waiting_screen.dart';
 import 'package:doctor_app/src/features/auth/auth_screen.dart';
 import 'package:doctor_app/src/features/home/home_screen.dart';
+import 'package:doctor_app/src/features/profile/edit_profile_screen.dart';
 import 'package:doctor_app/src/features/profile/profile_view_screen.dart';
 import 'package:doctor_app/src/features/profile/registration_details_screen.dart';
 import 'package:doctor_app/src/features/role/role_screen.dart';
@@ -125,6 +126,10 @@ GoRouter _buildRouter(SessionController sessionController) {
         path: ProfileViewScreen.routePath,
         builder: (context, state) => const ProfileViewScreen(),
       ),
+      GoRoute(
+        path: EditProfileScreen.routePath,
+        builder: (context, state) => const EditProfileScreen(),
+      ),
     ],
     redirect: (context, state) {
       final session = sessionController.state;
@@ -139,7 +144,9 @@ GoRouter _buildRouter(SessionController sessionController) {
       final dest = _sessionDestination(session);
 
       // Allow `/profile` whenever user is allowed on home (avoid matchedLocation mismatch).
-      if (dest == HomeScreen.routePath && loc == ProfileViewScreen.routePath) {
+      if (dest == HomeScreen.routePath &&
+          (loc == ProfileViewScreen.routePath ||
+              loc == EditProfileScreen.routePath)) {
         return null;
       }
 

@@ -64,33 +64,21 @@ class SessionController extends ChangeNotifier {
       final approval =
           session.isVerified ? ApprovalStatus.approved : ApprovalStatus.pending;
 
-      await _setState(
-        _state.copyWith(
-          isSignedIn: true,
-          approvalStatus: approval,
-          showDeclinedMessageOnce: false,
-          userId: session.userId,
-          accessToken: session.accessToken,
-        ),
-      );
-
-      // If the backend already has a completed profile, don't send user to the form.
-      // This matters after reinstall / cleared prefs where local "registrationDetails"
-      // might be empty but server profile is present.
+      // Avoid route flicker: compute final "registration complete" before first notifyListeners().
+      RegistrationDetails? nextDetails;
       if (approval == ApprovalStatus.approved) {
         try {
-          final existing = await fetchHealthWorkerProfile();
+          final existing = await _profileApi.getHealthWorkerProfile(
+            userId: session.userId,
+            bearerToken: session.accessToken,
+          );
           if (existing != null) {
             final fullName = '${existing.firstName} ${existing.lastName}'.trim();
             final phone = existing.phoneNumber.trim();
             if (fullName.isNotEmpty && phone.isNotEmpty) {
-              await _setState(
-                _state.copyWith(
-                  registrationDetails: _state.registrationDetails.copyWith(
-                    fullName: fullName,
-                    phone: phone,
-                  ),
-                ),
+              nextDetails = _state.registrationDetails.copyWith(
+                fullName: fullName,
+                phone: phone,
               );
             }
           }
@@ -98,6 +86,17 @@ class SessionController extends ChangeNotifier {
           // If prefill fails, fallback to current redirect behavior.
         }
       }
+
+      await _setState(
+        _state.copyWith(
+          isSignedIn: true,
+          approvalStatus: approval,
+          showDeclinedMessageOnce: false,
+          userId: session.userId,
+          accessToken: session.accessToken,
+          registrationDetails: nextDetails ?? _state.registrationDetails,
+        ),
+      );
     } catch (e) {
       throw _apiClient.mapError(e);
     }
