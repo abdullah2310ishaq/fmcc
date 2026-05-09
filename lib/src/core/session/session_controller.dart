@@ -73,6 +73,31 @@ class SessionController extends ChangeNotifier {
           accessToken: session.accessToken,
         ),
       );
+
+      // If the backend already has a completed profile, don't send user to the form.
+      // This matters after reinstall / cleared prefs where local "registrationDetails"
+      // might be empty but server profile is present.
+      if (approval == ApprovalStatus.approved) {
+        try {
+          final existing = await fetchHealthWorkerProfile();
+          if (existing != null) {
+            final fullName = '${existing.firstName} ${existing.lastName}'.trim();
+            final phone = existing.phoneNumber.trim();
+            if (fullName.isNotEmpty && phone.isNotEmpty) {
+              await _setState(
+                _state.copyWith(
+                  registrationDetails: _state.registrationDetails.copyWith(
+                    fullName: fullName,
+                    phone: phone,
+                  ),
+                ),
+              );
+            }
+          }
+        } catch (_) {
+          // If prefill fails, fallback to current redirect behavior.
+        }
+      }
     } catch (e) {
       throw _apiClient.mapError(e);
     }

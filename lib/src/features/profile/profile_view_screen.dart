@@ -175,7 +175,7 @@ class _ProfileViewScreenState extends State<ProfileViewScreen> {
               ur: 'تصدیق شدہ',
               value: p.isVerified ? 'Yes / ہاں' : 'No / نہیں',
             ),
-            _FieldRow(en: 'Joined', ur: 'شمولیت', value: _val(p.joinedDate)),
+            _FieldRow(en: 'Joined', ur: 'شمولیت', value: _joinedLabel(p.joinedDate)),
           ],
         ),
         SizedBox(height: 14.h),
@@ -253,6 +253,57 @@ class _ProfileViewScreenState extends State<ProfileViewScreen> {
         return '—';
       default:
         return g.trim();
+    }
+  }
+
+  static String _joinedLabel(String? raw) {
+    final s = raw?.trim();
+    if (s == null || s.isEmpty) return '—';
+
+    final dt = DateTime.tryParse(s);
+    if (dt == null) return s; // fallback: show raw string
+
+    final local = dt.toLocal();
+    final day = local.day.toString().padLeft(2, '0');
+    final month = _monthShort(local.month);
+    final year = local.year.toString();
+
+    final hour12 = ((local.hour + 11) % 12) + 1;
+    final minute = local.minute.toString().padLeft(2, '0');
+    final ampm = local.hour >= 12 ? 'PM' : 'AM';
+
+    // Example: 08 May 2026 • 09:47 PM
+    return '$day $month $year • ${hour12.toString().padLeft(2, '0')}:$minute $ampm';
+  }
+
+  static String _monthShort(int m) {
+    switch (m) {
+      case 1:
+        return 'Jan';
+      case 2:
+        return 'Feb';
+      case 3:
+        return 'Mar';
+      case 4:
+        return 'Apr';
+      case 5:
+        return 'May';
+      case 6:
+        return 'Jun';
+      case 7:
+        return 'Jul';
+      case 8:
+        return 'Aug';
+      case 9:
+        return 'Sep';
+      case 10:
+        return 'Oct';
+      case 11:
+        return 'Nov';
+      case 12:
+        return 'Dec';
+      default:
+        return '';
     }
   }
 
