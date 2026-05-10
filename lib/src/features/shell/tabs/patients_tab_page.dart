@@ -415,59 +415,7 @@ class _PatientsTabPageState extends State<PatientsTabPage> {
               ),
             ),
           ),
-          Padding(
-            padding: EdgeInsets.fromLTRB(24.w, 10.h, 24.w, 8.h),
-            child: Row(
-              children: [
-                Icon(
-                  Icons.keyboard_arrow_left_rounded,
-                  size: 18.sp,
-                  color: AppColors.textSecondary.withValues(alpha: 0.65),
-                ),
-                Expanded(
-                  child: LayoutBuilder(
-                    builder: (context, c) {
-                      final w = c.maxWidth;
-                      final thumbW = w * 0.38;
-                      return Stack(
-                        clipBehavior: Clip.none,
-                        children: [
-                          Center(
-                            child: Container(
-                              width: w,
-                              height: 3.h,
-                              decoration: BoxDecoration(
-                                color: AppColors.border,
-                                borderRadius: BorderRadius.circular(99),
-                              ),
-                            ),
-                          ),
-                          Positioned(
-                            left: (w - thumbW) / 2,
-                            top: -1,
-                            child: Container(
-                              width: thumbW,
-                              height: 5.h,
-                              decoration: BoxDecoration(
-                                color: AppColors.textSecondary
-                                    .withValues(alpha: 0.35),
-                                borderRadius: BorderRadius.circular(99),
-                              ),
-                            ),
-                          ),
-                        ],
-                      );
-                    },
-                  ),
-                ),
-                Icon(
-                  Icons.keyboard_arrow_right_rounded,
-                  size: 18.sp,
-                  color: AppColors.textSecondary.withValues(alpha: 0.65),
-                ),
-              ],
-            ),
-          ),
+          SizedBox(height: 14.h),
           Expanded(
             child: visible.isEmpty
                 ? Center(
@@ -482,7 +430,7 @@ class _PatientsTabPageState extends State<PatientsTabPage> {
                     ),
                   )
                 : ListView.builder(
-                    padding: EdgeInsets.fromLTRB(16.w, 4.h, 16.w, 96.h),
+                    padding: EdgeInsets.fromLTRB(16.w, 2.h, 16.w, 96.h),
                     itemCount: visible.length,
                     itemBuilder: (context, index) {
                       final p = visible[index];
@@ -490,7 +438,7 @@ class _PatientsTabPageState extends State<PatientsTabPage> {
                       final (tag, avatarBg) = p.palette;
 
                       return Padding(
-                        padding: EdgeInsets.only(bottom: 10.h),
+                        padding: EdgeInsets.only(bottom: 14.h),
                         child: Material(
                           color: AppColors.surface,
                           borderRadius: BorderRadius.circular(16.r),

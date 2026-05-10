@@ -10,7 +10,6 @@ import 'package:provider/provider.dart';
 
 import 'package:doctor_app/src/core/auth/google_sign_in_config.dart';
 import 'package:doctor_app/src/core/logging/app_logger.dart';
-import 'package:doctor_app/src/core/session/app_session.dart';
 import 'package:doctor_app/src/core/session/session_controller.dart';
 import 'package:doctor_app/src/core/theme/app_colors.dart';
 
@@ -21,6 +20,128 @@ class AuthScreen extends StatefulWidget {
 
   @override
   State<AuthScreen> createState() => _AuthScreenState();
+}
+
+class _AuthBodyCurveClipper extends CustomClipper<Path> {
+  const _AuthBodyCurveClipper();
+
+  @override
+  Path getClip(Size size) {
+    final path = Path()
+      ..moveTo(0, 28)
+      ..quadraticBezierTo(size.width / 2, -22, size.width, 28)
+      ..lineTo(size.width, size.height)
+      ..lineTo(0, size.height)
+      ..close();
+    return path;
+  }
+
+  @override
+  bool shouldReclip(covariant CustomClipper<Path> oldClipper) => false;
+}
+
+class _HealthWorkerIllustration extends StatelessWidget {
+  const _HealthWorkerIllustration();
+
+  @override
+  Widget build(BuildContext context) {
+    final mutedWhite = AppColors.surface.withValues(alpha: 0.22);
+    final brightWhite = AppColors.surface.withValues(alpha: 0.34);
+
+    return SizedBox(
+      width: 190.w,
+      height: 98.h,
+      child: Stack(
+        alignment: Alignment.bottomCenter,
+        children: [
+          Positioned(
+            bottom: 0,
+            child: Container(
+              width: 180.w,
+              height: 20.h,
+              decoration: BoxDecoration(
+                color: AppColors.surface.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(999),
+              ),
+            ),
+          ),
+          Positioned(
+            bottom: 22.h,
+            left: 66.w,
+            child: Container(
+              width: 50.w,
+              height: 64.h,
+              decoration: BoxDecoration(
+                color: brightWhite,
+                borderRadius: BorderRadius.circular(8.r),
+              ),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Container(
+                    width: 14.w,
+                    height: 8.h,
+                    decoration: BoxDecoration(
+                      color: AppColors.surface.withValues(alpha: 0.55),
+                      borderRadius: BorderRadius.circular(2.r),
+                    ),
+                  ),
+                  SizedBox(height: 7.h),
+                  Container(width: 18.w, height: 4.h, color: mutedWhite),
+                  SizedBox(height: 5.h),
+                  Container(width: 14.w, height: 4.h, color: mutedWhite),
+                  SizedBox(height: 5.h),
+                  Container(width: 18.w, height: 4.h, color: mutedWhite),
+                ],
+              ),
+            ),
+          ),
+          Positioned(
+            bottom: 82.h,
+            left: 84.w,
+            child: Container(
+              width: 14.w,
+              height: 20.h,
+              decoration: BoxDecoration(
+                color: brightWhite,
+                borderRadius: BorderRadius.circular(999),
+              ),
+            ),
+          ),
+          Positioned(
+            bottom: 30.h,
+            left: 28.w,
+            child: Icon(
+              Icons.person_rounded,
+              size: 42.sp,
+              color: mutedWhite,
+            ),
+          ),
+          Positioned(
+            bottom: 45.h,
+            left: 36.w,
+            child: CircleAvatar(
+              radius: 7.r,
+              backgroundColor: brightWhite,
+            ),
+          ),
+          Positioned(
+            bottom: 42.h,
+            right: 24.w,
+            child: CircleAvatar(
+              radius: 20.r,
+              backgroundColor: mutedWhite,
+              child: Icon(
+                Icons.monitor_heart_outlined,
+                size: 24.sp,
+                color: AppColors.surface.withValues(alpha: 0.5),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class _AuthScreenState extends State<AuthScreen> {
@@ -67,212 +188,72 @@ class _AuthScreenState extends State<AuthScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final controller = context.read<SessionController>();
-    final role =
-        context.select<SessionController, UserRole>((c) => c.state.role);
-
     return Scaffold(
-      backgroundColor: AppColors.background,
-      appBar: AppBar(
-        elevation: 0,
-        backgroundColor: Colors.transparent,
-        automaticallyImplyLeading: false,
-        titleSpacing: 0,
-        title: Center(
-          child: TextButton(
-            onPressed: _busy
-                ? null
-                : () async {
-                    await controller.logout(keepRole: false);
-                  },
-            style: TextButton.styleFrom(
-              padding: EdgeInsets.zero,
-              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              minimumSize: Size.zero,
-            ),
-            child: Text(
-              'Change role / کردار تبدیل کریں',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 13.sp,
-                fontWeight: FontWeight.w800,
-                color: AppColors.blueDark,
-                height: 1.15,
-              ),
-            ),
-          ),
-        ),
-        centerTitle: true,
-        actions: const [],
-      ),
+      backgroundColor: AppColors.registrationScreenBg,
       body: SafeArea(
         child: Stack(
           children: [
-            SingleChildScrollView(
-              padding: EdgeInsets.symmetric(horizontal: 20.w, vertical: 16.h),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  // Hero / Illustration area
-                  _buildHeaderIllustration(),
-                  SizedBox(height: 24.h),
-
-                  // Role card
-                  Container(
-                    decoration: BoxDecoration(
-                      color: AppColors.surface,
-                      borderRadius: BorderRadius.circular(20.r),
-                      border: Border.all(color: AppColors.border),
-                      boxShadow: [
-                        BoxShadow(
-                          color: AppColors.blue.withValues(alpha: 0.04),
-                          blurRadius: 12.r,
-                          offset: Offset(0, 4.h),
-                        ),
-                      ],
-                    ),
-                    child: Padding(
-                      padding: EdgeInsets.all(20.w),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(
+                  flex: 5,
+                  child: _buildBrandHeader(),
+                ),
+                Expanded(
+                  flex: 4,
+                  child: ClipPath(
+                    clipper: const _AuthBodyCurveClipper(),
+                    child: Container(
+                      color: AppColors.registrationScreenBg,
+                      padding: EdgeInsets.fromLTRB(24.w, 76.h, 24.w, 24.h),
                       child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
+                          Text(
+                            'Sign in with your verified government Google\naccount to access the health worker portal.',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 14.sp,
+                              fontWeight: FontWeight.w500,
+                              color: AppColors.dashboardPrimaryDark
+                                  .withValues(alpha: 0.82),
+                              height: 1.45,
+                            ),
+                          ),
+                          SizedBox(height: 28.h),
+                          _buildGoogleButton(
+                            onPressed:
+                                _busy ? null : () => unawaited(_handleLogin()),
+                            text: 'Continue with Google',
+                            isLoading: _busy,
+                          ),
+                          SizedBox(height: 18.h),
+                          Text(
+                            'Only authorized and verified Health Workers can access\nthis system.',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 12.sp,
+                              fontWeight: FontWeight.w500,
+                              color: AppColors.registrationSectionLabel,
+                              height: 1.4,
+                            ),
+                          ),
+                          const Spacer(),
                           Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              Container(
-                                width: 48.w,
-                                height: 48.h,
-                                decoration: BoxDecoration(
-                                  color: AppColors.blue.withValues(alpha: 0.1),
-                                  borderRadius: BorderRadius.circular(16.r),
-                                ),
-                                child: Icon(
-                                  role == UserRole.doctor
-                                      ? Icons.local_hospital_outlined
-                                      : Icons.health_and_safety_outlined,
-                                  size: 28.sp,
-                                  color: AppColors.blueDark,
-                                ),
-                              ),
-                              SizedBox(width: 16.w),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      'Selected Role',
-                                      style: TextStyle(
-                                        fontSize: 12.sp,
-                                        fontWeight: FontWeight.w600,
-                                        color: AppColors.textSecondary,
-                                        letterSpacing: 0.5,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 2),
-                                    const Directionality(
-                                      textDirection: TextDirection.rtl,
-                                      child: Text(
-                                        'منتخب کردہ کردار',
-                                        style: TextStyle(
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.w700,
-                                          color: AppColors.textSecondary,
-                                        ),
-                                      ),
-                                    ),
-                                    SizedBox(height: 4.h),
-                                    Text(
-                                      role == UserRole.doctor
-                                          ? 'Doctor'
-                                          : 'Lady Health Worker',
-                                      style: TextStyle(
-                                        fontSize: 18.sp,
-                                        fontWeight: FontWeight.w800,
-                                        color: AppColors.textPrimary,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 2),
-                                    Directionality(
-                                      textDirection: TextDirection.rtl,
-                                      child: Text(
-                                        role == UserRole.doctor
-                                            ? 'ڈاکٹر'
-                                            : 'لیڈی ہیلتھ ورکر',
-                                        style: TextStyle(
-                                          fontSize: 14.sp,
-                                          fontWeight: FontWeight.w800,
-                                          color: AppColors.textPrimary,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
+                              _footerLink('Privacy Policy'),
+                              SizedBox(width: 28.w),
+                              _footerLink('Help & Support'),
                             ],
                           ),
-                          SizedBox(height: 16.h),
                         ],
                       ),
                     ),
                   ),
-
-                  SizedBox(height: 28.h),
-
-                  // Login button with Google icon
-                  _buildGoogleButton(
-                    onPressed: _busy ? null : () => unawaited(_handleLogin()),
-                    text: 'Continue with Google',
-                    isLoading: _busy,
-                  ),
-
-                  SizedBox(height: 32.h),
-
-                  // Info note
-                  Container(
-                    padding:
-                        EdgeInsets.symmetric(horizontal: 16.w, vertical: 12.h),
-                    decoration: BoxDecoration(
-                      color: AppColors.blue.withValues(alpha: 0.05),
-                      borderRadius: BorderRadius.circular(16.r),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(Icons.shield_outlined,
-                            size: 20.sp, color: AppColors.blueDark),
-                        SizedBox(width: 12.w),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'After continuing, your request goes to admin for approval.',
-                                style: TextStyle(
-                                  fontSize: 12.sp,
-                                  color: AppColors.textSecondary,
-                                  height: 1.4,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Directionality(
-                                textDirection: TextDirection.rtl,
-                                child: Text(
-                                  'جاری رکھنے کے بعد آپ کی درخواست منظوری کے لیے ایڈمن کے پاس جائے گی۔',
-                                  style: TextStyle(
-                                    fontSize: 12.sp,
-                                    color: AppColors.textSecondary,
-                                    height: 1.4,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  SizedBox(height: 20.h),
-                ],
-              ),
+                ),
+              ],
             ),
             if (_busy) const _SigningInOverlay(),
           ],
@@ -281,65 +262,57 @@ class _AuthScreenState extends State<AuthScreen> {
     );
   }
 
-  Widget _buildHeaderIllustration() {
+  Widget _buildBrandHeader() {
     return Container(
-      margin: EdgeInsets.only(bottom: 8.h),
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Color(0xFF1F6FAB), Color(0xFF0E947E)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+      ),
       child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Container(
-            width: 80.w,
-            height: 80.h,
+            width: 80.r,
+            height: 80.r,
+            alignment: Alignment.center,
             decoration: BoxDecoration(
-              color: AppColors.blue.withValues(alpha: 0.1),
-              shape: BoxShape.circle,
+              color: AppColors.surface.withValues(alpha: 0.18),
+              borderRadius: BorderRadius.circular(22.r),
+              border: Border.all(
+                color: AppColors.surface.withValues(alpha: 0.48),
+                width: 2,
+              ),
             ),
             child: Icon(
-              Icons.medical_services_outlined,
-              size: 40.sp,
-              color: AppColors.blueDark,
+              Icons.add_rounded,
+              size: 42.sp,
+              color: AppColors.surface,
             ),
           ),
-          SizedBox(height: 16.h),
+          SizedBox(height: 22.h),
           Text(
-            'Access Healthcare Portal',
+            'Careho Provider',
             style: TextStyle(
-              fontSize: 22.sp,
-              fontWeight: FontWeight.w800,
-              color: AppColors.textPrimary,
+              fontSize: 26.sp,
+              fontWeight: FontWeight.w900,
+              color: AppColors.surface,
               letterSpacing: -0.3,
             ),
           ),
-          const SizedBox(height: 6),
-          Directionality(
-            textDirection: TextDirection.rtl,
-            child: Text(
-              'ہیلتھ کیئر پورٹل تک رسائی',
-              style: TextStyle(
-                fontSize: 18.sp,
-                fontWeight: FontWeight.w800,
-                color: AppColors.textPrimary,
-              ),
-            ),
-          ),
-          SizedBox(height: 8.h),
+          SizedBox(height: 5.h),
           Text(
-            'Sign in to continue',
+            'Community Health Worker Portal',
             style: TextStyle(
               fontSize: 14.sp,
-              color: AppColors.textSecondary,
+              fontWeight: FontWeight.w500,
+              color: AppColors.surface.withValues(alpha: 0.9),
             ),
           ),
-          const SizedBox(height: 4),
-          Directionality(
-            textDirection: TextDirection.rtl,
-            child: Text(
-              'جاری رکھنے کے لیے سائن اِن کریں',
-              style: TextStyle(
-                fontSize: 14.sp,
-                color: AppColors.textSecondary,
-              ),
-            ),
-          ),
+          SizedBox(height: 44.h),
+          const _HealthWorkerIllustration(),
         ],
       ),
     );
@@ -349,98 +322,70 @@ class _AuthScreenState extends State<AuthScreen> {
     required VoidCallback? onPressed,
     required String text,
     bool isLoading = false,
-    bool isOutlined = false,
   }) {
     return SizedBox(
       height: 54.h,
-      child: isOutlined
-          ? OutlinedButton(
-              onPressed: onPressed,
-              style: OutlinedButton.styleFrom(
-                side: BorderSide(color: AppColors.border, width: 1.5.w),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16.r),
+      child: OutlinedButton(
+        onPressed: onPressed,
+        style: OutlinedButton.styleFrom(
+          backgroundColor: AppColors.surface,
+          foregroundColor: AppColors.textPrimary,
+          side: const BorderSide(color: AppColors.registrationFieldBorder),
+          elevation: 3,
+          shadowColor: AppColors.dashboardPrimary.withValues(alpha: 0.18),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14.r),
+          ),
+        ),
+        child: isLoading
+            ? SizedBox(
+                width: 24.r,
+                height: 24.r,
+                child: const CircularProgressIndicator(
+                  strokeWidth: 2.5,
+                  color: AppColors.blueDark,
                 ),
-                backgroundColor: Colors.white,
-              ),
-              child: isLoading
-                  ? SizedBox(
-                      width: 24.w,
-                      height: 24.h,
-                      child: const CircularProgressIndicator(
-                        strokeWidth: 2.5,
-                        color: AppColors.blueDark,
-                      ),
-                    )
-                  : Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        SvgPicture.asset(
-                          'assets/icons/google.svg',
-                          width: 22.w,
-                          height: 22.h,
-                        ),
-                        SizedBox(width: 12.w),
-                        Text(
-                          text,
-                          style: TextStyle(
-                            fontSize: 16.sp,
-                            fontWeight: FontWeight.w600,
-                            color: AppColors.textPrimary,
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        const Directionality(
-                          textDirection: TextDirection.rtl,
-                          child: Text(
-                            'گوگل کے ساتھ جاری رکھیں',
-                            style: TextStyle(
-                              fontWeight: FontWeight.w800,
-                              color: AppColors.textPrimary,
-                            ),
-                          ),
-                        ),
-                      ],
+              )
+            : Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  SvgPicture.asset(
+                    'assets/icons/google.svg',
+                    width: 22.r,
+                    height: 22.r,
+                  ),
+                  SizedBox(width: 12.w),
+                  Text(
+                    text,
+                    style: TextStyle(
+                      fontSize: 15.sp,
+                      fontWeight: FontWeight.w900,
+                      color: AppColors.textPrimary,
                     ),
-            )
-          : FilledButton(
-              onPressed: onPressed,
-              style: FilledButton.styleFrom(
-                backgroundColor: AppColors.blue,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16.r),
-                ),
-                elevation: 0,
+                  ),
+                ],
               ),
-              child: isLoading
-                  ? SizedBox(
-                      width: 24.w,
-                      height: 24.h,
-                      child: const CircularProgressIndicator(
-                        strokeWidth: 2.5,
-                        color: Colors.white,
-                      ),
-                    )
-                  : Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        SvgPicture.asset(
-                          'assets/icons/google.svg',
-                          width: 22.w,
-                          height: 22.h,
-                        ),
-                        SizedBox(width: 12.w),
-                        Text(
-                          text,
-                          style: TextStyle(
-                            fontSize: 16.sp,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.white,
-                          ),
-                        ),
-                      ],
-                    ),
-            ),
+      ),
+    );
+  }
+
+  Widget _footerLink(String label) {
+    return TextButton(
+      onPressed: () {},
+      style: TextButton.styleFrom(
+        padding: EdgeInsets.symmetric(horizontal: 4.w),
+        minimumSize: Size.zero,
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 12.sp,
+          fontWeight: FontWeight.w700,
+          color: AppColors.dashboardPrimary,
+          decoration: TextDecoration.underline,
+        ),
+      ),
     );
   }
 

@@ -1,9 +1,9 @@
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import 'package:doctor_app/src/core/format/name_initials.dart';
 import 'package:doctor_app/src/core/network/api_failure.dart';
 import 'package:doctor_app/src/core/session/session_controller.dart';
 import 'package:doctor_app/src/core/theme/app_colors.dart';
@@ -82,14 +82,21 @@ class _ProfileViewScreenState extends State<ProfileViewScreen> {
                 onPressed: () => context.pop(),
               )
             : null,
-        title: _HeadingPair(en: 'Profile', ur: 'پروفائل'),
-        centerTitle: true,
+        title: Text(
+          'My Profile',
+          style: TextStyle(
+            fontSize: 17.sp,
+            fontWeight: FontWeight.w900,
+            color: AppColors.textPrimary,
+          ),
+        ),
+        centerTitle: false,
         actions: [
           IconButton(
-            tooltip: 'Edit • ترمیم',
-            onPressed: () => context.push(EditProfileScreen.routePath),
+            tooltip: 'Update profile',
+            onPressed: _openEditProfile,
             icon: Icon(
-              Icons.edit_rounded,
+              Icons.edit_note_rounded,
               size: 20.sp,
               color: AppColors.blueDark,
             ),
@@ -103,6 +110,12 @@ class _ProfileViewScreenState extends State<ProfileViewScreen> {
         child: _buildBody(),
       ),
     );
+  }
+
+  Future<void> _openEditProfile() async {
+    await context.push(EditProfileScreen.routePath);
+    if (!mounted) return;
+    await _load();
   }
 
   Widget _buildBody() {
@@ -121,12 +134,14 @@ class _ProfileViewScreenState extends State<ProfileViewScreen> {
         padding: EdgeInsets.all(24.w),
         children: [
           SizedBox(height: 80.h),
-          Icon(Icons.error_outline_rounded, size: 48.sp, color: AppColors.danger),
+          Icon(Icons.error_outline_rounded,
+              size: 48.sp, color: AppColors.danger),
           SizedBox(height: 16.h),
           Text(
             _error.toString(),
             textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 14.sp, color: AppColors.textSecondary, height: 1.35),
+            style: TextStyle(
+                fontSize: 14.sp, color: AppColors.textSecondary, height: 1.35),
           ),
           SizedBox(height: 24.h),
           FilledButton.icon(
@@ -161,104 +176,89 @@ class _ProfileViewScreenState extends State<ProfileViewScreen> {
 
     return ListView(
       physics: const AlwaysScrollableScrollPhysics(),
-      padding: EdgeInsets.fromLTRB(16.w, 8.h, 16.w, 32.h),
+      padding: EdgeInsets.zero,
       children: [
         _HeroCard(profile: p, fullName: fullName.isEmpty ? '—' : fullName),
-        SizedBox(height: 20.h),
-        _SectionCard(
-          titleEn: 'Personal',
-          titleUr: 'ذاتی',
-          children: [
-            _FieldRow(en: 'First name', ur: 'پہلا نام', value: _val(p.firstName)),
-            _FieldRow(en: 'Last name', ur: 'آخری نام', value: _val(p.lastName)),
-            _FieldRow(en: 'Gender', ur: 'جنس', value: _genderLabel(p.gender)),
-            _FieldRow(
-              en: 'Date of birth',
-              ur: 'تاریخ پیدائش',
-              value: _dobLabel(p.dateOfBirth),
+        Transform.translate(
+          offset: Offset(0, -18.h),
+          child: Container(
+            padding: EdgeInsets.fromLTRB(20.w, 18.h, 20.w, 28.h),
+            decoration: BoxDecoration(
+              color: AppColors.registrationScreenBg,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(26.r)),
             ),
-            _FieldRow(en: 'Age', ur: 'عمر', value: _ageLabel(p.ageYears)),
-            _FieldRow(en: 'CNIC', ur: 'شناختی کارڈ', value: _val(p.cnic)),
-          ],
-        ),
-        SizedBox(height: 14.h),
-        _SectionCard(
-          titleEn: 'Contact',
-          titleUr: 'رابطہ',
-          children: [
-            _FieldRow(en: 'Email', ur: 'ای میل', value: _val(p.email)),
-            _FieldRow(en: 'Phone', ur: 'فون', value: _val(p.phoneNumber)),
-          ],
-        ),
-        SizedBox(height: 14.h),
-        _SectionCard(
-          titleEn: 'Professional',
-          titleUr: 'پیشہ ورانہ',
-          children: [
-            _FieldRow(en: 'Health worker ID', ur: 'ہیلتھ ورکر آئی ڈی', value: _val(p.healthWorkerId)),
-            _FieldRow(
-              en: 'Education level',
-              ur: 'تعلیمی معیار',
-              value: _preferLabel(p.educationLevelLabel, p.educationLevelId),
-            ),
-            _FieldRow(
-              en: 'LHW training certificate',
-              ur: 'ایل ایچ ڈبلیو سرٹیفکیٹ',
-              value: _val(p.lhwTrainingCertificate),
-            ),
-            _FieldRow(
-              en: 'Verified',
-              ur: 'تصدیق شدہ',
-              value: p.isVerified ? 'Yes / ہاں' : 'No / نہیں',
-            ),
-            _FieldRow(en: 'Joined', ur: 'شمولیت', value: _joinedLabel(p.joinedDate)),
-          ],
-        ),
-        SizedBox(height: 14.h),
-        _SectionCard(
-          titleEn: 'Location',
-          titleUr: 'مقام',
-          children: [
-            _FieldRow(
-              en: 'Province',
-              ur: 'صوبہ',
-              value: _preferLabel(p.provinceLabel, p.provinceId),
-            ),
-            _FieldRow(
-              en: 'District',
-              ur: 'ضلع',
-              value: _preferLabel(p.districtLabel, p.districtId),
-            ),
-            _FieldRow(
-              en: 'Tehsil',
-              ur: 'تحصیل',
-              value: _preferLabel(p.tehsilLabel, p.tehsilId),
-            ),
-            _FieldRow(en: 'Address', ur: 'پتہ', value: _val(p.address)),
-          ],
-        ),
-        if (p.approxPatientsPerDay != null || p.salary != null) ...[
-          SizedBox(height: 14.h),
-          _SectionCard(
-            titleEn: 'Additional',
-            titleUr: 'اضافی',
-            children: [
-              if (p.approxPatientsPerDay != null)
-                _FieldRow(
-                  en: 'Patients per day (approx.)',
-                  ur: 'روزانہ مریض (تقریباً)',
-                  value: '${p.approxPatientsPerDay}',
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _SectionCard(
+                  title: 'PERSONAL DETAILS',
+                  children: [
+                    _FieldRow(label: 'CNIC', value: _val(p.cnic)),
+                    _FieldRow(label: 'Phone', value: _val(p.phoneNumber)),
+                    _FieldRow(
+                      label: 'Education',
+                      value: _preferLabel(
+                        p.educationLevelLabel,
+                        p.educationLevelId,
+                      ),
+                    ),
+                    _FieldRow(
+                      label: 'Certificate ID',
+                      value: _val(p.lhwTrainingCertificate),
+                    ),
+                  ],
                 ),
-              if (p.salary != null)
-                _FieldRow(
-                  en: 'Salary',
-                  ur: 'تنخواہ',
-                  value: _SalaryFmt.format(p.salary!),
+                SizedBox(height: 14.h),
+                _SectionCard(
+                  title: 'ASSIGNED TERRITORY',
+                  children: [
+                    _FieldRow(
+                      label: 'Province',
+                      value: _preferLabel(p.provinceLabel, p.provinceId),
+                    ),
+                    _FieldRow(
+                      label: 'District',
+                      value: _preferLabel(p.districtLabel, p.districtId),
+                    ),
+                    _FieldRow(
+                      label: 'Tehsil',
+                      value: _preferLabel(p.tehsilLabel, p.tehsilId),
+                    ),
+                    _FieldRow(label: 'Address', value: _val(p.address)),
+                  ],
                 ),
-            ],
+                SizedBox(height: 14.h),
+                _SectionCard(
+                  title: 'ACCOUNT SUMMARY',
+                  children: [
+                    _FieldRow(
+                      label: 'Health Worker ID',
+                      value: _val(p.healthWorkerId),
+                    ),
+                    _FieldRow(label: 'Gender', value: _genderLabel(p.gender)),
+                    _FieldRow(
+                      label: 'Date of Birth',
+                      value: _dobLabel(p.dateOfBirth),
+                    ),
+                    _FieldRow(label: 'Age', value: _ageLabel(p.ageYears)),
+                    _FieldRow(
+                        label: 'Joined', value: _joinedLabel(p.joinedDate)),
+                    if (p.approxPatientsPerDay != null)
+                      _FieldRow(
+                        label: 'Patients / Day',
+                        value: '${p.approxPatientsPerDay}',
+                      ),
+                    if (p.salary != null)
+                      _FieldRow(
+                        label: 'Salary',
+                        value: _SalaryFmt.format(p.salary!),
+                      ),
+                  ],
+                ),
+              ],
+            ),
           ),
-        ],
-        SizedBox(height: 12.h),
+        ),
       ],
     );
   }
@@ -359,43 +359,6 @@ class _SalaryFmt {
   }
 }
 
-class _HeadingPair extends StatelessWidget {
-  const _HeadingPair({required this.en, required this.ur});
-
-  final String en;
-  final String ur;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Text(
-          en,
-          style: TextStyle(
-            fontSize: 17.sp,
-            fontWeight: FontWeight.w800,
-            color: AppColors.textPrimary,
-          ),
-        ),
-        Padding(
-          padding: EdgeInsets.symmetric(horizontal: 8.w),
-          child: Text('·', style: TextStyle(color: AppColors.textSecondary, fontSize: 14.sp)),
-        ),
-        Text(
-          ur,
-          style: TextStyle(
-            fontSize: 13.sp,
-            fontWeight: FontWeight.w700,
-            color: AppColors.textSecondary,
-            height: 1.15,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
 class _HeroCard extends StatelessWidget {
   const _HeroCard({required this.profile, required this.fullName});
 
@@ -404,100 +367,108 @@ class _HeroCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final url = profile.profileImageUrl?.trim();
+    final initials = NameInitials.fromFullName(fullName);
+    final email = profile.email?.trim();
     return Container(
       decoration: BoxDecoration(
         gradient: const LinearGradient(
-          colors: [Color(0xFF2563EB), Color(0xFF1D4ED8)],
+          colors: [Color(0xFF1F6FAB), Color(0xFF0E947E)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
-        borderRadius: BorderRadius.circular(16.r),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.blue.withValues(alpha: 0.28),
-            blurRadius: 18,
-            offset: const Offset(0, 10),
-          ),
-        ],
       ),
-      padding: EdgeInsets.all(18.w),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
+      padding: EdgeInsets.fromLTRB(20.w, 28.h, 20.w, 44.h),
+      child: Column(
         children: [
-          CircleAvatar(
-            radius: 38.r,
-            backgroundColor: Colors.white.withValues(alpha: 0.25),
-            child: CircleAvatar(
-              radius: 34.r,
-              backgroundColor: Colors.white,
-              child: ClipOval(
-                child: url != null && url.isNotEmpty
-                    ? CachedNetworkImage(
-                        imageUrl: url,
-                        width: 68.r,
-                        height: 68.r,
-                        fit: BoxFit.cover,
-                        placeholder: (_, __) => SizedBox(
-                          width: 68.r,
-                          height: 68.r,
-                          child: const Center(
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: AppColors.blue,
-                            ),
-                          ),
-                        ),
-                        errorWidget: (_, __, ___) => Icon(
-                          Icons.person_rounded,
-                          size: 36.sp,
-                          color: AppColors.blue,
-                        ),
-                      )
-                    : Icon(Icons.person_rounded, size: 36.sp, color: AppColors.blue),
+          Container(
+            width: 88.r,
+            height: 88.r,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: AppColors.surface.withValues(alpha: 0.18),
+              borderRadius: BorderRadius.circular(24.r),
+              border: Border.all(
+                color: AppColors.surface.withValues(alpha: 0.5),
+                width: 2.2,
+              ),
+            ),
+            child: Text(
+              initials,
+              style: TextStyle(
+                fontSize: 31.sp,
+                fontWeight: FontWeight.w900,
+                color: AppColors.surface,
               ),
             ),
           ),
-          SizedBox(width: 14.w),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+          SizedBox(height: 16.h),
+          Text(
+            fullName,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 20.sp,
+              fontWeight: FontWeight.w900,
+              color: AppColors.surface,
+              height: 1.1,
+            ),
+          ),
+          SizedBox(height: 5.h),
+          Text(
+            email == null || email.isEmpty ? '—' : email,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 13.sp,
+              fontWeight: FontWeight.w600,
+              color: AppColors.surface.withValues(alpha: 0.9),
+            ),
+          ),
+          SizedBox(height: 12.h),
+          Container(
+            padding: EdgeInsets.symmetric(horizontal: 14.w, vertical: 7.h),
+            decoration: BoxDecoration(
+              color: AppColors.surface.withValues(alpha: 0.18),
+              borderRadius: BorderRadius.circular(999),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
               children: [
+                Icon(
+                  profile.isVerified
+                      ? Icons.verified_user_rounded
+                      : Icons.pending_rounded,
+                  size: 14.sp,
+                  color: AppColors.surface,
+                ),
+                SizedBox(width: 6.w),
                 Text(
-                  fullName,
+                  profile.isVerified
+                      ? 'Verified Health Worker'
+                      : 'Pending Verification',
                   style: TextStyle(
-                    fontSize: 18.sp,
-                    fontWeight: FontWeight.w800,
-                    color: Colors.white,
-                    height: 1.15,
+                    fontSize: 11.sp,
+                    fontWeight: FontWeight.w900,
+                    color: AppColors.surface,
                   ),
                 ),
-                SizedBox(height: 6.h),
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        profile.isVerified ? 'Verified account' : 'Pending verification',
-                        style: TextStyle(
-                          fontSize: 12.sp,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.white.withValues(alpha: 0.92),
-                        ),
-                      ),
-                    ),
-                    Text(
-                      profile.isVerified ? 'تصدیق شدہ اکاؤنٹ' : 'تصدیق زیر التواء',
-                      textAlign: TextAlign.right,
-                      style: TextStyle(
-                        fontSize: 11.sp,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.white.withValues(alpha: 0.85),
-                        height: 1.2,
-                      ),
-                    ),
-                  ],
-                ),
               ],
+            ),
+          ),
+          SizedBox(height: 12.h),
+          OutlinedButton.icon(
+            onPressed: () => context.push(EditProfileScreen.routePath),
+            icon: Icon(Icons.edit_rounded, size: 17.sp),
+            label: Text(
+              'Update Profile',
+              style: TextStyle(fontSize: 12.sp, fontWeight: FontWeight.w900),
+            ),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: AppColors.surface,
+              side: BorderSide(
+                color: AppColors.surface.withValues(alpha: 0.65),
+              ),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(999),
+              ),
             ),
           ),
         ],
@@ -508,126 +479,93 @@ class _HeroCard extends StatelessWidget {
 
 class _SectionCard extends StatelessWidget {
   const _SectionCard({
-    required this.titleEn,
-    required this.titleUr,
+    required this.title,
     required this.children,
   });
 
-  final String titleEn;
-  final String titleUr;
+  final String title;
   final List<Widget> children;
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      elevation: 0,
-      color: AppColors.surface,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(14.r),
-        side: const BorderSide(color: AppColors.border),
-      ),
-      child: Padding(
-        padding: EdgeInsets.fromLTRB(16.w, 14.h, 16.w, 8.h),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  titleEn,
-                  style: TextStyle(
-                    fontSize: 15.sp,
-                    fontWeight: FontWeight.w800,
-                    color: AppColors.textPrimary,
-                  ),
-                ),
-                Flexible(
-                  child: Text(
-                    titleUr,
-                    textAlign: TextAlign.right,
-                    style: TextStyle(
-                      fontSize: 12.sp,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.textSecondary,
-                      height: 1.2,
-                    ),
-                  ),
-                ),
-              ],
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: EdgeInsets.only(bottom: 10.h),
+          child: Text(
+            title,
+            style: TextStyle(
+              fontSize: 13.sp,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 0.4,
+              color: AppColors.registrationSectionLabel,
             ),
-            Divider(height: 22.h, color: AppColors.border),
-            ...children,
-          ],
+          ),
         ),
-      ),
+        Container(
+          padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 12.h),
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            borderRadius: BorderRadius.circular(16.r),
+            border: Border.all(color: AppColors.registrationFieldBorder),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              for (var i = 0; i < children.length; i++) ...[
+                children[i],
+                if (i != children.length - 1)
+                  Divider(height: 18.h, color: AppColors.border),
+              ],
+            ],
+          ),
+        ),
+      ],
     );
   }
 }
 
 class _FieldRow extends StatelessWidget {
   const _FieldRow({
-    required this.en,
-    required this.ur,
+    required this.label,
     required this.value,
   });
 
-  final String en;
-  final String ur;
+  final String label;
   final String value;
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: EdgeInsets.only(bottom: 12.h),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Flexible(
-                flex: 1,
-                child: Text(
-                  en,
-                  style: TextStyle(
-                    fontSize: 11.sp,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.textSecondary,
-                    letterSpacing: 0.2,
-                  ),
-                ),
-              ),
-              SizedBox(width: 8.w),
-              Flexible(
-                flex: 1,
-                child: Text(
-                  ur,
-                  textAlign: TextAlign.right,
-                  style: TextStyle(
-                    fontSize: 10.sp,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.textSecondary.withValues(alpha: 0.85),
-                    height: 1.25,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          SizedBox(height: 4.h),
-          Text(
-            value,
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(
+          flex: 4,
+          child: Text(
+            label,
             style: TextStyle(
-              fontSize: 14.sp,
+              fontSize: 13.sp,
               fontWeight: FontWeight.w600,
-              color: AppColors.textPrimary,
-              height: 1.35,
+              color: AppColors.dashboardPrimaryDark.withValues(alpha: 0.8),
             ),
           ),
-        ],
-      ),
+        ),
+        SizedBox(width: 12.w),
+        Expanded(
+          flex: 5,
+          child: Text(
+            value,
+            textAlign: TextAlign.right,
+            style: TextStyle(
+              fontSize: 13.sp,
+              fontWeight: FontWeight.w900,
+              color: AppColors.textPrimary,
+              height: 1.25,
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
