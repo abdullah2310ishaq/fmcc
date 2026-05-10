@@ -12,7 +12,10 @@ import 'package:doctor_app/src/features/profile/health_worker_profile_models.dar
 
 /// Full profile from API — bilingual headings (English + Urdu).
 class ProfileViewScreen extends StatefulWidget {
-  const ProfileViewScreen({super.key});
+  const ProfileViewScreen({super.key, this.showBackButton = true});
+
+  /// When embedded in [HomeShell] (profile tab), hide the back arrow.
+  final bool showBackButton;
 
   static const routePath = '/profile';
 
@@ -68,10 +71,17 @@ class _ProfileViewScreenState extends State<ProfileViewScreen> {
         elevation: 0,
         backgroundColor: AppColors.surface,
         surfaceTintColor: Colors.transparent,
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back_ios_new_rounded, color: AppColors.blueDark, size: 20.sp),
-          onPressed: () => context.pop(),
-        ),
+        automaticallyImplyLeading: widget.showBackButton,
+        leading: widget.showBackButton
+            ? IconButton(
+                icon: Icon(
+                  Icons.arrow_back_ios_new_rounded,
+                  color: AppColors.blueDark,
+                  size: 20.sp,
+                ),
+                onPressed: () => context.pop(),
+              )
+            : null,
         title: _HeadingPair(en: 'Profile', ur: 'پروفائل'),
         centerTitle: true,
         actions: [

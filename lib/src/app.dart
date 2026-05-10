@@ -8,7 +8,7 @@ import 'package:doctor_app/src/core/session/session_controller.dart';
 import 'package:doctor_app/src/core/theme/app_theme.dart';
 import 'package:doctor_app/src/features/approval/waiting_screen.dart';
 import 'package:doctor_app/src/features/auth/auth_screen.dart';
-import 'package:doctor_app/src/features/home/home_screen.dart';
+import 'package:doctor_app/src/features/shell/home_shell.dart';
 import 'package:doctor_app/src/features/profile/edit_profile_screen.dart';
 import 'package:doctor_app/src/features/profile/profile_view_screen.dart';
 import 'package:doctor_app/src/features/profile/registration_details_screen.dart';
@@ -49,7 +49,7 @@ String _sessionDestination(AppSession session) {
       !session.hasCompletedRegistrationDetails) {
     return RegistrationDetailsScreen.routePath;
   }
-  return HomeScreen.routePath;
+  return HomeShell.routePath;
 }
 
 class DoctorApp extends StatefulWidget {
@@ -119,8 +119,8 @@ GoRouter _buildRouter(SessionController sessionController) {
         builder: (context, state) => const RegistrationDetailsScreen(),
       ),
       GoRoute(
-        path: HomeScreen.routePath,
-        builder: (context, state) => const HomeScreen(),
+        path: HomeShell.routePath,
+        builder: (context, state) => const HomeShell(),
       ),
       GoRoute(
         path: ProfileViewScreen.routePath,
@@ -144,7 +144,7 @@ GoRouter _buildRouter(SessionController sessionController) {
       final dest = _sessionDestination(session);
 
       // Allow `/profile` whenever user is allowed on home (avoid matchedLocation mismatch).
-      if (dest == HomeScreen.routePath &&
+      if (dest == HomeShell.routePath &&
           (loc == ProfileViewScreen.routePath ||
               loc == EditProfileScreen.routePath)) {
         return null;

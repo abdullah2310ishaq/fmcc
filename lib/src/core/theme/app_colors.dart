@@ -16,5 +16,15 @@ class AppColors {
 
   static const Color danger = Color(0xFFDC2626);
   static const Color success = Color(0xFF16A34A);
+
+  /// Nurse / CHW dashboard (mockup-aligned tokens).
+  static const Color dashboardBackground = Color(0xFFF5F9FF);
+  static const Color dashboardPrimary = Color(0xFF1565C0);
+  static const Color dashboardPrimaryDark = Color(0xFF0D47A1);
+  static const Color dashboardWarning = Color(0xFFE65100);
+  static const Color dashboardPeach = Color(0xFFFFF3E0);
+  static const Color dashboardPeachBorder = Color(0xFFFFE0B2);
+  static const Color dashboardChipBlueBg = Color(0xFFE3F2FD);
+  static const Color dashboardActionRed = Color(0xFFD32F2F);
 }
 
