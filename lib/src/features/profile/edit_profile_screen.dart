@@ -74,7 +74,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     final today = DateTime.now();
     final lastDate = DateTime(today.year, today.month, today.day);
     final firstDate = DateTime(today.year - 120);
-    var initial = _dateOfBirth ?? DateTime(today.year - 25, today.month, today.day);
+    var initial =
+        _dateOfBirth ?? DateTime(today.year - 25, today.month, today.day);
     if (initial.isAfter(lastDate)) {
       initial = DateTime(today.year - 25, today.month, today.day);
     }
@@ -108,399 +109,452 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     _tryPrefill(controller);
     _ensureReferencesLoaded(controller);
 
+    final fieldRadius = BorderRadius.circular(13.r);
+
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: AppColors.registrationScreenBg,
       appBar: AppBar(
         elevation: 0,
         backgroundColor: AppColors.surface,
         surfaceTintColor: Colors.transparent,
-        title: const Text('Edit profile'),
+        title: Text(
+          'Update Profile',
+          style: TextStyle(
+            fontSize: 17.sp,
+            fontWeight: FontWeight.w900,
+            color: AppColors.textPrimary,
+          ),
+        ),
         centerTitle: true,
       ),
       body: SafeArea(
-        child: Padding(
-          padding: EdgeInsets.all(16.w),
-          child: Form(
-            key: _formKey,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Card(
-                  elevation: 0,
-                  color: AppColors.surface,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16.r),
-                    side: const BorderSide(color: AppColors.border),
-                  ),
-                  child: Padding(
-                    padding: EdgeInsets.all(16.w),
-                    child: Column(
+        child: Theme(
+          data: Theme.of(context).copyWith(
+            inputDecorationTheme: InputDecorationTheme(
+              filled: true,
+              fillColor: AppColors.registrationFieldFill,
+              contentPadding: EdgeInsets.symmetric(
+                horizontal: 14.w,
+                vertical: 14.h,
+              ),
+              border: OutlineInputBorder(borderRadius: fieldRadius),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: fieldRadius,
+                borderSide: const BorderSide(
+                  color: AppColors.registrationFieldBorder,
+                ),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: fieldRadius,
+                borderSide: BorderSide(
+                  color: AppColors.dashboardPrimary.withValues(alpha: 0.78),
+                  width: 1.5,
+                ),
+              ),
+              errorBorder: OutlineInputBorder(
+                borderRadius: fieldRadius,
+                borderSide: const BorderSide(color: AppColors.danger),
+              ),
+              focusedErrorBorder: OutlineInputBorder(
+                borderRadius: fieldRadius,
+                borderSide: const BorderSide(color: AppColors.danger),
+              ),
+              labelStyle: TextStyle(
+                fontSize: 13.sp,
+                fontWeight: FontWeight.w700,
+                color: AppColors.dashboardPrimaryDark,
+              ),
+              helperStyle: TextStyle(
+                fontSize: 11.sp,
+                fontWeight: FontWeight.w600,
+                color: AppColors.registrationSectionLabel,
+              ),
+            ),
+          ),
+          child: Padding(
+            padding: EdgeInsets.fromLTRB(16.w, 10.h, 16.w, 14.h),
+            child: Form(
+              key: _formKey,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _EditProfileHeader(isSaving: _saving),
+                  SizedBox(height: 16.h),
+                  Expanded(
+                    child: ListView(
+                      padding: EdgeInsets.only(bottom: 24.h),
                       children: [
-                        Row(
-                          children: [
-                            Expanded(
-                              child: Text(
-                                'Edit profile',
-                                style: TextStyle(
-                                  fontSize: 18.sp,
-                                  fontWeight: FontWeight.w800,
-                                  color: AppColors.textPrimary,
-                                ),
-                              ),
-                            ),
-                            Text(
-                              'پروفائل میں ترمیم',
-                              textAlign: TextAlign.right,
-                              style: TextStyle(
-                                fontSize: 12.sp,
-                                fontWeight: FontWeight.w700,
-                                color: AppColors.textSecondary,
-                                height: 1.2,
-                              ),
-                            ),
-                          ],
+                        TextFormField(
+                          controller: _firstNameController,
+                          textInputAction: TextInputAction.next,
+                          decoration: const InputDecoration(
+                            label: _BilingualLabel(
+                                en: 'First name', ur: 'پہلا نام'),
+                          ),
+                          validator: (v) => (v == null || v.trim().isEmpty)
+                              ? 'Enter first name'
+                              : null,
                         ),
-                        SizedBox(height: 6.h),
-                        Align(
-                          alignment: Alignment.centerRight,
-                          child: Text(
-                            'اپنی معلومات اپڈیٹ کریں۔',
-                            textAlign: TextAlign.right,
-                            style: TextStyle(
-                              fontSize: 11.sp,
-                              fontWeight: FontWeight.w600,
-                              color: AppColors.textSecondary,
-                              height: 1.25,
+                        SizedBox(height: 18.h),
+                        TextFormField(
+                          controller: _lastNameController,
+                          textInputAction: TextInputAction.next,
+                          decoration: const InputDecoration(
+                            label: _BilingualLabel(
+                                en: 'Last name', ur: 'آخری نام'),
+                          ),
+                          validator: (v) => (v == null || v.trim().isEmpty)
+                              ? 'Enter last name'
+                              : null,
+                        ),
+                        SizedBox(height: 18.h),
+                        DropdownButtonFormField<String>(
+                          key: ValueKey<String>(
+                            _genderController.text.trim().isEmpty
+                                ? 'M'
+                                : _genderController.text.trim().toUpperCase(),
+                          ),
+                          initialValue: _genderController.text.trim().isEmpty
+                              ? 'M'
+                              : _genderController.text.trim().toUpperCase(),
+                          decoration: const InputDecoration(
+                            label: _BilingualLabel(en: 'Gender', ur: 'جنس'),
+                          ),
+                          items: const [
+                            DropdownMenuItem(value: 'M', child: Text('Male')),
+                            DropdownMenuItem(value: 'F', child: Text('Female')),
+                          ],
+                          onChanged: (v) {
+                            if (v == null) return;
+                            _genderController.text = v;
+                          },
+                        ),
+                        SizedBox(height: 18.h),
+                        InkWell(
+                          onTap: () => _pickDateOfBirth(context),
+                          borderRadius: BorderRadius.circular(12.r),
+                          child: InputDecorator(
+                            decoration: InputDecoration(
+                              label: const _BilingualLabel(
+                                en: 'Date of birth',
+                                ur: 'تاریخ پیدائش',
+                              ),
+                              errorText: _dobError,
+                              suffixIcon: Icon(
+                                Icons.calendar_month_rounded,
+                                color: AppColors.blueDark,
+                                size: 22.sp,
+                              ),
+                            ),
+                            child: Text(
+                              _dateOfBirthDisplay(),
+                              style: TextStyle(
+                                fontSize: 15.sp,
+                                color: _dateOfBirth == null
+                                    ? AppColors.textSecondary
+                                    : AppColors.textPrimary,
+                              ),
                             ),
                           ),
                         ),
+                        SizedBox(height: 18.h),
+                        TextFormField(
+                          controller: _cnicController,
+                          keyboardType: TextInputType.number,
+                          textInputAction: TextInputAction.next,
+                          inputFormatters: [CnicInputFormatter()],
+                          decoration: const InputDecoration(
+                            label:
+                                _BilingualLabel(en: 'CNIC', ur: 'شناختی کارڈ'),
+                            hintText: '#####-#######-#',
+                          ),
+                          validator: (v) {
+                            final d = CnicInputFormatter.digitsOnly(v ?? '');
+                            if (d.length != CnicInputFormatter.maxDigits) {
+                              return 'Enter valid 13-digit CNIC';
+                            }
+                            return null;
+                          },
+                        ),
+                        SizedBox(height: 18.h),
+                        TextFormField(
+                          controller: _phoneController,
+                          keyboardType: TextInputType.phone,
+                          textInputAction: TextInputAction.next,
+                          inputFormatters: [PakistanPhoneInputFormatter()],
+                          decoration: const InputDecoration(
+                            label: _BilingualLabel(
+                                en: 'Phone number', ur: 'فون نمبر'),
+                            hintText: '03XXXXXXXXX',
+                          ),
+                          validator: (v) {
+                            if (!PakistanPhoneInputFormatter
+                                .isValidPakistaniMobile(v ?? '')) {
+                              return 'Enter valid 11-digit mobile (03XXXXXXXXX)';
+                            }
+                            return null;
+                          },
+                        ),
+                        SizedBox(height: 18.h),
+                        DropdownButtonFormField<int>(
+                          key: ValueKey<Object>(
+                            'edu_${_educationLevels?.length ?? 0}_${_educationLevelIdController.text}',
+                          ),
+                          initialValue: _matchedItemId(
+                              _educationLevels, _educationLevelIdController),
+                          decoration: InputDecoration(
+                            label: const _BilingualLabel(
+                              en: 'Education level',
+                              ur: 'تعلیمی معیار',
+                            ),
+                            helperText: _refHelper(
+                              loading: _loadingEducationLevels,
+                              error: _educationLevelsError,
+                            ),
+                          ),
+                          items: (_educationLevels ?? const [])
+                              .map(
+                                (e) => DropdownMenuItem(
+                                  value: e.id,
+                                  child: _dropdownItemLabel(e.name, e.id),
+                                ),
+                              )
+                              .toList(growable: false),
+                          onChanged: (v) {
+                            _educationLevelIdController.text =
+                                v?.toString() ?? '';
+                          },
+                          validator: (v) => (v == null || v <= 0)
+                              ? 'Select education level'
+                              : null,
+                        ),
+                        SizedBox(height: 18.h),
+                        TextFormField(
+                          controller: _trainingCertificateController,
+                          textInputAction: TextInputAction.next,
+                          decoration: const InputDecoration(
+                            label: _BilingualLabel(
+                              en: 'LHW training certificate',
+                              ur: 'ایل ایچ ڈبلیو ٹریننگ سرٹیفکیٹ',
+                            ),
+                          ),
+                          validator: (v) => (v == null || v.trim().isEmpty)
+                              ? 'Enter training certificate'
+                              : null,
+                        ),
+                        SizedBox(height: 18.h),
+                        DropdownButtonFormField<int>(
+                          key: ValueKey<Object>(
+                            'pv_${_provinces?.length ?? 0}_${_provinceIdController.text}',
+                          ),
+                          initialValue:
+                              _matchedItemId(_provinces, _provinceIdController),
+                          decoration: InputDecoration(
+                            label: const _BilingualLabel(
+                                en: 'Province', ur: 'صوبہ'),
+                            helperText: _refHelper(
+                              loading: _loadingProvinces,
+                              error: _provincesError,
+                            ),
+                          ),
+                          items: (_provinces ?? const [])
+                              .map(
+                                (p) => DropdownMenuItem(
+                                  value: p.id,
+                                  child: _dropdownItemLabel(p.name, p.id),
+                                ),
+                              )
+                              .toList(growable: false),
+                          onChanged: (v) {
+                            _provinceIdController.text = v?.toString() ?? '';
+                            _districtIdController.clear();
+                            _tehsilIdController.clear();
+                            _districts = null;
+                            _tehsils = null;
+                            _districtsError = null;
+                            _tehsilsError = null;
+                            _loadDistricts(controller);
+                          },
+                          validator: (v) =>
+                              (v == null || v <= 0) ? 'Select province' : null,
+                        ),
+                        SizedBox(height: 18.h),
+                        DropdownButtonFormField<int>(
+                          key: ValueKey<Object>(
+                            'dc_${_districts?.length ?? 0}_${_districtIdController.text}',
+                          ),
+                          initialValue:
+                              _matchedItemId(_districts, _districtIdController),
+                          decoration: InputDecoration(
+                            label: const _BilingualLabel(
+                                en: 'District', ur: 'ضلع'),
+                            helperText: _refHelper(
+                              loading: _loadingDistricts,
+                              error: _districtsError,
+                            ),
+                          ),
+                          items: (_districts ?? const [])
+                              .map(
+                                (d) => DropdownMenuItem(
+                                  value: d.id,
+                                  child: _dropdownItemLabel(d.name, d.id),
+                                ),
+                              )
+                              .toList(growable: false),
+                          onChanged: (v) {
+                            _districtIdController.text = v?.toString() ?? '';
+                            _tehsilIdController.clear();
+                            _tehsils = null;
+                            _tehsilsError = null;
+                            _loadTehsils(controller);
+                          },
+                          validator: (v) =>
+                              (v == null || v <= 0) ? 'Select district' : null,
+                        ),
+                        SizedBox(height: 18.h),
+                        DropdownButtonFormField<int>(
+                          key: ValueKey<Object>(
+                            'th_${_tehsils?.length ?? 0}_${_tehsilIdController.text}',
+                          ),
+                          initialValue:
+                              _matchedItemId(_tehsils, _tehsilIdController),
+                          decoration: InputDecoration(
+                            label: const _BilingualLabel(
+                                en: 'Tehsil', ur: 'تحصیل'),
+                            helperText: _refHelper(
+                              loading: _loadingTehsils,
+                              error: _tehsilsError,
+                            ),
+                          ),
+                          items: (_tehsils ?? const [])
+                              .map(
+                                (t) => DropdownMenuItem(
+                                  value: t.id,
+                                  child: _dropdownItemLabel(t.name, t.id),
+                                ),
+                              )
+                              .toList(growable: false),
+                          onChanged: (v) {
+                            _tehsilIdController.text = v?.toString() ?? '';
+                          },
+                          validator: (v) =>
+                              (v == null || v <= 0) ? 'Select tehsil' : null,
+                        ),
+                        SizedBox(height: 18.h),
+                        TextFormField(
+                          controller: _addressController,
+                          textInputAction: TextInputAction.done,
+                          decoration: const InputDecoration(
+                            label: _BilingualLabel(en: 'Address', ur: 'پتہ'),
+                          ),
+                          maxLines: 2,
+                          validator: (v) => (v == null || v.trim().isEmpty)
+                              ? 'Enter address'
+                              : null,
+                        ),
+                        SizedBox(height: 20.h),
                       ],
                     ),
                   ),
-                ),
-                SizedBox(height: 16.h),
-                Expanded(
-                  child: ListView(
-                    padding: EdgeInsets.only(bottom: 24.h),
-                    children: [
-                      TextFormField(
-                        controller: _firstNameController,
-                        textInputAction: TextInputAction.next,
-                        decoration: const InputDecoration(
-                          label: _BilingualLabel(en: 'First name', ur: 'پہلا نام'),
-                        ),
-                        validator: (v) =>
-                            (v == null || v.trim().isEmpty) ? 'Enter first name' : null,
-                      ),
-                      SizedBox(height: 18.h),
-                      TextFormField(
-                        controller: _lastNameController,
-                        textInputAction: TextInputAction.next,
-                        decoration: const InputDecoration(
-                          label: _BilingualLabel(en: 'Last name', ur: 'آخری نام'),
-                        ),
-                        validator: (v) =>
-                            (v == null || v.trim().isEmpty) ? 'Enter last name' : null,
-                      ),
-                      SizedBox(height: 18.h),
-                      DropdownButtonFormField<String>(
-                        key: ValueKey<String>(
-                          _genderController.text.trim().isEmpty
-                              ? 'M'
-                              : _genderController.text.trim().toUpperCase(),
-                        ),
-                        initialValue: _genderController.text.trim().isEmpty
-                            ? 'M'
-                            : _genderController.text.trim().toUpperCase(),
-                        decoration: const InputDecoration(
-                          label: _BilingualLabel(en: 'Gender', ur: 'جنس'),
-                        ),
-                        items: const [
-                          DropdownMenuItem(value: 'M', child: Text('Male')),
-                          DropdownMenuItem(value: 'F', child: Text('Female')),
-                        ],
-                        onChanged: (v) {
-                          if (v == null) return;
-                          _genderController.text = v;
-                        },
-                      ),
-                      SizedBox(height: 18.h),
-                      InkWell(
-                        onTap: () => _pickDateOfBirth(context),
-                        borderRadius: BorderRadius.circular(12.r),
-                        child: InputDecorator(
-                          decoration: InputDecoration(
-                            label: const _BilingualLabel(
-                              en: 'Date of birth',
-                              ur: 'تاریخ پیدائش',
-                            ),
-                            errorText: _dobError,
-                            suffixIcon: Icon(
-                              Icons.calendar_month_rounded,
-                              color: AppColors.blueDark,
-                              size: 22.sp,
-                            ),
-                          ),
-                          child: Text(
-                            _dateOfBirthDisplay(),
-                            style: TextStyle(
-                              fontSize: 15.sp,
-                              color: _dateOfBirth == null
-                                  ? AppColors.textSecondary
-                                  : AppColors.textPrimary,
-                            ),
-                          ),
-                        ),
-                      ),
-                      SizedBox(height: 18.h),
-                      TextFormField(
-                        controller: _cnicController,
-                        keyboardType: TextInputType.number,
-                        textInputAction: TextInputAction.next,
-                        inputFormatters: [CnicInputFormatter()],
-                        decoration: const InputDecoration(
-                          label: _BilingualLabel(en: 'CNIC', ur: 'شناختی کارڈ'),
-                          hintText: '#####-#######-#',
-                        ),
-                        validator: (v) {
-                          final d = CnicInputFormatter.digitsOnly(v ?? '');
-                          if (d.length != CnicInputFormatter.maxDigits) {
-                            return 'Enter valid 13-digit CNIC';
-                          }
-                          return null;
-                        },
-                      ),
-                      SizedBox(height: 18.h),
-                      TextFormField(
-                        controller: _phoneController,
-                        keyboardType: TextInputType.phone,
-                        textInputAction: TextInputAction.next,
-                        inputFormatters: [PakistanPhoneInputFormatter()],
-                        decoration: const InputDecoration(
-                          label: _BilingualLabel(en: 'Phone number', ur: 'فون نمبر'),
-                          hintText: '03XXXXXXXXX',
-                        ),
-                        validator: (v) {
-                          if (!PakistanPhoneInputFormatter.isValidPakistaniMobile(
-                              v ?? '')) {
-                            return 'Enter valid 11-digit mobile (03XXXXXXXXX)';
-                          }
-                          return null;
-                        },
-                      ),
-                      SizedBox(height: 18.h),
-                      DropdownButtonFormField<int>(
-                        key: ValueKey<Object>(
-                          'edu_${_educationLevels?.length ?? 0}_${_educationLevelIdController.text}',
-                        ),
-                        initialValue: _matchedItemId(_educationLevels, _educationLevelIdController),
-                        decoration: InputDecoration(
-                          label: const _BilingualLabel(
-                            en: 'Education level',
-                            ur: 'تعلیمی معیار',
-                          ),
-                          helperText: _refHelper(
-                            loading: _loadingEducationLevels,
-                            error: _educationLevelsError,
-                          ),
-                        ),
-                        items: (_educationLevels ?? const [])
-                            .map(
-                              (e) => DropdownMenuItem(
-                                value: e.id,
-                                child: _dropdownItemLabel(e.name, e.id),
-                              ),
-                            )
-                            .toList(growable: false),
-                        onChanged: (v) {
-                          _educationLevelIdController.text = v?.toString() ?? '';
-                        },
-                        validator: (v) =>
-                            (v == null || v <= 0) ? 'Select education level' : null,
-                      ),
-                      SizedBox(height: 18.h),
-                      TextFormField(
-                        controller: _trainingCertificateController,
-                        textInputAction: TextInputAction.next,
-                        decoration: const InputDecoration(
-                          label: _BilingualLabel(
-                            en: 'LHW training certificate',
-                            ur: 'ایل ایچ ڈبلیو ٹریننگ سرٹیفکیٹ',
-                          ),
-                        ),
-                        validator: (v) => (v == null || v.trim().isEmpty)
-                            ? 'Enter training certificate'
-                            : null,
-                      ),
-                      SizedBox(height: 18.h),
-                      DropdownButtonFormField<int>(
-                        key: ValueKey<Object>(
-                          'pv_${_provinces?.length ?? 0}_${_provinceIdController.text}',
-                        ),
-                        initialValue: _matchedItemId(_provinces, _provinceIdController),
-                        decoration: InputDecoration(
-                          label: const _BilingualLabel(en: 'Province', ur: 'صوبہ'),
-                          helperText: _refHelper(
-                            loading: _loadingProvinces,
-                            error: _provincesError,
-                          ),
-                        ),
-                        items: (_provinces ?? const [])
-                            .map(
-                              (p) => DropdownMenuItem(
-                                value: p.id,
-                                child: _dropdownItemLabel(p.name, p.id),
-                              ),
-                            )
-                            .toList(growable: false),
-                        onChanged: (v) {
-                          _provinceIdController.text = v?.toString() ?? '';
-                          _districtIdController.clear();
-                          _tehsilIdController.clear();
-                          _districts = null;
-                          _tehsils = null;
-                          _districtsError = null;
-                          _tehsilsError = null;
-                          _loadDistricts(controller);
-                        },
-                        validator: (v) => (v == null || v <= 0) ? 'Select province' : null,
-                      ),
-                      SizedBox(height: 18.h),
-                      DropdownButtonFormField<int>(
-                        key: ValueKey<Object>(
-                          'dc_${_districts?.length ?? 0}_${_districtIdController.text}',
-                        ),
-                        initialValue: _matchedItemId(_districts, _districtIdController),
-                        decoration: InputDecoration(
-                          label: const _BilingualLabel(en: 'District', ur: 'ضلع'),
-                          helperText: _refHelper(
-                            loading: _loadingDistricts,
-                            error: _districtsError,
-                          ),
-                        ),
-                        items: (_districts ?? const [])
-                            .map(
-                              (d) => DropdownMenuItem(
-                                value: d.id,
-                                child: _dropdownItemLabel(d.name, d.id),
-                              ),
-                            )
-                            .toList(growable: false),
-                        onChanged: (v) {
-                          _districtIdController.text = v?.toString() ?? '';
-                          _tehsilIdController.clear();
-                          _tehsils = null;
-                          _tehsilsError = null;
-                          _loadTehsils(controller);
-                        },
-                        validator: (v) => (v == null || v <= 0) ? 'Select district' : null,
-                      ),
-                      SizedBox(height: 18.h),
-                      DropdownButtonFormField<int>(
-                        key: ValueKey<Object>(
-                          'th_${_tehsils?.length ?? 0}_${_tehsilIdController.text}',
-                        ),
-                        initialValue: _matchedItemId(_tehsils, _tehsilIdController),
-                        decoration: InputDecoration(
-                          label: const _BilingualLabel(en: 'Tehsil', ur: 'تحصیل'),
-                          helperText: _refHelper(
-                            loading: _loadingTehsils,
-                            error: _tehsilsError,
-                          ),
-                        ),
-                        items: (_tehsils ?? const [])
-                            .map(
-                              (t) => DropdownMenuItem(
-                                value: t.id,
-                                child: _dropdownItemLabel(t.name, t.id),
-                              ),
-                            )
-                            .toList(growable: false),
-                        onChanged: (v) {
-                          _tehsilIdController.text = v?.toString() ?? '';
-                        },
-                        validator: (v) => (v == null || v <= 0) ? 'Select tehsil' : null,
-                      ),
-                      SizedBox(height: 18.h),
-                      TextFormField(
-                        controller: _addressController,
-                        textInputAction: TextInputAction.done,
-                        decoration: const InputDecoration(
-                          label: _BilingualLabel(en: 'Address', ur: 'پتہ'),
-                        ),
-                        maxLines: 2,
-                        validator: (v) =>
-                            (v == null || v.trim().isEmpty) ? 'Enter address' : null,
-                      ),
-                      SizedBox(height: 20.h),
-                    ],
-                  ),
-                ),
-                FilledButton(
-                  onPressed: _saving
-                      ? null
-                      : () async {
-                          final ok = _formKey.currentState?.validate() ?? false;
-                          if (!ok) return;
-                          setState(() => _saving = true);
-                          try {
-                            final userId = controller.state.userId;
-                            if (userId == null || userId.trim().isEmpty) {
-                              throw StateError('Missing user id. Please login again.');
-                            }
+                  FilledButton.icon(
+                    onPressed: _saving
+                        ? null
+                        : () async {
+                            final ok =
+                                _formKey.currentState?.validate() ?? false;
+                            if (!ok) return;
+                            setState(() => _saving = true);
+                            try {
+                              final userId = controller.state.userId;
+                              if (userId == null || userId.trim().isEmpty) {
+                                throw StateError(
+                                    'Missing user id. Please login again.');
+                              }
 
-                            final profile = HealthWorkerProfileUpsert(
-                              userId: userId,
-                              firstName: _firstNameController.text.trim(),
-                              lastName: _lastNameController.text.trim(),
-                              gender: _genderController.text.trim().toUpperCase(),
-                              dateOfBirth: _dateOfBirth!,
-                              cnic: CnicInputFormatter.forApi(_cnicController.text),
-                              phoneNumber:
-                                  PakistanPhoneInputFormatter.normalizeFromRaw(
-                                _phoneController.text,
-                              ),
-                              educationLevelId:
-                                  int.parse(_educationLevelIdController.text.trim()),
-                              lhwTrainingCertificate:
-                                  _trainingCertificateController.text.trim(),
-                              provinceId: int.parse(_provinceIdController.text.trim()),
-                              districtId: int.parse(_districtIdController.text.trim()),
-                              tehsilId: int.parse(_tehsilIdController.text.trim()),
-                              address: _addressController.text.trim(),
-                            );
-
-                            await controller.completeRegistrationDetails(profile: profile);
-
-                            if (!context.mounted) return;
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: const Text('Profile updated • پروفائل اپڈیٹ ہوگیا'),
-                                backgroundColor: AppColors.success,
-                                behavior: SnackBarBehavior.floating,
-                                margin: EdgeInsets.all(16.w),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12.r),
+                              final profile = HealthWorkerProfileUpsert(
+                                userId: userId,
+                                firstName: _firstNameController.text.trim(),
+                                lastName: _lastNameController.text.trim(),
+                                gender:
+                                    _genderController.text.trim().toUpperCase(),
+                                dateOfBirth: _dateOfBirth!,
+                                cnic: CnicInputFormatter.forApi(
+                                    _cnicController.text),
+                                phoneNumber: PakistanPhoneInputFormatter
+                                    .normalizeFromRaw(
+                                  _phoneController.text,
                                 ),
-                              ),
-                            );
-                            Navigator.of(context).maybePop();
-                          } catch (e) {
-                            if (!context.mounted) return;
-                            if (e is SessionEndedFailure) return;
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(e.toString()),
-                                backgroundColor: AppColors.danger,
-                              ),
-                            );
-                          } finally {
-                            if (mounted) setState(() => _saving = false);
-                          }
-                        },
-                  child: Text(_saving ? 'Saving…' : 'Save changes • محفوظ کریں'),
-                ),
-              ],
+                                educationLevelId: int.parse(
+                                    _educationLevelIdController.text.trim()),
+                                lhwTrainingCertificate:
+                                    _trainingCertificateController.text.trim(),
+                                provinceId: int.parse(
+                                    _provinceIdController.text.trim()),
+                                districtId: int.parse(
+                                    _districtIdController.text.trim()),
+                                tehsilId:
+                                    int.parse(_tehsilIdController.text.trim()),
+                                address: _addressController.text.trim(),
+                              );
+
+                              await controller.completeRegistrationDetails(
+                                  profile: profile);
+
+                              if (!context.mounted) return;
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: const Text(
+                                      'Profile updated • پروفائل اپڈیٹ ہوگیا'),
+                                  backgroundColor: AppColors.success,
+                                  behavior: SnackBarBehavior.floating,
+                                  margin: EdgeInsets.all(16.w),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12.r),
+                                  ),
+                                ),
+                              );
+                              Navigator.of(context).maybePop();
+                            } catch (e) {
+                              if (!context.mounted) return;
+                              if (e is SessionEndedFailure) return;
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(e.toString()),
+                                  backgroundColor: AppColors.danger,
+                                ),
+                              );
+                            } finally {
+                              if (mounted) setState(() => _saving = false);
+                            }
+                          },
+                    icon: _saving
+                        ? SizedBox(
+                            width: 18.r,
+                            height: 18.r,
+                            child: const CircularProgressIndicator(
+                              strokeWidth: 2.2,
+                              color: AppColors.surface,
+                            ),
+                          )
+                        : Icon(Icons.check_rounded, size: 22.sp),
+                    label: Text(
+                      _saving ? 'Saving…' : 'Save Changes',
+                      style: TextStyle(
+                        fontSize: 15.sp,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: AppColors.registrationSaveBlue,
+                      foregroundColor: AppColors.surface,
+                      minimumSize: Size(double.infinity, 54.h),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14.r),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -551,14 +605,16 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
         _firstNameController.text = existing.firstName;
         _lastNameController.text = existing.lastName;
-        _genderController.text = existing.gender.isEmpty ? 'M' : existing.gender;
+        _genderController.text =
+            existing.gender.isEmpty ? 'M' : existing.gender;
         _dateOfBirth = existing.dateOfBirth;
         _dobError = null;
         _cnicController.text = CnicInputFormatter.formatFromRaw(existing.cnic);
         _phoneController.text =
             PakistanPhoneInputFormatter.normalizeFromRaw(existing.phoneNumber);
-        _educationLevelIdController.text =
-            existing.educationLevelId == 0 ? '' : existing.educationLevelId.toString();
+        _educationLevelIdController.text = existing.educationLevelId == 0
+            ? ''
+            : existing.educationLevelId.toString();
         _trainingCertificateController.text = existing.lhwTrainingCertificate;
         _provinceIdController.text =
             existing.provinceId == 0 ? '' : existing.provinceId.toString();
@@ -703,6 +759,89 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   }
 }
 
+class _EditProfileHeader extends StatelessWidget {
+  const _EditProfileHeader({required this.isSaving});
+
+  final bool isSaving;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: EdgeInsets.all(18.w),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF1F6FAB), Color(0xFF0E947E)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(20.r),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.dashboardPrimary.withValues(alpha: 0.18),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 54.r,
+            height: 54.r,
+            decoration: BoxDecoration(
+              color: AppColors.surface.withValues(alpha: 0.18),
+              borderRadius: BorderRadius.circular(16.r),
+              border: Border.all(
+                color: AppColors.surface.withValues(alpha: 0.45),
+              ),
+            ),
+            child: Icon(
+              Icons.badge_outlined,
+              color: AppColors.surface,
+              size: 28.sp,
+            ),
+          ),
+          SizedBox(width: 14.w),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Update your profile',
+                  style: TextStyle(
+                    fontSize: 18.sp,
+                    fontWeight: FontWeight.w900,
+                    color: AppColors.surface,
+                  ),
+                ),
+                SizedBox(height: 5.h),
+                Text(
+                  'Keep your identity, contact, and assigned territory accurate.',
+                  style: TextStyle(
+                    fontSize: 12.sp,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.surface.withValues(alpha: 0.88),
+                    height: 1.35,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (isSaving)
+            SizedBox(
+              width: 18.r,
+              height: 18.r,
+              child: const CircularProgressIndicator(
+                strokeWidth: 2,
+                color: AppColors.surface,
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
 class _BilingualLabel extends StatelessWidget {
   const _BilingualLabel({required this.en, required this.ur});
 
@@ -728,4 +867,3 @@ class _BilingualLabel extends StatelessWidget {
     );
   }
 }
-

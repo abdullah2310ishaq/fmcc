@@ -23,9 +23,19 @@ class HomeShell extends StatefulWidget {
 
 class _HomeShellState extends State<HomeShell> {
   int _tabIndex = 0;
+  int _visitOpenRequestId = 0;
+  VisitPatientSeed? _visitPatient;
 
   void _onFab() {
     context.push(NewPatientRegistrationScreen.routePath);
+  }
+
+  void _openVisitAssessment(VisitPatientSeed patient) {
+    setState(() {
+      _visitPatient = patient;
+      _visitOpenRequestId++;
+      _tabIndex = HomeShellTab.visit.index;
+    });
   }
 
   @override
@@ -35,9 +45,13 @@ class _HomeShellState extends State<HomeShell> {
       HomeTabPage(
         onViewAllPatients: () =>
             setState(() => _tabIndex = HomeShellTab.patients.index),
+        onStartVisit: _openVisitAssessment,
       ),
       const PatientsTabPage(),
-      const VisitTabPage(),
+      VisitTabPage(
+        initialPatient: _visitPatient,
+        openRequestId: _visitOpenRequestId,
+      ),
       const ProfileTabPage(),
     ];
 

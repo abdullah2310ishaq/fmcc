@@ -6,14 +6,21 @@ import 'package:doctor_app/src/core/theme/app_colors.dart';
 
 /// Shell index **2** — visit workflow.
 class VisitTabPage extends StatefulWidget {
-  const VisitTabPage({super.key});
+  const VisitTabPage({
+    super.key,
+    this.initialPatient,
+    this.openRequestId = 0,
+  });
+
+  final VisitPatientSeed? initialPatient;
+  final int openRequestId;
 
   @override
   State<VisitTabPage> createState() => _VisitTabPageState();
 }
 
-class _VisitPatientDemo {
-  const _VisitPatientDemo({
+class VisitPatientSeed {
+  const VisitPatientSeed({
     required this.name,
     required this.id,
     required this.age,
@@ -29,29 +36,29 @@ class _VisitPatientDemo {
 }
 
 class _VisitTabPageState extends State<VisitTabPage> {
-  static const List<_VisitPatientDemo> _patients = [
-    _VisitPatientDemo(
+  static const List<VisitPatientSeed> _patients = [
+    VisitPatientSeed(
       name: 'Zainab Khan',
       id: 'LHW-2026-0041',
       age: 34,
       gender: 'Female',
       lastVisit: '03 May 2026',
     ),
-    _VisitPatientDemo(
+    VisitPatientSeed(
       name: 'Sajida Akhtar',
       id: 'LHW-2026-0038',
       age: 28,
       gender: 'Female',
       lastVisit: '26 Apr 2026',
     ),
-    _VisitPatientDemo(
+    VisitPatientSeed(
       name: 'Muhammad Arif',
       id: 'LHW-2026-0029',
       age: 52,
       gender: 'Male',
       lastVisit: '01 May 2026',
     ),
-    _VisitPatientDemo(
+    VisitPatientSeed(
       name: 'Rubina Fatima',
       id: 'LHW-2026-0015',
       age: 41,
@@ -60,7 +67,24 @@ class _VisitTabPageState extends State<VisitTabPage> {
     ),
   ];
 
-  _VisitPatientDemo? _selectedPatient;
+  VisitPatientSeed? _selectedPatient;
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedPatient = widget.initialPatient;
+  }
+
+  @override
+  void didUpdateWidget(covariant VisitTabPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final next = widget.initialPatient;
+    if (next != null &&
+        (next.id != oldWidget.initialPatient?.id ||
+            widget.openRequestId != oldWidget.openRequestId)) {
+      _selectedPatient = next;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -119,7 +143,7 @@ class _VisitPatientCard extends StatelessWidget {
     required this.onTap,
   });
 
-  final _VisitPatientDemo patient;
+  final VisitPatientSeed patient;
   final VoidCallback onTap;
 
   @override
@@ -215,7 +239,7 @@ class _VisitAssessmentView extends StatefulWidget {
     required this.onBack,
   });
 
-  final _VisitPatientDemo patient;
+  final VisitPatientSeed patient;
   final VoidCallback onBack;
 
   @override

@@ -136,6 +136,12 @@ class ApiClient {
       handler.resolve(response);
     } catch (e, st) {
       if (e is DioException) {
+        if (e.response?.statusCode == 401) {
+          await hooks.logoutDueToExpiredSession();
+          _flagSessionEndedSilently(req);
+          handler.reject(_sessionEndedDio(e));
+          return;
+        }
         AppLogger.instance.e(
           '[HTTP] Retry after refresh failed',
           error: e,
@@ -181,8 +187,9 @@ class ApiClient {
       data: body,
       queryParameters: query,
       options: Options(
-        headers:
-            bearerToken == null ? null : {'Authorization': 'Bearer $bearerToken'},
+        headers: bearerToken == null
+            ? null
+            : {'Authorization': 'Bearer $bearerToken'},
         extra: skipAuthRetry ? {kSkipAuthRetryExtra: true} : null,
       ),
     );
@@ -198,8 +205,9 @@ class ApiClient {
       path,
       queryParameters: query,
       options: Options(
-        headers:
-            bearerToken == null ? null : {'Authorization': 'Bearer $bearerToken'},
+        headers: bearerToken == null
+            ? null
+            : {'Authorization': 'Bearer $bearerToken'},
         extra: skipAuthRetry ? {kSkipAuthRetryExtra: true} : null,
       ),
     );
@@ -217,8 +225,9 @@ class ApiClient {
       data: body,
       queryParameters: query,
       options: Options(
-        headers:
-            bearerToken == null ? null : {'Authorization': 'Bearer $bearerToken'},
+        headers: bearerToken == null
+            ? null
+            : {'Authorization': 'Bearer $bearerToken'},
         extra: skipAuthRetry ? {kSkipAuthRetryExtra: true} : null,
       ),
     );
@@ -237,7 +246,8 @@ class ApiClient {
           error.type == DioExceptionType.receiveTimeout ||
           error.type == DioExceptionType.sendTimeout ||
           error.type == DioExceptionType.connectionError) {
-        return const NetworkFailure('Network error. Please check your internet and try again.');
+        return const NetworkFailure(
+            'Network error. Please check your internet and try again.');
       }
 
       final status = error.response?.statusCode;
@@ -254,7 +264,8 @@ class ApiClient {
       }
 
       if (status != null && status >= 500) {
-        return const ServerFailure('Server error. Please try again in a moment.');
+        return const ServerFailure(
+            'Server error. Please try again in a moment.');
       }
 
       return UnknownFailure(error.message ?? 'Unexpected error occurred.');
@@ -271,13 +282,16 @@ class ApiClient {
         m.contains('forbidden')) {
       return 'Please sign in again.';
     }
-    return raw?.trim().isNotEmpty == true ? raw!.trim() : 'Please sign in again.';
+    return raw?.trim().isNotEmpty == true
+        ? raw!.trim()
+        : 'Please sign in again.';
   }
 
   static String _safeBody(Object? body) {
     try {
       if (body == null) return 'null';
-      if (body is String) return body.length > 1500 ? '${body.substring(0, 1500)}…' : body;
+      if (body is String)
+        return body.length > 1500 ? '${body.substring(0, 1500)}…' : body;
       final encoded = jsonEncode(body);
       return encoded.length > 1500 ? '${encoded.substring(0, 1500)}…' : encoded;
     } catch (_) {
@@ -290,7 +304,8 @@ class ApiClient {
       return data.trim();
     }
     if (data is Map) {
-      final dynamic msg = data['message'] ?? data['Message'] ?? data['error'] ?? data['Error'];
+      final dynamic msg =
+          data['message'] ?? data['Message'] ?? data['error'] ?? data['Error'];
       if (msg is String && msg.trim().isNotEmpty) return msg.trim();
     }
     return null;

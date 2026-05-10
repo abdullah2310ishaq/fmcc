@@ -8,12 +8,18 @@ import 'package:doctor_app/src/core/session/app_session.dart';
 import 'package:doctor_app/src/core/session/session_controller.dart';
 import 'package:doctor_app/src/core/theme/app_colors.dart';
 import 'package:doctor_app/src/features/profile/profile_view_screen.dart';
+import 'package:doctor_app/src/features/shell/tabs/visit_tab_page.dart';
 import 'package:doctor_app/src/widgets/urdu_help_suffix.dart';
 
 class HomeTabPage extends StatelessWidget {
-  const HomeTabPage({super.key, this.onViewAllPatients});
+  const HomeTabPage({
+    super.key,
+    this.onViewAllPatients,
+    this.onStartVisit,
+  });
 
   final VoidCallback? onViewAllPatients;
+  final ValueChanged<VisitPatientSeed>? onStartVisit;
 
   static String _weekday(DateTime d) {
     const names = [
@@ -230,6 +236,9 @@ class HomeTabPage extends StatelessWidget {
                   _FollowUpCard.overdue(
                     initials: 'ZK',
                     name: 'Zainab Khan',
+                    patientId: 'LHW-2026-0041',
+                    age: 34,
+                    gender: 'Female',
                     subtitle: 'Age 34 • Female • ID: LHW-2026-0041',
                     topicLabel: 'BP Monitoring',
                     topicUrdu: 'بلڈ پریشر کی نگرانی',
@@ -239,11 +248,15 @@ class HomeTabPage extends StatelessWidget {
                         'Last visit: 03 May 2026 — Hypertension check, BP was 145/92',
                     lastVisitUrdu:
                         'پچھلا وزٹ: ۳ مئی ۲۰۲۶ — بلڈ پریشر چیک، ریڈنگ ۱۴۵/۹۲ تھی۔',
+                    onStartVisit: onStartVisit,
                   ),
                   SizedBox(height: 12.h),
                   _FollowUpCard.today(
                     initials: 'SA',
                     name: 'Sajida Akhtar',
+                    patientId: 'LHW-2026-0038',
+                    age: 28,
+                    gender: 'Female',
                     subtitle: 'Age 28 • Female • ID: LHW-2026-0038',
                     topicLabel: 'Antenatal Care',
                     topicUrdu: 'حمل کی دیکھ بھال (اینٹی نیٹل کیئر)',
@@ -255,11 +268,15 @@ class HomeTabPage extends StatelessWidget {
                         'Last visit: 28 Apr 2026 — Week 28 checkup, weight 62kg, normal',
                     lastVisitUrdu:
                         'پچھلا وزٹ: ۲۸ اپریل ۲۰۲۶ — ہفتہ ۲۸ چیک، وزن ۶۲ کلو، عام۔',
+                    onStartVisit: onStartVisit,
                   ),
                   SizedBox(height: 12.h),
                   _FollowUpCard.today(
                     initials: 'MA',
                     name: 'Muhammad Arif',
+                    patientId: 'LHW-2026-0029',
+                    age: 52,
+                    gender: 'Male',
                     subtitle: 'Age 52 • Male • ID: LHW-2026-0029',
                     topicLabel: 'Diabetes Follow-up',
                     topicUrdu: 'ذیابیطس فالو اپ',
@@ -271,11 +288,15 @@ class HomeTabPage extends StatelessWidget {
                         'Last visit: 02 May 2026 — Fasting glucose 118 mg/dL, meds reviewed',
                     lastVisitUrdu:
                         'پچھلا وزٹ: ۲ مئی ۲۰۲۶ — فاسٹنگ گلوکوز ۱۱۸، ادویات کا جائزہ۔',
+                    onStartVisit: onStartVisit,
                   ),
                   SizedBox(height: 12.h),
                   _FollowUpCard.upcoming(
                     initials: 'RF',
                     name: 'Rubina Fatima',
+                    patientId: 'LHW-2026-0015',
+                    age: 41,
+                    gender: 'Female',
                     subtitle: 'Age 41 • Female • ID: LHW-2026-0015',
                     topicLabel: 'Post-Op Check',
                     topicUrdu: 'آپریشن کے بعد معائنہ',
@@ -287,11 +308,15 @@ class HomeTabPage extends StatelessWidget {
                         'Last visit: 05 May 2026 — Wound clean, vitals stable',
                     lastVisitUrdu:
                         'پچھلا وزٹ: ۵ مئی ۲۰۲۶ — زخم صاف، علامات مستحکم۔',
+                    onStartVisit: onStartVisit,
                   ),
                   SizedBox(height: 12.h),
                   _FollowUpCard.upcoming(
                     initials: 'AN',
                     name: 'Ayesha Noor',
+                    patientId: 'LHW-2026-0052',
+                    age: 29,
+                    gender: 'Female',
                     subtitle: 'Age 29 • Female • ID: LHW-2026-0052',
                     topicLabel: 'Hygiene counselling',
                     topicUrdu: 'حفظانِ صحت کی رہنمائی',
@@ -302,6 +327,7 @@ class HomeTabPage extends StatelessWidget {
                     lastVisit: 'Last visit: 06 May 2026 — TB meds adherence OK',
                     lastVisitUrdu:
                         'پچھلا وزٹ: ۶ مئی ۲۰۲۶ — ٹی بی دوائیں باقاعدہ۔',
+                    onStartVisit: onStartVisit,
                   ),
                 ],
               ),
@@ -610,6 +636,9 @@ class _FollowUpCard extends StatelessWidget {
   const _FollowUpCard.overdue({
     required this.initials,
     required this.name,
+    required this.patientId,
+    required this.age,
+    required this.gender,
     required this.subtitle,
     required this.topicLabel,
     required this.topicUrdu,
@@ -617,6 +646,7 @@ class _FollowUpCard extends StatelessWidget {
     required this.scheduleUrdu,
     required this.lastVisit,
     required this.lastVisitUrdu,
+    required this.onStartVisit,
   })  : _variant = _FollowVariant.overdue,
         topicIcon = Icons.monitor_heart_outlined,
         accentColor = AppColors.dashboardPrimary,
@@ -628,6 +658,9 @@ class _FollowUpCard extends StatelessWidget {
   const _FollowUpCard.today({
     required this.initials,
     required this.name,
+    required this.patientId,
+    required this.age,
+    required this.gender,
     required this.subtitle,
     required this.topicLabel,
     required this.topicUrdu,
@@ -637,6 +670,7 @@ class _FollowUpCard extends StatelessWidget {
     required this.timeBadgeUrdu,
     required this.lastVisit,
     required this.lastVisitUrdu,
+    required this.onStartVisit,
   })  : _variant = _FollowVariant.today,
         scheduleNote = null,
         scheduleUrdu = null,
@@ -646,6 +680,9 @@ class _FollowUpCard extends StatelessWidget {
   const _FollowUpCard.upcoming({
     required this.initials,
     required this.name,
+    required this.patientId,
+    required this.age,
+    required this.gender,
     required this.subtitle,
     required this.topicLabel,
     required this.topicUrdu,
@@ -655,6 +692,7 @@ class _FollowUpCard extends StatelessWidget {
     required this.dueInUrdu,
     required this.lastVisit,
     required this.lastVisitUrdu,
+    required this.onStartVisit,
   })  : _variant = _FollowVariant.upcoming,
         timeBadge = null,
         timeBadgeUrdu = null,
@@ -666,6 +704,9 @@ class _FollowUpCard extends StatelessWidget {
   final Color accentColor;
   final String initials;
   final String name;
+  final String patientId;
+  final int age;
+  final String gender;
   final String subtitle;
   final String topicLabel;
   final String topicUrdu;
@@ -677,16 +718,26 @@ class _FollowUpCard extends StatelessWidget {
   final String? timeBadgeUrdu;
   final String? dueInLabel;
   final String? dueInUrdu;
+  final ValueChanged<VisitPatientSeed>? onStartVisit;
 
-  void _visitStub(BuildContext context) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          'Visit flow — API بعد میں',
-          style: TextStyle(fontSize: 14.sp),
-        ),
+  void _openVisitAssessment() {
+    onStartVisit?.call(
+      VisitPatientSeed(
+        name: name,
+        id: patientId,
+        age: age,
+        gender: gender,
+        lastVisit: _lastVisitDateLabel(),
       ),
     );
+  }
+
+  String _lastVisitDateLabel() {
+    final marker = lastVisit.indexOf(':');
+    final rest =
+        marker >= 0 ? lastVisit.substring(marker + 1).trim() : lastVisit;
+    final dash = rest.indexOf('—');
+    return dash >= 0 ? rest.substring(0, dash).trim() : rest;
   }
 
   @override
@@ -951,7 +1002,7 @@ class _FollowUpCard extends StatelessWidget {
               width: double.infinity,
               height: 46.h,
               child: FilledButton.icon(
-                onPressed: () => _visitStub(context),
+                onPressed: _openVisitAssessment,
                 style: FilledButton.styleFrom(
                   backgroundColor: AppColors.dashboardActionRed,
                   foregroundColor: Colors.white,
@@ -987,7 +1038,7 @@ class _FollowUpCard extends StatelessWidget {
               width: double.infinity,
               height: 46.h,
               child: FilledButton.icon(
-                onPressed: () => _visitStub(context),
+                onPressed: _openVisitAssessment,
                 style: FilledButton.styleFrom(
                   backgroundColor: accentColor,
                   foregroundColor: Colors.white,
@@ -1013,7 +1064,7 @@ class _FollowUpCard extends StatelessWidget {
               width: double.infinity,
               height: 46.h,
               child: OutlinedButton.icon(
-                onPressed: () => _visitStub(context),
+                onPressed: _openVisitAssessment,
                 style: OutlinedButton.styleFrom(
                   foregroundColor: accentColor,
                   side: BorderSide(color: accentColor.withValues(alpha: 0.65)),
@@ -1021,9 +1072,9 @@ class _FollowUpCard extends StatelessWidget {
                     borderRadius: BorderRadius.circular(12.r),
                   ),
                 ),
-                icon: Icon(Icons.schedule_rounded, size: 22.sp),
+                icon: Icon(Icons.play_arrow_rounded, size: 22.sp),
                 label: Text(
-                  'Scheduled for Later',
+                  'Start Visit',
                   style: TextStyle(
                     fontSize: 14.sp,
                     fontWeight: FontWeight.w800,
