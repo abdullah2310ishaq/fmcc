@@ -11,6 +11,7 @@ import 'package:doctor_app/src/features/auth/auth_screen.dart';
 import 'package:doctor_app/src/features/shell/home_shell.dart';
 import 'package:doctor_app/src/features/profile/edit_profile_screen.dart';
 import 'package:doctor_app/src/features/profile/profile_view_screen.dart';
+import 'package:doctor_app/src/features/patients/new_patient_registration_screen.dart';
 import 'package:doctor_app/src/features/profile/registration_details_screen.dart';
 import 'package:doctor_app/src/features/role/role_screen.dart';
 import 'package:doctor_app/src/features/splash/splash_screen.dart';
@@ -130,6 +131,10 @@ GoRouter _buildRouter(SessionController sessionController) {
         path: EditProfileScreen.routePath,
         builder: (context, state) => const EditProfileScreen(),
       ),
+      GoRoute(
+        path: NewPatientRegistrationScreen.routePath,
+        builder: (context, state) => const NewPatientRegistrationScreen(),
+      ),
     ],
     redirect: (context, state) {
       final session = sessionController.state;
@@ -146,7 +151,8 @@ GoRouter _buildRouter(SessionController sessionController) {
       // Allow `/profile` whenever user is allowed on home (avoid matchedLocation mismatch).
       if (dest == HomeShell.routePath &&
           (loc == ProfileViewScreen.routePath ||
-              loc == EditProfileScreen.routePath)) {
+              loc == EditProfileScreen.routePath ||
+              loc == NewPatientRegistrationScreen.routePath)) {
         return null;
       }
 

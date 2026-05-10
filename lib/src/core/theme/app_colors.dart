@@ -32,5 +32,20 @@ class AppColors {
   static const Color followAccentGreen = Color(0xFF047857);
   static const Color followUpcomingBg = Color(0xFFF0FDF4);
   static const Color followUpcomingBorder = Color(0xFFBBF7D0);
+
+  /// Patient list avatar pastel fills (behind initials).
+  static const Color patientAvatarOrange = Color(0xFFFFE8D9);
+  static const Color patientAvatarBlue = Color(0xFFE3F2FD);
+  static const Color patientAvatarPurple = Color(0xFFF3E8FF);
+  static const Color patientAvatarGreen = Color(0xFFE8F5EC);
+
+  static const Color patientSearchFill = Color(0xFFEEF4FB);
+
+  /// New patient registration form (mockup-aligned).
+  static const Color registrationScreenBg = Color(0xFFF8FBFF);
+  static const Color registrationFieldFill = Color(0xFFF0F7FF);
+  static const Color registrationFieldBorder = Color(0xFFD1E4F8);
+  static const Color registrationSaveBlue = Color(0xFF1B61AD);
+  static const Color registrationSectionLabel = Color(0xFF64748B);
 }
 

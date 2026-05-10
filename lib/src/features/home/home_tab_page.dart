@@ -304,8 +304,7 @@ class HomeTabPage extends StatelessWidget {
                     accentColor: AppColors.followAccentGreen,
                     dueInLabel: 'Due in 2 days',
                     dueInUrdu: '۲ دن بعد مقررہ',
-                    lastVisit:
-                        'Last visit: 06 May 2026 — TB meds adherence OK',
+                    lastVisit: 'Last visit: 06 May 2026 — TB meds adherence OK',
                     lastVisitUrdu:
                         'پچھلا وزٹ: ۶ مئی ۲۰۲۶ — ٹی بی دوائیں باقاعدہ۔',
                   ),

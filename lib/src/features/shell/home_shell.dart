@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:go_router/go_router.dart';
 
 import 'package:doctor_app/src/core/theme/app_colors.dart';
+import 'package:doctor_app/src/features/patients/new_patient_registration_screen.dart';
 import 'package:doctor_app/src/features/home/home_tab_page.dart';
 import 'package:doctor_app/src/features/shell/home_shell_tab.dart';
 import 'package:doctor_app/src/features/shell/shell_nav_item.dart';
@@ -30,14 +32,7 @@ class _HomeShellState extends State<HomeShell> {
   ];
 
   void _onFab() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          'New record — API بعد میں',
-          style: TextStyle(fontSize: 14.sp),
-        ),
-      ),
-    );
+    context.push(NewPatientRegistrationScreen.routePath);
   }
 
   @override
