@@ -101,6 +101,15 @@ class _ProfileViewScreenState extends State<ProfileViewScreen> {
               color: AppColors.blueDark,
             ),
           ),
+          IconButton(
+            tooltip: 'Logout',
+            onPressed: _confirmLogout,
+            icon: Icon(
+              Icons.logout_rounded,
+              size: 20.sp,
+              color: AppColors.danger,
+            ),
+          ),
           SizedBox(width: 4.w),
         ],
       ),
@@ -116,6 +125,115 @@ class _ProfileViewScreenState extends State<ProfileViewScreen> {
     await context.push(EditProfileScreen.routePath);
     if (!mounted) return;
     await _load();
+  }
+
+  Future<void> _confirmLogout() async {
+    final shouldLogout = await showModalBottomSheet<bool>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return SafeArea(
+          top: false,
+          child: Container(
+            margin: EdgeInsets.all(14.w),
+            padding: EdgeInsets.fromLTRB(18.w, 18.h, 18.w, 16.h),
+            decoration: BoxDecoration(
+              color: AppColors.surface,
+              borderRadius: BorderRadius.circular(22.r),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.12),
+                  blurRadius: 24,
+                  offset: const Offset(0, 12),
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Container(
+                  width: 46.r,
+                  height: 46.r,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: AppColors.danger.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(14.r),
+                  ),
+                  child: Icon(
+                    Icons.logout_rounded,
+                    color: AppColors.danger,
+                    size: 25.sp,
+                  ),
+                ),
+                SizedBox(height: 14.h),
+                Text(
+                  'Log out?',
+                  style: TextStyle(
+                    fontSize: 20.sp,
+                    fontWeight: FontWeight.w900,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+                SizedBox(height: 6.h),
+                Text(
+                  'You will need to sign in again with your verified Google account.',
+                  style: TextStyle(
+                    fontSize: 13.sp,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textSecondary,
+                    height: 1.35,
+                  ),
+                ),
+                SizedBox(height: 18.h),
+                FilledButton(
+                  onPressed: () => Navigator.of(context).pop(true),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppColors.danger,
+                    foregroundColor: AppColors.surface,
+                    minimumSize: Size(double.infinity, 50.h),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14.r),
+                    ),
+                  ),
+                  child: Text(
+                    'Logout',
+                    style: TextStyle(
+                      fontSize: 15.sp,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ),
+                SizedBox(height: 10.h),
+                OutlinedButton(
+                  onPressed: () => Navigator.of(context).pop(false),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.dashboardPrimaryDark,
+                    side: const BorderSide(
+                      color: AppColors.registrationFieldBorder,
+                    ),
+                    minimumSize: Size(double.infinity, 50.h),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14.r),
+                    ),
+                  ),
+                  child: Text(
+                    'Cancel',
+                    style: TextStyle(
+                      fontSize: 15.sp,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+
+    if (shouldLogout != true || !mounted) return;
+    await context.read<SessionController>().logout(keepRole: true);
   }
 
   Widget _buildBody() {
@@ -254,6 +372,28 @@ class _ProfileViewScreenState extends State<ProfileViewScreen> {
                         value: _SalaryFmt.format(p.salary!),
                       ),
                   ],
+                ),
+                SizedBox(height: 18.h),
+                OutlinedButton.icon(
+                  onPressed: _confirmLogout,
+                  icon: Icon(Icons.logout_rounded, size: 20.sp),
+                  label: Text(
+                    'Logout',
+                    style: TextStyle(
+                      fontSize: 15.sp,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.danger,
+                    side: BorderSide(
+                      color: AppColors.danger.withValues(alpha: 0.35),
+                    ),
+                    minimumSize: Size(double.infinity, 52.h),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14.r),
+                    ),
+                  ),
                 ),
               ],
             ),

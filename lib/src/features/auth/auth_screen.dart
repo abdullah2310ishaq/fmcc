@@ -28,8 +28,15 @@ class _AuthBodyCurveClipper extends CustomClipper<Path> {
   @override
   Path getClip(Size size) {
     final path = Path()
-      ..moveTo(0, 28)
-      ..quadraticBezierTo(size.width / 2, -22, size.width, 28)
+      ..moveTo(0, 34)
+      ..cubicTo(
+        size.width * 0.26,
+        2,
+        size.width * 0.74,
+        2,
+        size.width,
+        34,
+      )
       ..lineTo(size.width, size.height)
       ..lineTo(0, size.height)
       ..close();
@@ -196,59 +203,60 @@ class _AuthScreenState extends State<AuthScreen> {
             Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Expanded(
-                  flex: 5,
-                  child: _buildBrandHeader(),
-                ),
+                Expanded(flex: 5, child: _buildBrandHeader()),
                 Expanded(
                   flex: 4,
-                  child: ClipPath(
-                    clipper: const _AuthBodyCurveClipper(),
-                    child: Container(
-                      color: AppColors.registrationScreenBg,
-                      padding: EdgeInsets.fromLTRB(24.w, 76.h, 24.w, 24.h),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          Text(
-                            'Sign in with your verified government Google\naccount to access the health worker portal.',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              fontSize: 14.sp,
-                              fontWeight: FontWeight.w500,
-                              color: AppColors.dashboardPrimaryDark
-                                  .withValues(alpha: 0.82),
-                              height: 1.45,
+                  child: Transform.translate(
+                    offset: Offset(0, -34.h),
+                    child: ClipPath(
+                      clipper: const _AuthBodyCurveClipper(),
+                      child: Container(
+                        color: AppColors.registrationScreenBg,
+                        padding: EdgeInsets.fromLTRB(24.w, 82.h, 24.w, 24.h),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Text(
+                              'Sign in with your verified government Google\naccount to access the health worker portal.',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                fontSize: 14.sp,
+                                fontWeight: FontWeight.w500,
+                                color: AppColors.dashboardPrimaryDark
+                                    .withValues(alpha: 0.82),
+                                height: 1.45,
+                              ),
                             ),
-                          ),
-                          SizedBox(height: 28.h),
-                          _buildGoogleButton(
-                            onPressed:
-                                _busy ? null : () => unawaited(_handleLogin()),
-                            text: 'Continue with Google',
-                            isLoading: _busy,
-                          ),
-                          SizedBox(height: 18.h),
-                          Text(
-                            'Only authorized and verified Health Workers can access\nthis system.',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              fontSize: 12.sp,
-                              fontWeight: FontWeight.w500,
-                              color: AppColors.registrationSectionLabel,
-                              height: 1.4,
+                            SizedBox(height: 28.h),
+                            _buildGoogleButton(
+                              onPressed: _busy
+                                  ? null
+                                  : () => unawaited(_handleLogin()),
+                              text: 'Continue with Google',
+                              isLoading: _busy,
                             ),
-                          ),
-                          const Spacer(),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              _footerLink('Privacy Policy'),
-                              SizedBox(width: 28.w),
-                              _footerLink('Help & Support'),
-                            ],
-                          ),
-                        ],
+                            SizedBox(height: 18.h),
+                            Text(
+                              'Only authorized and verified Health Workers can access\nthis system.',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                fontSize: 12.sp,
+                                fontWeight: FontWeight.w500,
+                                color: AppColors.registrationSectionLabel,
+                                height: 1.4,
+                              ),
+                            ),
+                            const Spacer(),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                _footerLink('Privacy Policy'),
+                                SizedBox(width: 28.w),
+                                _footerLink('Help & Support'),
+                              ],
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ),

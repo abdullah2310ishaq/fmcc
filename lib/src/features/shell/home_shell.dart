@@ -47,7 +47,7 @@ class _HomeShellState extends State<HomeShell> {
             setState(() => _tabIndex = HomeShellTab.patients.index),
         onStartVisit: _openVisitAssessment,
       ),
-      const PatientsTabPage(),
+      PatientsTabPage(onStartVisit: _openVisitAssessment),
       VisitTabPage(
         initialPatient: _visitPatient,
         openRequestId: _visitOpenRequestId,

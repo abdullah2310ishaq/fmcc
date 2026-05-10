@@ -5,10 +5,13 @@ import 'package:go_router/go_router.dart';
 import 'package:doctor_app/src/core/format/name_initials.dart';
 import 'package:doctor_app/src/features/patients/new_patient_registration_screen.dart';
 import 'package:doctor_app/src/core/theme/app_colors.dart';
+import 'package:doctor_app/src/features/shell/tabs/visit_tab_page.dart';
 
 /// Shell index **1** — All Patients (demo list, search & chip filters).
 class PatientsTabPage extends StatefulWidget {
-  const PatientsTabPage({super.key});
+  const PatientsTabPage({super.key, this.onStartVisit});
+
+  final ValueChanged<VisitPatientSeed>? onStartVisit;
 
   @override
   State<PatientsTabPage> createState() => _PatientsTabPageState();
@@ -254,6 +257,7 @@ class _PatientsTabPageState extends State<PatientsTabPage> {
           key: ValueKey(selectedPatient.id),
           patient: selectedPatient,
           onBack: () => setState(() => _selectedPatient = null),
+          onStartVisit: widget.onStartVisit,
         ),
       );
     }
@@ -585,10 +589,12 @@ class _PatientDetailView extends StatefulWidget {
     super.key,
     required this.patient,
     required this.onBack,
+    required this.onStartVisit,
   });
 
   final _PatientDemo patient;
   final VoidCallback onBack;
+  final ValueChanged<VisitPatientSeed>? onStartVisit;
 
   @override
   State<_PatientDetailView> createState() => _PatientDetailViewState();
@@ -934,12 +940,14 @@ class _PatientDetailViewState extends State<_PatientDetailView> {
   }
 
   void _openVisitAssessment() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          'Opening visit assessment for ${widget.patient.name}.',
-          style: TextStyle(fontSize: 14.sp),
-        ),
+    widget.onStartVisit?.call(
+      VisitPatientSeed(
+        name: widget.patient.name,
+        id: widget.patient.id,
+        age: widget.patient.age,
+        gender: _PatientsTabPageState._genderLabel(widget.patient.gender),
+        lastVisit:
+            '${_PatientsTabPageState._shortVisit(widget.patient.lastVisit)} 2026',
       ),
     );
   }
