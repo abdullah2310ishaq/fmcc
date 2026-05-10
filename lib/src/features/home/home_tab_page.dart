@@ -11,7 +11,9 @@ import 'package:doctor_app/src/features/profile/profile_view_screen.dart';
 import 'package:doctor_app/src/widgets/urdu_help_suffix.dart';
 
 class HomeTabPage extends StatelessWidget {
-  const HomeTabPage({super.key});
+  const HomeTabPage({super.key, this.onViewAllPatients});
+
+  final VoidCallback? onViewAllPatients;
 
   static String _weekday(DateTime d) {
     const names = [
@@ -165,16 +167,9 @@ class HomeTabPage extends StatelessWidget {
             SizedBox(height: 20.h),
             Padding(
               padding: EdgeInsets.fromLTRB(24.w, 0, 16.w, 0),
-              child: _StatsGrid(onTotalPatientsTap: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(
-                      'All patients — API بعد میں',
-                      style: TextStyle(fontSize: 14.sp),
-                    ),
-                  ),
-                );
-              }),
+              child: _StatsGrid(
+                onTotalPatientsTap: onViewAllPatients ?? () {},
+              ),
             ),
             SizedBox(height: 20.h),
             Divider(
@@ -343,14 +338,23 @@ class _StatsGrid extends StatelessWidget {
 
   final VoidCallback onTotalPatientsTap;
 
+  Widget _tile(Widget child) {
+    return Expanded(
+      child: SizedBox(
+        height: 144.h,
+        child: child,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Column(
       children: [
         Row(
           children: [
-            Expanded(
-              child: _StatCard(
+            _tile(
+              _StatCard(
                 title: 'PATIENTS TODAY',
                 titleUrdu: 'آج کے مریض',
                 value: '12',
@@ -380,8 +384,8 @@ class _StatsGrid extends StatelessWidget {
               ),
             ),
             SizedBox(width: 12.w),
-            Expanded(
-              child: _StatCard(
+            _tile(
+              _StatCard(
                 title: 'PENDING FOLLOW-UPS',
                 titleUrdu: 'زیر التواء فالو اپ',
                 value: '4',
@@ -413,8 +417,8 @@ class _StatsGrid extends StatelessWidget {
         SizedBox(height: 12.h),
         Row(
           children: [
-            Expanded(
-              child: _StatCard(
+            _tile(
+              _StatCard(
                 title: 'TOTAL PATIENTS',
                 titleUrdu: 'کل مریض',
                 value: '247',
@@ -461,8 +465,8 @@ class _StatsGrid extends StatelessWidget {
               ),
             ),
             SizedBox(width: 12.w),
-            Expanded(
-              child: _StatCard(
+            _tile(
+              _StatCard(
                 title: 'THIS MONTH',
                 titleUrdu: 'اس مہینے',
                 value: '84',
@@ -543,21 +547,24 @@ class _StatCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Expanded(
-                child: Wrap(
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  spacing: 4.w,
-                  runSpacing: 4.h,
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      title,
-                      style: TextStyle(
-                        fontSize: 10.sp,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 0.3,
-                        color: titleColor ?? AppColors.textSecondary,
-                        height: 1.2,
+                    Expanded(
+                      child: Text(
+                        title,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 10.sp,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 0.3,
+                          color: titleColor ?? AppColors.textSecondary,
+                          height: 1.2,
+                        ),
                       ),
                     ),
+                    SizedBox(width: 4.w),
                     UrduHelpSuffix(urduText: titleUrdu),
                   ],
                 ),
@@ -576,6 +583,7 @@ class _StatCard extends StatelessWidget {
             ),
           ),
           SizedBox(height: 8.h),
+          const Spacer(),
           footer,
         ],
       ),

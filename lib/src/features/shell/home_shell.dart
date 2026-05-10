@@ -24,13 +24,6 @@ class HomeShell extends StatefulWidget {
 class _HomeShellState extends State<HomeShell> {
   int _tabIndex = 0;
 
-  static const List<Widget> _pages = [
-    HomeTabPage(),
-    PatientsTabPage(),
-    VisitTabPage(),
-    ProfileTabPage(),
-  ];
-
   void _onFab() {
     context.push(NewPatientRegistrationScreen.routePath);
   }
@@ -38,12 +31,21 @@ class _HomeShellState extends State<HomeShell> {
   @override
   Widget build(BuildContext context) {
     final bottomInset = MediaQuery.paddingOf(context).bottom;
+    final pages = [
+      HomeTabPage(
+        onViewAllPatients: () =>
+            setState(() => _tabIndex = HomeShellTab.patients.index),
+      ),
+      const PatientsTabPage(),
+      const VisitTabPage(),
+      const ProfileTabPage(),
+    ];
 
     return Scaffold(
       backgroundColor: AppColors.dashboardBackground,
       body: IndexedStack(
         index: _tabIndex,
-        children: _pages,
+        children: pages,
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: _onFab,
@@ -71,7 +73,8 @@ class _HomeShellState extends State<HomeShell> {
                 child: ShellNavItem(
                   tab: HomeShellTab.home,
                   selected: _tabIndex == HomeShellTab.home.index,
-                  onTap: () => setState(() => _tabIndex = HomeShellTab.home.index),
+                  onTap: () =>
+                      setState(() => _tabIndex = HomeShellTab.home.index),
                 ),
               ),
               Expanded(
@@ -87,7 +90,8 @@ class _HomeShellState extends State<HomeShell> {
                 child: ShellNavItem(
                   tab: HomeShellTab.visit,
                   selected: _tabIndex == HomeShellTab.visit.index,
-                  onTap: () => setState(() => _tabIndex = HomeShellTab.visit.index),
+                  onTap: () =>
+                      setState(() => _tabIndex = HomeShellTab.visit.index),
                 ),
               ),
               Expanded(
