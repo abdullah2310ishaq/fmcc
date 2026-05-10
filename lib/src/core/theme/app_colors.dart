@@ -26,5 +26,11 @@ class AppColors {
   static const Color dashboardPeachBorder = Color(0xFFFFE0B2);
   static const Color dashboardChipBlueBg = Color(0xFFE3F2FD);
   static const Color dashboardActionRed = Color(0xFFD32F2F);
+
+  /// Follow-up card accents (demo / list UI).
+  static const Color followAccentPurple = Color(0xFF6D28D9);
+  static const Color followAccentGreen = Color(0xFF047857);
+  static const Color followUpcomingBg = Color(0xFFF0FDF4);
+  static const Color followUpcomingBorder = Color(0xFFBBF7D0);
 }
 

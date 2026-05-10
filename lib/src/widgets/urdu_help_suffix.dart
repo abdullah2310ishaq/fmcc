@@ -3,7 +3,7 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 import 'package:doctor_app/src/core/theme/app_colors.dart';
 
-/// Tiny tap target shown after English labels; opens Urdu text in a modal.
+/// Small “?” after English copy; tap opens Urdu in a dialog (compact — avoids row overflow).
 class UrduHelpSuffix extends StatelessWidget {
   const UrduHelpSuffix({
     super.key,
@@ -15,7 +15,7 @@ class UrduHelpSuffix extends StatelessWidget {
   final String urduText;
   final double? size;
 
-  /// When placed on a dark background (e.g. red button), pass a light color.
+  /// On dark backgrounds (e.g. red button), pass a light [foregroundColor].
   final Color? foregroundColor;
 
   Future<void> _open(BuildContext context) async {
@@ -63,21 +63,26 @@ class UrduHelpSuffix extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final dim = size ?? 16.sp;
+    final base = size ?? 17.sp;
+    final fg = foregroundColor ?? AppColors.dashboardPrimary;
+
     return Padding(
-      padding: EdgeInsets.only(left: 3.w),
-      child: InkWell(
-        onTap: () => _open(context),
-        borderRadius: BorderRadius.circular(999),
-        child: Padding(
-          padding: EdgeInsets.symmetric(horizontal: 2.w, vertical: 2.h),
-          child: Text(
-            '?',
-            style: TextStyle(
-              fontSize: dim * 0.85,
-              fontWeight: FontWeight.w800,
-              color: foregroundColor ?? AppColors.dashboardPrimary,
-              height: 1,
+      padding: EdgeInsets.only(left: 4.w),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () => _open(context),
+          borderRadius: BorderRadius.circular(999),
+          child: Padding(
+            padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 6.h),
+            child: Text(
+              '?',
+              style: TextStyle(
+                fontSize: base * 0.92,
+                fontWeight: FontWeight.w800,
+                color: fg,
+                height: 1,
+              ),
             ),
           ),
         ),
