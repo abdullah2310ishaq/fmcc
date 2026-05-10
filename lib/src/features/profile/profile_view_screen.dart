@@ -4,6 +4,7 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import 'package:doctor_app/src/core/network/api_failure.dart';
 import 'package:doctor_app/src/core/session/session_controller.dart';
 import 'package:doctor_app/src/core/theme/app_colors.dart';
 import 'package:doctor_app/src/features/profile/edit_profile_screen.dart';
@@ -45,6 +46,13 @@ class _ProfileViewScreenState extends State<ProfileViewScreen> {
       });
     } catch (e) {
       if (!mounted) return;
+      if (e is SessionEndedFailure) {
+        setState(() {
+          _error = null;
+          _loading = false;
+        });
+        return;
+      }
       setState(() {
         _error = e;
         _loading = false;
@@ -154,7 +162,12 @@ class _ProfileViewScreenState extends State<ProfileViewScreen> {
             _FieldRow(en: 'First name', ur: 'پہلا نام', value: _val(p.firstName)),
             _FieldRow(en: 'Last name', ur: 'آخری نام', value: _val(p.lastName)),
             _FieldRow(en: 'Gender', ur: 'جنس', value: _genderLabel(p.gender)),
-            _FieldRow(en: 'Age', ur: 'عمر', value: _ageLabel(p.age)),
+            _FieldRow(
+              en: 'Date of birth',
+              ur: 'تاریخ پیدائش',
+              value: _dobLabel(p.dateOfBirth),
+            ),
+            _FieldRow(en: 'Age', ur: 'عمر', value: _ageLabel(p.ageYears)),
             _FieldRow(en: 'CNIC', ur: 'شناختی کارڈ', value: _val(p.cnic)),
           ],
         ),
@@ -236,11 +249,6 @@ class _ProfileViewScreenState extends State<ProfileViewScreen> {
           ),
         ],
         SizedBox(height: 12.h),
-        Text(
-          'User ID / صارف آئی ڈی: ${_val(p.userId)}',
-          textAlign: TextAlign.center,
-          style: TextStyle(fontSize: 11.sp, color: AppColors.textSecondary),
-        ),
       ],
     );
   }
@@ -250,8 +258,13 @@ class _ProfileViewScreenState extends State<ProfileViewScreen> {
     return s.trim();
   }
 
+  static String _dobLabel(DateTime? d) {
+    if (d == null) return '—';
+    return formatIsoDateOnly(d);
+  }
+
   static String _ageLabel(int? age) {
-    if (age == null || age <= 0) return '—';
+    if (age == null || age < 0) return '—';
     return '$age';
   }
 

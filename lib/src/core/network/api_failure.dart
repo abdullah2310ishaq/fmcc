@@ -18,6 +18,14 @@ class UnauthorizedFailure extends ApiFailure {
   const UnauthorizedFailure(super.message);
 }
 
+/// After failed refresh / forced logout — avoids exposing HTTP status text.
+class SessionEndedFailure extends ApiFailure {
+  const SessionEndedFailure([
+    super.message =
+        'Your session ended. Please sign in again. • سیشن ختم ہو گیا، دوبارہ سائن اِن کریں۔',
+  ]);
+}
+
 class ValidationFailure extends ApiFailure {
   const ValidationFailure(super.message);
 }

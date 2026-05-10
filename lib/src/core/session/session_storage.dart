@@ -13,6 +13,7 @@ class SessionStorage {
   static const _kUserId = 'session.userId';
 
   static const _kAccessToken = 'session.accessToken';
+  static const _kRefreshToken = 'session.refreshToken';
 
   static const FlutterSecureStorage _secure = FlutterSecureStorage();
 
@@ -28,6 +29,7 @@ class SessionStorage {
     final showDeclinedOnce = prefs.getBool(_kShowDeclinedOnce) ?? false;
     final userId = prefs.getString(_kUserId);
     final accessToken = await _secure.read(key: _kAccessToken);
+    final refreshToken = await _secure.read(key: _kRefreshToken);
 
     return AppSession(
       role: role,
@@ -37,6 +39,7 @@ class SessionStorage {
       showDeclinedMessageOnce: showDeclinedOnce,
       userId: userId,
       accessToken: accessToken,
+      refreshToken: refreshToken,
     );
   }
 
@@ -59,6 +62,12 @@ class SessionStorage {
     } else {
       await _secure.write(key: _kAccessToken, value: session.accessToken);
     }
+
+    if (session.refreshToken == null || session.refreshToken!.trim().isEmpty) {
+      await _secure.delete(key: _kRefreshToken);
+    } else {
+      await _secure.write(key: _kRefreshToken, value: session.refreshToken);
+    }
   }
 
   Future<void> clearAuthOnly({required bool keepRole}) async {
@@ -73,6 +82,7 @@ class SessionStorage {
     await prefs.remove(_kShowDeclinedOnce);
     await prefs.remove(_kUserId);
     await _secure.delete(key: _kAccessToken);
+    await _secure.delete(key: _kRefreshToken);
   }
 
   static UserRole _readRole(String? raw) {

@@ -2,6 +2,7 @@ class Endpoints {
   const Endpoints._();
 
   static const String googleLogin = '/api/Auth/google-login';
+  static const String refreshToken = '/api/Auth/refresh-token';
 
   // LHW profile endpoints from Postman
   static const String healthWorkerProfilePut = '/api/Profile/healthworker-profile';

@@ -5,10 +5,12 @@ import 'package:dio/dio.dart';
 import 'package:doctor_app/src/core/logging/app_logger.dart';
 import 'package:doctor_app/src/core/network/api_config.dart';
 import 'package:doctor_app/src/core/network/api_failure.dart';
+import 'package:doctor_app/src/core/network/session_auth_hooks.dart';
 
 class ApiClient {
-  ApiClient({String? baseUrl})
-      : _dio = Dio(
+  ApiClient({String? baseUrl, SessionAuthHooks? authHooks})
+      : _authHooks = authHooks,
+        _dio = Dio(
           BaseOptions(
             baseUrl: (baseUrl ?? ApiConfig.defaultBaseUrl).trim(),
             connectTimeout: const Duration(seconds: 20),
@@ -53,22 +55,135 @@ class ApiClient {
         },
       ),
     );
+
+    if (authHooks != null) {
+      _dio.interceptors.add(
+        InterceptorsWrapper(
+          onError: (err, handler) async {
+            final status = err.response?.statusCode;
+            if (status != 401) {
+              handler.next(err);
+              return;
+            }
+            await _handleUnauthorized401(err, handler);
+          },
+        ),
+      );
+    }
   }
 
+  static const kSkipAuthRetryExtra = 'skipAuthRetry';
+  static const kAuthRetryDoneExtra = 'authRetryDone';
+  static const kSessionEndedSilentlyExtra = 'sessionEndedSilently';
+
   final Dio _dio;
+  final SessionAuthHooks? _authHooks;
+
+  Future<void> _handleUnauthorized401(
+    DioException err,
+    ErrorInterceptorHandler handler,
+  ) async {
+    final hooks = _authHooks!;
+    final req = err.requestOptions;
+
+    if (req.extra[kSkipAuthRetryExtra] == true) {
+      handler.next(err);
+      return;
+    }
+
+    final path = req.uri.path.toLowerCase();
+    if (_isAuthBypassPath(path)) {
+      handler.next(err);
+      return;
+    }
+
+    final refresh = hooks.refreshToken?.trim();
+    if (refresh == null || refresh.isEmpty) {
+      await hooks.logoutDueToExpiredSession();
+      _flagSessionEndedSilently(req);
+      handler.reject(_sessionEndedDio(err));
+      return;
+    }
+
+    if (req.extra[kAuthRetryDoneExtra] == true) {
+      await hooks.logoutDueToExpiredSession();
+      _flagSessionEndedSilently(req);
+      handler.reject(_sessionEndedDio(err));
+      return;
+    }
+
+    final refreshed = await hooks.tryRefreshTokensLocked();
+    if (!refreshed) {
+      await hooks.logoutDueToExpiredSession();
+      _flagSessionEndedSilently(req);
+      handler.reject(_sessionEndedDio(err));
+      return;
+    }
+
+    final token = hooks.accessToken?.trim();
+    if (token == null || token.isEmpty) {
+      await hooks.logoutDueToExpiredSession();
+      _flagSessionEndedSilently(req);
+      handler.reject(_sessionEndedDio(err));
+      return;
+    }
+
+    req.extra[kAuthRetryDoneExtra] = true;
+    req.headers['Authorization'] = 'Bearer $token';
+
+    try {
+      final response = await _dio.fetch(req);
+      handler.resolve(response);
+    } catch (e, st) {
+      if (e is DioException) {
+        AppLogger.instance.e(
+          '[HTTP] Retry after refresh failed',
+          error: e,
+          stackTrace: st,
+        );
+        handler.next(e);
+      } else {
+        handler.next(
+          DioException(requestOptions: req, error: e, stackTrace: st),
+        );
+      }
+    }
+  }
+
+  static void _flagSessionEndedSilently(RequestOptions ro) {
+    ro.extra[kSessionEndedSilentlyExtra] = true;
+  }
+
+  static DioException _sessionEndedDio(DioException source) {
+    return DioException(
+      requestOptions: source.requestOptions,
+      response: source.response,
+      type: DioExceptionType.cancel,
+      error: source.error,
+    );
+  }
+
+  static bool _isAuthBypassPath(String path) {
+    return path.contains('/auth/google-login') ||
+        path.contains('/auth/google-login-web') ||
+        path.contains('/auth/refresh-token');
+  }
 
   Future<Response<dynamic>> post(
     String path, {
     Object? body,
     Map<String, dynamic>? query,
     String? bearerToken,
+    bool skipAuthRetry = false,
   }) {
     return _dio.post<dynamic>(
       path,
       data: body,
       queryParameters: query,
       options: Options(
-        headers: bearerToken == null ? null : {'Authorization': 'Bearer $bearerToken'},
+        headers:
+            bearerToken == null ? null : {'Authorization': 'Bearer $bearerToken'},
+        extra: skipAuthRetry ? {kSkipAuthRetryExtra: true} : null,
       ),
     );
   }
@@ -77,12 +192,15 @@ class ApiClient {
     String path, {
     Map<String, dynamic>? query,
     String? bearerToken,
+    bool skipAuthRetry = false,
   }) {
     return _dio.get<dynamic>(
       path,
       queryParameters: query,
       options: Options(
-        headers: bearerToken == null ? null : {'Authorization': 'Bearer $bearerToken'},
+        headers:
+            bearerToken == null ? null : {'Authorization': 'Bearer $bearerToken'},
+        extra: skipAuthRetry ? {kSkipAuthRetryExtra: true} : null,
       ),
     );
   }
@@ -92,6 +210,7 @@ class ApiClient {
     Object? body,
     Map<String, dynamic>? query,
     String? bearerToken,
+    bool skipAuthRetry = false,
   }) {
     return _dio.put<dynamic>(
       path,
@@ -100,12 +219,18 @@ class ApiClient {
       options: Options(
         headers:
             bearerToken == null ? null : {'Authorization': 'Bearer $bearerToken'},
+        extra: skipAuthRetry ? {kSkipAuthRetryExtra: true} : null,
       ),
     );
   }
 
   ApiFailure mapError(Object error) {
     if (error is DioException) {
+      if (error.type == DioExceptionType.cancel &&
+          error.requestOptions.extra[kSessionEndedSilentlyExtra] == true) {
+        return const SessionEndedFailure();
+      }
+
       final msgFromServer = _extractMessage(error.response?.data);
 
       if (error.type == DioExceptionType.connectionTimeout ||
@@ -118,7 +243,7 @@ class ApiClient {
       final status = error.response?.statusCode;
       if (status == 401 || status == 403) {
         return UnauthorizedFailure(
-          msgFromServer ?? 'Unauthorized. Please login again.',
+          _sanitizeClientAuthMessage(msgFromServer),
         );
       }
 
@@ -136,6 +261,17 @@ class ApiClient {
     }
 
     return UnknownFailure('Unexpected error occurred.');
+  }
+
+  static String _sanitizeClientAuthMessage(String? raw) {
+    final m = (raw ?? '').trim().toLowerCase();
+    if (m.contains('401') ||
+        m.contains('403') ||
+        m.contains('unauthorized') ||
+        m.contains('forbidden')) {
+      return 'Please sign in again.';
+    }
+    return raw?.trim().isNotEmpty == true ? raw!.trim() : 'Please sign in again.';
   }
 
   static String _safeBody(Object? body) {
@@ -160,4 +296,3 @@ class ApiClient {
     return null;
   }
 }
-

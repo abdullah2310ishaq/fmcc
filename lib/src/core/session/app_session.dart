@@ -27,6 +27,8 @@ class RegistrationDetails extends Equatable {
 }
 
 class AppSession extends Equatable {
+  static const Object _unset = Object();
+
   const AppSession({
     required this.role,
     required this.isSignedIn,
@@ -35,6 +37,7 @@ class AppSession extends Equatable {
     required this.showDeclinedMessageOnce,
     required this.userId,
     required this.accessToken,
+    required this.refreshToken,
   });
 
   factory AppSession.initial() {
@@ -46,6 +49,7 @@ class AppSession extends Equatable {
       showDeclinedMessageOnce: false,
       userId: null,
       accessToken: null,
+      refreshToken: null,
     );
   }
 
@@ -63,6 +67,9 @@ class AppSession extends Equatable {
   /// Bearer token for authorized API calls.
   final String? accessToken;
 
+  /// Server refresh token (persisted securely).
+  final String? refreshToken;
+
   bool get hasCompletedRegistrationDetails => registrationDetails.isComplete;
 
   AppSession copyWith({
@@ -71,8 +78,9 @@ class AppSession extends Equatable {
     ApprovalStatus? approvalStatus,
     RegistrationDetails? registrationDetails,
     bool? showDeclinedMessageOnce,
-    String? userId,
-    String? accessToken,
+    Object? userId = _unset,
+    Object? accessToken = _unset,
+    Object? refreshToken = _unset,
   }) {
     return AppSession(
       role: role ?? this.role,
@@ -81,8 +89,11 @@ class AppSession extends Equatable {
       registrationDetails: registrationDetails ?? this.registrationDetails,
       showDeclinedMessageOnce:
           showDeclinedMessageOnce ?? this.showDeclinedMessageOnce,
-      userId: userId ?? this.userId,
-      accessToken: accessToken ?? this.accessToken,
+      userId: userId == _unset ? this.userId : userId as String?,
+      accessToken:
+          accessToken == _unset ? this.accessToken : accessToken as String?,
+      refreshToken:
+          refreshToken == _unset ? this.refreshToken : refreshToken as String?,
     );
   }
 
@@ -95,6 +106,7 @@ class AppSession extends Equatable {
         showDeclinedMessageOnce,
         userId,
         accessToken,
+        refreshToken,
       ];
 }
 

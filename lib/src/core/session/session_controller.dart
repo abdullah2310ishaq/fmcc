@@ -1,8 +1,10 @@
 import 'package:flutter/foundation.dart';
 
 import 'package:doctor_app/src/core/auth/auth_api.dart';
+import 'package:doctor_app/src/core/logging/app_logger.dart';
 import 'package:doctor_app/src/core/network/api_client.dart';
 import 'package:doctor_app/src/core/network/api_failure.dart';
+import 'package:doctor_app/src/core/network/session_auth_hooks.dart';
 import 'package:doctor_app/src/core/reference/reference_api.dart';
 import 'package:doctor_app/src/core/reference/reference_models.dart';
 import 'package:doctor_app/src/core/session/app_session.dart';
@@ -10,27 +12,76 @@ import 'package:doctor_app/src/core/session/session_storage.dart';
 import 'package:doctor_app/src/features/profile/health_worker_profile_models.dart';
 import 'package:doctor_app/src/features/profile/profile_api.dart';
 
-class SessionController extends ChangeNotifier {
+class SessionController extends ChangeNotifier implements SessionAuthHooks {
   SessionController({
     required AppSession initialState,
     required SessionStorage storage,
     ApiClient? apiClient,
   })  : _state = initialState,
-        _storage = storage,
-        _apiClient = (apiClient ?? ApiClient()) {
+        _storage = storage {
+    _apiClient = apiClient ?? ApiClient(authHooks: this);
     _authApi = AuthApi(_apiClient);
     _profileApi = ProfileApi(_apiClient);
     _referenceApi = ReferenceApi(_apiClient);
   }
 
   final SessionStorage _storage;
-  final ApiClient _apiClient;
+  late final ApiClient _apiClient;
   late final AuthApi _authApi;
   late final ProfileApi _profileApi;
   late final ReferenceApi _referenceApi;
   AppSession _state;
 
   AppSession get state => _state;
+
+  @override
+  String? get accessToken => _state.accessToken;
+
+  @override
+  String? get refreshToken => _state.refreshToken;
+
+  Future<bool>? _refreshChain;
+
+  @override
+  Future<bool> tryRefreshTokensLocked() {
+    return _refreshChain ??=
+        _performTokenRefresh().whenComplete(() => _refreshChain = null);
+  }
+
+  Future<bool> _performTokenRefresh() async {
+    final access = _state.accessToken?.trim();
+    final refresh = _state.refreshToken?.trim();
+    if (access == null ||
+        refresh == null ||
+        access.isEmpty ||
+        refresh.isEmpty) {
+      return false;
+    }
+    try {
+      final session = await _authApi.refreshTokens(
+        accessToken: access,
+        refreshToken: refresh,
+      );
+      await _setState(
+        _state.copyWith(
+          accessToken: session.accessToken,
+          refreshToken: session.refreshToken ?? refresh,
+          userId: session.userId,
+        ),
+      );
+      return true;
+    } catch (e, st) {
+      AppLogger.instance.e(
+        '[AUTH] Refresh token exchange failed',
+        error: e,
+        stackTrace: st,
+      );
+      return false;
+    }
+  }
+
+  @override
+  Future<void> logoutDueToExpiredSession() => logout(keepRole: true);
 
   Future<void> _setState(AppSession next) async {
     if (next == _state) return;
@@ -73,7 +124,8 @@ class SessionController extends ChangeNotifier {
             bearerToken: session.accessToken,
           );
           if (existing != null) {
-            final fullName = '${existing.firstName} ${existing.lastName}'.trim();
+            final fullName =
+                '${existing.firstName} ${existing.lastName}'.trim();
             final phone = existing.phoneNumber.trim();
             if (fullName.isNotEmpty && phone.isNotEmpty) {
               nextDetails = _state.registrationDetails.copyWith(
@@ -94,6 +146,7 @@ class SessionController extends ChangeNotifier {
           showDeclinedMessageOnce: false,
           userId: session.userId,
           accessToken: session.accessToken,
+          refreshToken: session.refreshToken,
           registrationDetails: nextDetails ?? _state.registrationDetails,
         ),
       );
@@ -110,6 +163,7 @@ class SessionController extends ChangeNotifier {
       showDeclinedMessageOnce: false,
       userId: null,
       accessToken: null,
+      refreshToken: null,
       role: keepRole ? _state.role : UserRole.unknown,
     );
     _state = next;
@@ -149,7 +203,10 @@ class SessionController extends ChangeNotifier {
   Future<HealthWorkerProfile?> fetchHealthWorkerProfile() async {
     final token = _state.accessToken;
     final userId = _state.userId;
-    if (token == null || token.trim().isEmpty || userId == null || userId.isEmpty) {
+    if (token == null ||
+        token.trim().isEmpty ||
+        userId == null ||
+        userId.isEmpty) {
       return null;
     }
     try {
@@ -231,6 +288,7 @@ class SessionController extends ChangeNotifier {
       showDeclinedMessageOnce: true,
       userId: null,
       accessToken: null,
+      refreshToken: null,
     );
     await _setState(next);
   }
@@ -251,4 +309,3 @@ class SessionController extends ChangeNotifier {
     await _setState(_state.copyWith(showDeclinedMessageOnce: false));
   }
 }
-

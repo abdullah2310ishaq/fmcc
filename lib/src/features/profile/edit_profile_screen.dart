@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 
 import 'package:doctor_app/src/core/input_format/cnic_input_formatter.dart';
 import 'package:doctor_app/src/core/input_format/pakistan_phone_input_formatter.dart';
+import 'package:doctor_app/src/core/network/api_failure.dart';
 import 'package:doctor_app/src/core/session/session_controller.dart';
 import 'package:doctor_app/src/core/theme/app_colors.dart';
 import 'package:doctor_app/src/features/profile/health_worker_profile_models.dart';
@@ -24,7 +25,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   final _firstNameController = TextEditingController();
   final _lastNameController = TextEditingController();
   final _genderController = TextEditingController(text: 'M');
-  final _ageController = TextEditingController();
+  DateTime? _dateOfBirth;
+  String? _dobError;
   final _cnicController = TextEditingController();
   final _phoneController = TextEditingController();
   final _educationLevelIdController = TextEditingController();
@@ -57,7 +59,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     _firstNameController.dispose();
     _lastNameController.dispose();
     _genderController.dispose();
-    _ageController.dispose();
     _cnicController.dispose();
     _phoneController.dispose();
     _educationLevelIdController.dispose();
@@ -67,6 +68,38 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     _tehsilIdController.dispose();
     _addressController.dispose();
     super.dispose();
+  }
+
+  Future<void> _pickDateOfBirth(BuildContext context) async {
+    final today = DateTime.now();
+    final lastDate = DateTime(today.year, today.month, today.day);
+    final firstDate = DateTime(today.year - 120);
+    var initial = _dateOfBirth ?? DateTime(today.year - 25, today.month, today.day);
+    if (initial.isAfter(lastDate)) {
+      initial = DateTime(today.year - 25, today.month, today.day);
+    }
+    if (initial.isBefore(firstDate)) initial = firstDate;
+
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: initial,
+      firstDate: firstDate,
+      lastDate: lastDate,
+    );
+    if (picked == null || !context.mounted) return;
+    setState(() {
+      _dateOfBirth = picked;
+      _dobError = validateProfileDateOfBirth(picked);
+    });
+  }
+
+  String _dateOfBirthDisplay() {
+    final d = _dateOfBirth;
+    if (d == null) return 'Tap to select • منتخب کریں';
+    final ref = DateTime.now();
+    final years = ageCompletedYears(d, ref);
+    final suffix = years >= 0 ? ' • Age عمر $years' : '';
+    return '${formatIsoDateOnly(d)}$suffix';
   }
 
   @override
@@ -171,7 +204,12 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                       ),
                       SizedBox(height: 18.h),
                       DropdownButtonFormField<String>(
-                        value: _genderController.text.trim().isEmpty
+                        key: ValueKey<String>(
+                          _genderController.text.trim().isEmpty
+                              ? 'M'
+                              : _genderController.text.trim().toUpperCase(),
+                        ),
+                        initialValue: _genderController.text.trim().isEmpty
                             ? 'M'
                             : _genderController.text.trim().toUpperCase(),
                         decoration: const InputDecoration(
@@ -187,18 +225,32 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                         },
                       ),
                       SizedBox(height: 18.h),
-                      TextFormField(
-                        controller: _ageController,
-                        keyboardType: TextInputType.number,
-                        textInputAction: TextInputAction.next,
-                        decoration: const InputDecoration(
-                          label: _BilingualLabel(en: 'Age', ur: 'عمر'),
+                      InkWell(
+                        onTap: () => _pickDateOfBirth(context),
+                        borderRadius: BorderRadius.circular(12.r),
+                        child: InputDecorator(
+                          decoration: InputDecoration(
+                            label: const _BilingualLabel(
+                              en: 'Date of birth',
+                              ur: 'تاریخ پیدائش',
+                            ),
+                            errorText: _dobError,
+                            suffixIcon: Icon(
+                              Icons.calendar_month_rounded,
+                              color: AppColors.blueDark,
+                              size: 22.sp,
+                            ),
+                          ),
+                          child: Text(
+                            _dateOfBirthDisplay(),
+                            style: TextStyle(
+                              fontSize: 15.sp,
+                              color: _dateOfBirth == null
+                                  ? AppColors.textSecondary
+                                  : AppColors.textPrimary,
+                            ),
+                          ),
                         ),
-                        validator: (v) {
-                          final n = int.tryParse((v ?? '').trim());
-                          if (n == null || n <= 0) return 'Enter valid age';
-                          return null;
-                        },
                       ),
                       SizedBox(height: 18.h),
                       TextFormField(
@@ -238,7 +290,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                       ),
                       SizedBox(height: 18.h),
                       DropdownButtonFormField<int>(
-                        value: _matchedItemId(_educationLevels, _educationLevelIdController),
+                        key: ValueKey<Object>(
+                          'edu_${_educationLevels?.length ?? 0}_${_educationLevelIdController.text}',
+                        ),
+                        initialValue: _matchedItemId(_educationLevels, _educationLevelIdController),
                         decoration: InputDecoration(
                           label: const _BilingualLabel(
                             en: 'Education level',
@@ -279,7 +334,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                       ),
                       SizedBox(height: 18.h),
                       DropdownButtonFormField<int>(
-                        value: _matchedItemId(_provinces, _provinceIdController),
+                        key: ValueKey<Object>(
+                          'pv_${_provinces?.length ?? 0}_${_provinceIdController.text}',
+                        ),
+                        initialValue: _matchedItemId(_provinces, _provinceIdController),
                         decoration: InputDecoration(
                           label: const _BilingualLabel(en: 'Province', ur: 'صوبہ'),
                           helperText: _refHelper(
@@ -309,7 +367,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                       ),
                       SizedBox(height: 18.h),
                       DropdownButtonFormField<int>(
-                        value: _matchedItemId(_districts, _districtIdController),
+                        key: ValueKey<Object>(
+                          'dc_${_districts?.length ?? 0}_${_districtIdController.text}',
+                        ),
+                        initialValue: _matchedItemId(_districts, _districtIdController),
                         decoration: InputDecoration(
                           label: const _BilingualLabel(en: 'District', ur: 'ضلع'),
                           helperText: _refHelper(
@@ -336,7 +397,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                       ),
                       SizedBox(height: 18.h),
                       DropdownButtonFormField<int>(
-                        value: _matchedItemId(_tehsils, _tehsilIdController),
+                        key: ValueKey<Object>(
+                          'th_${_tehsils?.length ?? 0}_${_tehsilIdController.text}',
+                        ),
+                        initialValue: _matchedItemId(_tehsils, _tehsilIdController),
                         decoration: InputDecoration(
                           label: const _BilingualLabel(en: 'Tehsil', ur: 'تحصیل'),
                           helperText: _refHelper(
@@ -390,7 +454,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                               firstName: _firstNameController.text.trim(),
                               lastName: _lastNameController.text.trim(),
                               gender: _genderController.text.trim().toUpperCase(),
-                              age: int.parse(_ageController.text.trim()),
+                              dateOfBirth: _dateOfBirth!,
                               cnic: CnicInputFormatter.forApi(_cnicController.text),
                               phoneNumber:
                                   PakistanPhoneInputFormatter.normalizeFromRaw(
@@ -408,7 +472,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
                             await controller.completeRegistrationDetails(profile: profile);
 
-                            if (!mounted) return;
+                            if (!context.mounted) return;
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(
                                 content: const Text('Profile updated • پروفائل اپڈیٹ ہوگیا'),
@@ -422,7 +486,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                             );
                             Navigator.of(context).maybePop();
                           } catch (e) {
-                            if (!mounted) return;
+                            if (!context.mounted) return;
+                            if (e is SessionEndedFailure) return;
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(
                                 content: Text(e.toString()),
@@ -487,8 +552,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         _firstNameController.text = existing.firstName;
         _lastNameController.text = existing.lastName;
         _genderController.text = existing.gender.isEmpty ? 'M' : existing.gender;
-        _ageController.text =
-            existing.age == null || existing.age! <= 0 ? '' : existing.age.toString();
+        _dateOfBirth = existing.dateOfBirth;
+        _dobError = null;
         _cnicController.text = CnicInputFormatter.formatFromRaw(existing.cnic);
         _phoneController.text =
             PakistanPhoneInputFormatter.normalizeFromRaw(existing.phoneNumber);
@@ -561,6 +626,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       });
     } catch (e) {
       if (!mounted) return;
+      if (e is SessionEndedFailure) return;
       setState(() => _educationLevelsError = e.toString());
     } finally {
       if (mounted) setState(() => _loadingEducationLevels = false);
@@ -581,6 +647,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       });
     } catch (e) {
       if (!mounted) return;
+      if (e is SessionEndedFailure) return;
       setState(() => _provincesError = e.toString());
     } finally {
       if (mounted) setState(() => _loadingProvinces = false);
@@ -603,6 +670,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       });
     } catch (e) {
       if (!mounted) return;
+      if (e is SessionEndedFailure) return;
       setState(() => _districtsError = e.toString());
     } finally {
       if (mounted) setState(() => _loadingDistricts = false);
@@ -627,6 +695,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       });
     } catch (e) {
       if (!mounted) return;
+      if (e is SessionEndedFailure) return;
       setState(() => _tehsilsError = e.toString());
     } finally {
       if (mounted) setState(() => _loadingTehsils = false);
