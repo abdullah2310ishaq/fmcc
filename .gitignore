@@ -1,3 +1,6 @@
+# Local API/docs mirror (not part of the Flutter app)
+/help/
+
 # Miscellaneous
 *.class
 *.log

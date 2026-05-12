@@ -1,3 +1,128 @@
+/// `GET /api/Patient/{patientId}` — `PatientProfileResponseModel` (camelCase JSON).
+class PatientProfileData {
+  const PatientProfileData({
+    required this.id,
+    required this.firstName,
+    required this.lastName,
+    required this.gender,
+    this.dateOfBirth,
+    this.maritalStatusId,
+    required this.cnic,
+    required this.contactNumber,
+    required this.address,
+    required this.assignedHealthWorkerId,
+    this.provinceId,
+    this.districtId,
+    this.tehsilId,
+    required this.patientNumber,
+  });
+
+  final String id;
+  final String firstName;
+  final String lastName;
+  final String gender;
+  final DateTime? dateOfBirth;
+  final int? maritalStatusId;
+  final String cnic;
+  final String contactNumber;
+  final String address;
+  final String assignedHealthWorkerId;
+  final int? provinceId;
+  final int? districtId;
+  final int? tehsilId;
+  final int patientNumber;
+
+  static PatientProfileData? tryFromJson(dynamic json) {
+    if (json is! Map) return null;
+    final m = Map<String, dynamic>.from(json);
+    final id = _readString(m, 'id', 'Id');
+    if (id == null || id.isEmpty) return null;
+    final dobRaw = m['dateOfBirth'] ?? m['DateOfBirth'];
+    DateTime? dob;
+    if (dobRaw is String && dobRaw.trim().isNotEmpty) {
+      dob = DateTime.tryParse(dobRaw.trim());
+    }
+    return PatientProfileData(
+      id: id,
+      firstName: _readString(m, 'firstName', 'FirstName') ?? '',
+      lastName: _readString(m, 'lastName', 'LastName') ?? '',
+      gender: _readString(m, 'gender', 'Gender') ?? '',
+      dateOfBirth: dob,
+      maritalStatusId: _readInt(m, 'maritalStatusId', 'MaritalStatusId'),
+      cnic: _readString(m, 'cnic', 'CNIC') ?? '',
+      contactNumber: _readString(m, 'contactNumber', 'ContactNumber') ?? '',
+      address: _readString(m, 'address', 'Address') ?? '',
+      assignedHealthWorkerId:
+          _readString(m, 'assignedHealthWorkerId', 'AssignedHealthWorkerId') ??
+              '',
+      provinceId: _readInt(m, 'provinceId', 'ProvinceId'),
+      districtId: _readInt(m, 'districtId', 'DistrictId'),
+      tehsilId: _readInt(m, 'tehsilId', 'TehsilId'),
+      patientNumber: _readInt(m, 'patientNumber', 'PatientNumber') ?? 0,
+    );
+  }
+}
+
+/// `GET /api/Patient/complete-history/{patientId}` aggregate (camelCase JSON).
+class PatientCompleteHistoryData {
+  const PatientCompleteHistoryData({
+    this.baseline,
+    required this.medical,
+    required this.surgical,
+    required this.drugs,
+  });
+
+  final PatientBaselineLifestyle? baseline;
+  final List<PatientMedicalHistoryRow> medical;
+  final List<PatientSurgicalHistoryRow> surgical;
+  final List<PatientDrugHistoryRow> drugs;
+
+  static PatientCompleteHistoryData? tryFromJson(dynamic json) {
+    if (json is! Map) return null;
+    final m = Map<String, dynamic>.from(json);
+
+    PatientBaselineLifestyle? baseline;
+    final blRaw = m['baselineLifestyle'] ?? m['BaselineLifestyle'];
+    if (blRaw is Map) {
+      baseline = PatientBaselineLifestyle.tryFromJson(blRaw);
+    }
+
+    final medical = <PatientMedicalHistoryRow>[];
+    final medRaw = m['medicalHistory'] ?? m['MedicalHistory'];
+    if (medRaw is List) {
+      for (final item in medRaw) {
+        final row = PatientMedicalHistoryRow.tryFromJson(item);
+        if (row != null) medical.add(row);
+      }
+    }
+
+    final surgical = <PatientSurgicalHistoryRow>[];
+    final surgRaw = m['surgicalHistory'] ?? m['SurgicalHistory'];
+    if (surgRaw is List) {
+      for (final item in surgRaw) {
+        final row = PatientSurgicalHistoryRow.tryFromJson(item);
+        if (row != null) surgical.add(row);
+      }
+    }
+
+    final drugs = <PatientDrugHistoryRow>[];
+    final drugRaw = m['drugHistory'] ?? m['DrugHistory'];
+    if (drugRaw is List) {
+      for (final item in drugRaw) {
+        final row = PatientDrugHistoryRow.tryFromJson(item);
+        if (row != null) drugs.add(row);
+      }
+    }
+
+    return PatientCompleteHistoryData(
+      baseline: baseline,
+      medical: medical,
+      surgical: surgical,
+      drugs: drugs,
+    );
+  }
+}
+
 /// Backend `PatientUpsertResult` (camelCase JSON).
 class PatientUpsertResult {
   const PatientUpsertResult({
@@ -134,12 +259,15 @@ class PatientDrugHistoryRow {
     final m = Map<String, dynamic>.from(json);
     final id = _readInt(m, 'id', 'Id');
     if (id == null) return null;
+    final catName = _readString(m, 'categoryName', 'CategoryName') ??
+        _readString(m, 'medicineCategoryName', 'MedicineCategoryName');
+
     return PatientDrugHistoryRow(
       id: id,
       patientId: _readString(m, 'patientId', 'PatientId') ?? '',
       medicineCategoryId:
           _readInt(m, 'medicineCategoryId', 'MedicineCategoryId') ?? 0,
-      categoryName: _readString(m, 'categoryName', 'CategoryName') ?? '',
+      categoryName: catName ?? '',
       adherenceLevelId:
           _readInt(m, 'adherenceLevelId', 'AdherenceLevelId'),
       adherenceLevelName:

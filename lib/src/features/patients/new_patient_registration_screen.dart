@@ -11,6 +11,7 @@ import 'package:doctor_app/src/core/network/api_failure.dart';
 import 'package:doctor_app/src/core/session/session_controller.dart';
 import 'package:doctor_app/src/core/theme/app_colors.dart';
 import 'package:doctor_app/src/features/patients/patient_api.dart';
+import 'package:doctor_app/src/features/patients/patient_directory_coordinator.dart';
 import 'package:doctor_app/src/widgets/urdu_help_suffix.dart';
 
 /// Full-screen new patient form — pushed from Patients tab (+).
@@ -174,6 +175,15 @@ class _NewPatientRegistrationScreenState
       return;
     }
 
+    final hwId = session.state.healthWorkerIdForPatientApis?.trim();
+    if (hwId == null || hwId.isEmpty) {
+      _toast(
+        'Missing health worker id — open Profile or sign in again. • '
+        'ہیلتھ ورکر آئی ڈی نہیں ملی — پروفائل کھولیں یا دوبارہ سائن اِن کریں۔',
+      );
+      return;
+    }
+
     final cnicMasked = CnicInputFormatter.forApi(_cnicController.text);
     final body = <String, dynamic>{
       'firstName': _firstNameController.text.trim(),
@@ -186,7 +196,8 @@ class _NewPatientRegistrationScreenState
       'provinceId': _provinceId,
       'districtId': _districtId,
       'tehsilId': _tehsilId,
-      'assignedHealthWorkerId': session.state.userId,
+      // Backend `PatientCreateModel.AssignedHealthWorkerId` (camelCase JSON).
+      'assignedHealthWorkerId': hwId,
     };
     if (cnicMasked.length == 15) body['cnic'] = cnicMasked;
 
@@ -195,6 +206,7 @@ class _NewPatientRegistrationScreenState
       await _patientApi!.createPatient(body: body, bearerToken: token);
       if (!mounted) return;
       _toast('Patient registered successfully.');
+      context.read<PatientDirectoryCoordinator>().requestDashboardReload();
       context.pop(true);
     } on Object catch (e) {
       if (!mounted || e is SessionEndedFailure) return;

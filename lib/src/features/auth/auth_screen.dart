@@ -10,6 +10,7 @@ import 'package:provider/provider.dart';
 
 import 'package:doctor_app/src/core/auth/google_sign_in_config.dart';
 import 'package:doctor_app/src/core/logging/app_logger.dart';
+import 'package:doctor_app/src/core/network/api_failure.dart';
 import 'package:doctor_app/src/core/session/session_controller.dart';
 import 'package:doctor_app/src/core/theme/app_colors.dart';
 
@@ -45,110 +46,6 @@ class _AuthBodyCurveClipper extends CustomClipper<Path> {
 
   @override
   bool shouldReclip(covariant CustomClipper<Path> oldClipper) => false;
-}
-
-class _HealthWorkerIllustration extends StatelessWidget {
-  const _HealthWorkerIllustration();
-
-  @override
-  Widget build(BuildContext context) {
-    final mutedWhite = AppColors.surface.withValues(alpha: 0.22);
-    final brightWhite = AppColors.surface.withValues(alpha: 0.34);
-
-    return SizedBox(
-      width: 190.w,
-      height: 98.h,
-      child: Stack(
-        alignment: Alignment.bottomCenter,
-        children: [
-          Positioned(
-            bottom: 0,
-            child: Container(
-              width: 180.w,
-              height: 20.h,
-              decoration: BoxDecoration(
-                color: AppColors.surface.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(999),
-              ),
-            ),
-          ),
-          Positioned(
-            bottom: 22.h,
-            left: 66.w,
-            child: Container(
-              width: 50.w,
-              height: 64.h,
-              decoration: BoxDecoration(
-                color: brightWhite,
-                borderRadius: BorderRadius.circular(8.r),
-              ),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Container(
-                    width: 14.w,
-                    height: 8.h,
-                    decoration: BoxDecoration(
-                      color: AppColors.surface.withValues(alpha: 0.55),
-                      borderRadius: BorderRadius.circular(2.r),
-                    ),
-                  ),
-                  SizedBox(height: 7.h),
-                  Container(width: 18.w, height: 4.h, color: mutedWhite),
-                  SizedBox(height: 5.h),
-                  Container(width: 14.w, height: 4.h, color: mutedWhite),
-                  SizedBox(height: 5.h),
-                  Container(width: 18.w, height: 4.h, color: mutedWhite),
-                ],
-              ),
-            ),
-          ),
-          Positioned(
-            bottom: 82.h,
-            left: 84.w,
-            child: Container(
-              width: 14.w,
-              height: 20.h,
-              decoration: BoxDecoration(
-                color: brightWhite,
-                borderRadius: BorderRadius.circular(999),
-              ),
-            ),
-          ),
-          Positioned(
-            bottom: 30.h,
-            left: 28.w,
-            child: Icon(
-              Icons.person_rounded,
-              size: 42.sp,
-              color: mutedWhite,
-            ),
-          ),
-          Positioned(
-            bottom: 45.h,
-            left: 36.w,
-            child: CircleAvatar(
-              radius: 7.r,
-              backgroundColor: brightWhite,
-            ),
-          ),
-          Positioned(
-            bottom: 42.h,
-            right: 24.w,
-            child: CircleAvatar(
-              radius: 20.r,
-              backgroundColor: mutedWhite,
-              child: Icon(
-                Icons.monitor_heart_outlined,
-                size: 24.sp,
-                color: AppColors.surface.withValues(alpha: 0.5),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 }
 
 class _AuthScreenState extends State<AuthScreen> {
@@ -187,6 +84,9 @@ class _AuthScreenState extends State<AuthScreen> {
             shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12.r)),
           ),
+        );
+        AppLogger.instance.w(
+          '[AUTH] Declined message shown (showDeclinedMessageOnce was true)',
         );
         await controller.consumeDeclinedMessageFlag();
       });
@@ -247,11 +147,13 @@ class _AuthScreenState extends State<AuthScreen> {
                               ),
                             ),
                             const Spacer(),
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
+                            Wrap(
+                              alignment: WrapAlignment.center,
+                              crossAxisAlignment: WrapCrossAlignment.center,
+                              spacing: 12.w,
+                              runSpacing: 8.h,
                               children: [
                                 _footerLink('Privacy Policy'),
-                                SizedBox(width: 28.w),
                                 _footerLink('Help & Support'),
                               ],
                             ),
@@ -319,8 +221,6 @@ class _AuthScreenState extends State<AuthScreen> {
               color: AppColors.surface.withValues(alpha: 0.9),
             ),
           ),
-          SizedBox(height: 44.h),
-          const _HealthWorkerIllustration(),
         ],
       ),
     );
@@ -363,12 +263,17 @@ class _AuthScreenState extends State<AuthScreen> {
                     height: 22.r,
                   ),
                   SizedBox(width: 12.w),
-                  Text(
-                    text,
-                    style: TextStyle(
-                      fontSize: 15.sp,
-                      fontWeight: FontWeight.w900,
-                      color: AppColors.textPrimary,
+                  Flexible(
+                    child: Text(
+                      text,
+                      textAlign: TextAlign.center,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 15.sp,
+                        fontWeight: FontWeight.w900,
+                        color: AppColors.textPrimary,
+                      ),
                     ),
                   ),
                 ],
@@ -399,13 +304,26 @@ class _AuthScreenState extends State<AuthScreen> {
 
   Future<String> _getGoogleIdToken() async {
     try {
+      AppLogger.instance.i('[AUTH] GoogleSignIn.signIn() starting…');
       final account = await _googleSignIn.signIn();
       if (account == null) {
+        AppLogger.instance.w(
+          '[AUTH] Google sign-in returned null account (user cancelled or dismissed)',
+        );
         throw StateError('Sign-in cancelled • سائن اِن منسوخ کر دیا گیا');
       }
+      AppLogger.instance.i(
+        '[AUTH] Google account ok id=${account.id} email=${account.email} '
+        'displayName=${account.displayName}',
+      );
       final auth = await account.authentication;
       final token = auth.idToken;
       if (token == null || token.trim().isEmpty) {
+        AppLogger.instance.e(
+          '[AUTH] Google authentication.idToken is null/empty '
+          '(serverClientId mis-configured is a common cause). '
+          'accessTokenPresent=${auth.accessToken != null && auth.accessToken!.trim().isNotEmpty}',
+        );
         throw StateError(
           'Failed to get Google token • گوگل ٹوکن حاصل نہیں ہو سکا',
         );
@@ -418,8 +336,13 @@ class _AuthScreenState extends State<AuthScreen> {
           'iss=${claims['iss']} aud=${claims['aud']} azp=${claims['azp']} '
           'email=${claims['email']}',
         );
+      } else {
+        AppLogger.instance.w('[AUTH] Could not decode idToken payload (JWT shape?)');
       }
 
+      AppLogger.instance.i(
+        '[AUTH] Google idToken acquired len=${token.length} (value not logged)',
+      );
       return token;
     } on PlatformException catch (e, st) {
       AppLogger.instance.e(
@@ -440,18 +363,25 @@ class _AuthScreenState extends State<AuthScreen> {
   }
 
   Future<void> _handleLogin() async {
+    final session = context.read<SessionController>();
+    final role = session.state.role;
+    AppLogger.instance.i(
+      '[AUTH] Login tap → role=$role isRegister=false '
+      'webClientIdConfigured=${GoogleSignInConfig.webClientId.trim().isNotEmpty}',
+    );
     setState(() => _busy = true);
     try {
       final idToken = await _getGoogleIdToken();
       if (!mounted) return;
-      await context.read<SessionController>().signInWithGoogleIdToken(
-            idToken: idToken,
-            isRegister: false,
-          );
+      AppLogger.instance.i('[AUTH] Calling SessionController.signInWithGoogleIdToken…');
+      await session.signInWithGoogleIdToken(
+        idToken: idToken,
+        isRegister: false,
+      );
+      AppLogger.instance.i('[AUTH] Sign-in flow completed (session updated, leaving auth screen via router)');
     } catch (e, st) {
       if (!mounted) return;
-      AppLogger.instance
-          .e('[AUTH] Sign-in failed: $e', error: e, stackTrace: st);
+      _logAuthScreenFailure(phase: 'sign_in_flow', error: e, stackTrace: st);
 
       final friendly = _friendlyBackendError(e);
       ScaffoldMessenger.of(context).showSnackBar(
@@ -487,6 +417,36 @@ class _AuthScreenState extends State<AuthScreen> {
     } finally {
       if (mounted) setState(() => _busy = false);
     }
+  }
+
+  /// Structured log so console shows failure kind (Google vs API vs mapped).
+  static void _logAuthScreenFailure({
+    required String phase,
+    required Object error,
+    required StackTrace? stackTrace,
+  }) {
+    final type = error.runtimeType.toString();
+    if (error is ApiFailure) {
+      AppLogger.instance.e(
+        '[AUTH][$phase] ApiFailure subtype=$type message="${error.message}"',
+        error: error,
+        stackTrace: stackTrace,
+      );
+      return;
+    }
+    if (error is StateError) {
+      AppLogger.instance.e(
+        '[AUTH][$phase] StateError (often Google UI) message="${error.message}"',
+        error: error,
+        stackTrace: stackTrace,
+      );
+      return;
+    }
+    AppLogger.instance.e(
+      '[AUTH][$phase] errorType=$type message=$error',
+      error: error,
+      stackTrace: stackTrace,
+    );
   }
 
   static String? _friendlyBackendError(Object error) {

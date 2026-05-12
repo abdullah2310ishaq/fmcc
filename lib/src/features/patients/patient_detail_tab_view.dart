@@ -8,19 +8,31 @@ import 'package:doctor_app/src/core/format/name_initials.dart';
 import 'package:doctor_app/src/core/input_format/cnic_input_formatter.dart';
 import 'package:doctor_app/src/core/input_format/pakistan_phone_input_formatter.dart';
 import 'package:doctor_app/src/core/network/api_failure.dart';
+import 'package:doctor_app/src/core/presentation/bp_reading_color.dart';
 import 'package:doctor_app/src/core/session/session_controller.dart';
 import 'package:doctor_app/src/core/theme/app_colors.dart';
 import 'package:doctor_app/src/features/home/health_worker_dashboard_models.dart';
 import 'package:doctor_app/src/features/patients/patient_api.dart';
 import 'package:doctor_app/src/features/patients/patient_api_models.dart';
+import 'package:doctor_app/src/features/patients/patient_directory_coordinator.dart';
 import 'package:doctor_app/src/features/patients/visit_detail_screen.dart';
 import 'package:doctor_app/src/features/shell/tabs/visit_tab_page.dart';
 
 String patientDetailShortVisit(DateTime? d) {
   if (d == null) return '—';
   const months = [
-    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
   ];
   return '${d.day} ${months[d.month - 1]} ${d.year}';
 }
@@ -31,7 +43,9 @@ Color _avatarForCondition(String primary) {
     return AppColors.patientAvatarBlue;
   }
   if (p.contains('diabet')) return AppColors.patientAvatarPurple;
-  if (p.contains('post') || p.contains('surg')) return AppColors.patientAvatarGreen;
+  if (p.contains('post') || p.contains('surg')) {
+    return AppColors.patientAvatarGreen;
+  }
   if (p.contains('hypertension') ||
       p.contains('pressure') ||
       p.contains('asthma')) {
@@ -57,7 +71,6 @@ extension on _VisitHistorySegment {
 enum PatientDetailSection {
   personalInfo,
   medicalHistory,
-  vitals,
   visitHistory,
 }
 
@@ -65,14 +78,12 @@ extension on PatientDetailSection {
   String get label => switch (this) {
         PatientDetailSection.personalInfo => 'Personal Info',
         PatientDetailSection.medicalHistory => 'Medical History',
-        PatientDetailSection.vitals => 'Vitals',
         PatientDetailSection.visitHistory => 'Visit History',
       };
 }
 
 enum _PatientDetailGender { female, male, other }
 
-/// Patient profile + history loaded from `Patient` API (`HwPatientSummary` from directory).
 class PatientDetailTabView extends StatefulWidget {
   const PatientDetailTabView({
     super.key,
@@ -133,11 +144,15 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
   void initState() {
     super.initState();
     final name = widget.summary.fullName.trim();
-    final parts = name.split(RegExp(r'\s+')).where((s) => s.isNotEmpty).toList();
+    final parts =
+        name.split(RegExp(r'\s+')).where((s) => s.isNotEmpty).toList();
     _firstNameController.text = parts.isNotEmpty ? parts.first : '';
-    _lastNameController.text =
-        parts.length > 1 ? parts.skip(1).join(' ') : '';
+    _lastNameController.text = parts.length > 1 ? parts.skip(1).join(' ') : '';
     _gender = _genderFromApi(widget.summary.gender);
+    final cnicFromList = widget.summary.cnic?.trim();
+    if (cnicFromList != null && cnicFromList.isNotEmpty) {
+      _cnicController.text = CnicInputFormatter.formatFromRaw(cnicFromList);
+    }
     WidgetsBinding.instance.addPostFrameCallback((_) {
       unawaited(_bootstrap());
     });
@@ -174,10 +189,9 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
     });
 
     try {
-      await Future.wait([
-        _loadReference(session, token),
-        _loadClinical(session, token),
-      ]);
+      await _loadReference(session, token);
+      await _loadProfileAndCascadeLocation(session, token);
+      await _loadClinical(session, token);
     } on Object catch (e) {
       if (!mounted) return;
       if (e is SessionEndedFailure) return;
@@ -194,44 +208,133 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
     }
   }
 
+  void _applyProfileToForm(PatientProfileData p) {
+    _firstNameController.text = p.firstName.trim();
+    _lastNameController.text = p.lastName.trim();
+    _gender = _genderFromApi(p.gender);
+    final dob = p.dateOfBirth;
+    if (dob != null) {
+      _dateOfBirth = dob;
+      _dobController.text =
+          '${dob.day.toString().padLeft(2, '0')}/${dob.month.toString().padLeft(2, '0')}/${dob.year}';
+    } else {
+      _dateOfBirth = null;
+      _dobController.clear();
+    }
+    final rawCnic = p.cnic.trim();
+    if (rawCnic.isNotEmpty) {
+      _cnicController.text = CnicInputFormatter.formatFromRaw(rawCnic);
+    } else {
+      _cnicController.clear();
+    }
+    _phoneController.text = p.contactNumber.trim();
+    _streetController.text = p.address.trim();
+    _maritalStatusId = p.maritalStatusId;
+    _provinceId = p.provinceId;
+    _districtId = p.districtId;
+    _tehsilId = p.tehsilId;
+  }
+
+  Future<void> _cascadeDistrictsAndTehsils(SessionController session) async {
+    final pid = _provinceId;
+    if (pid == null || pid <= 0) return;
+    try {
+      final d = await session.fetchDistricts(provinceId: pid);
+      if (!mounted) return;
+      setState(() {
+        _districts = d.map((e) => (id: e.id, name: e.name)).toList();
+      });
+      final did = _districtId;
+      if (did != null && did > 0) {
+        final t = await session.fetchTehsils(
+          provinceId: pid,
+          districtId: did,
+        );
+        if (!mounted) return;
+        setState(() {
+          _tehsils = t.map((e) => (id: e.id, name: e.name)).toList();
+        });
+      }
+    } on Object catch (e) {
+      if (!mounted || e is SessionEndedFailure) return;
+      _toast(session.apiClient.mapError(e).message);
+    }
+  }
+
+  Future<void> _loadProfileAndCascadeLocation(
+    SessionController session,
+    String token,
+  ) async {
+    final profile = await _patientApi!.getPatientProfile(
+      patientId: widget.summary.patientId,
+      bearerToken: token,
+    );
+    if (!mounted) return;
+    setState(() => _applyProfileToForm(profile));
+    await _cascadeDistrictsAndTehsils(session);
+  }
+
   Future<void> _loadReference(SessionController session, String token) async {
     final provinces = await session.fetchProvinces();
     final marital = await session.fetchMaritalStatuses();
     if (!mounted) return;
     setState(() {
       _provinces = provinces.map((e) => (id: e.id, name: e.name)).toList();
-      _maritalStatuses =
-          marital.map((e) => (id: e.id, name: e.name)).toList();
+      _maritalStatuses = marital.map((e) => (id: e.id, name: e.name)).toList();
     });
   }
 
   Future<void> _loadClinical(SessionController session, String token) async {
     final pid = widget.summary.patientId;
-    final results = await Future.wait([
-      _patientApi!.getMedicalHistory(patientId: pid, bearerToken: token),
-      _patientApi!.getSurgicalHistory(patientId: pid, bearerToken: token),
-      _patientApi!.getDrugHistory(patientId: pid, bearerToken: token),
-      _patientApi!.getVisits(patientId: pid, bearerToken: token),
-      _patientApi!.getBaselineLifestyle(patientId: pid, bearerToken: token),
-    ]);
+
+    PatientCompleteHistoryData? history;
+    try {
+      history = await _patientApi!.getCompleteHistory(
+        patientId: pid,
+        bearerToken: token,
+      );
+    } on Object catch (e) {
+      if (!mounted || e is SessionEndedFailure) return;
+      _toast(session.apiClient.mapError(e).message);
+    }
+
+    List<PatientVisitRow> visits = const [];
+    try {
+      visits = await _patientApi!.getVisits(
+        patientId: pid,
+        bearerToken: token,
+      );
+    } on Object catch (e) {
+      if (!mounted || e is SessionEndedFailure) return;
+      _toast(session.apiClient.mapError(e).message);
+    }
 
     if (!mounted) return;
-    final baseline = results[4] as PatientBaselineLifestyle?;
     setState(() {
-      _medical = List<PatientMedicalHistoryRow>.from(results[0] as List);
-      _surgical = List<PatientSurgicalHistoryRow>.from(results[1] as List);
-      _drugs = List<PatientDrugHistoryRow>.from(results[2] as List);
-      _visits = List<PatientVisitRow>.from(results[3] as List)
-        ..sort((a, b) => b.visitDate.compareTo(a.visitDate));
-      if (baseline != null) {
-        _familyHtn = baseline.familyHistoryOfHtnOrStroke;
-        _tobacco = baseline.tobaccoUse;
-        _baselineLoaded = true;
+      if (history != null) {
+        _medical = List<PatientMedicalHistoryRow>.from(history.medical);
+        _surgical = List<PatientSurgicalHistoryRow>.from(history.surgical);
+        _drugs = List<PatientDrugHistoryRow>.from(history.drugs);
+        final baseline = history.baseline;
+        if (baseline != null) {
+          _familyHtn = baseline.familyHistoryOfHtnOrStroke;
+          _tobacco = baseline.tobaccoUse;
+          _baselineLoaded = true;
+        } else {
+          _familyHtn = false;
+          _tobacco = false;
+          _baselineLoaded = false;
+        }
       } else {
+        _medical = const [];
+        _surgical = const [];
+        _drugs = const [];
         _familyHtn = false;
         _tobacco = false;
         _baselineLoaded = false;
       }
+      _visits = List<PatientVisitRow>.from(visits)
+        ..sort((a, b) => b.visitDate.compareTo(a.visitDate));
     });
   }
 
@@ -342,6 +445,12 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
       return;
     }
 
+    final hwKey = session.state.healthWorkerIdForPatientApis?.trim();
+    if (hwKey == null || hwKey.isEmpty) {
+      _toast('Missing health worker id. Sign in again or complete profile.');
+      return;
+    }
+
     final cnicMasked = CnicInputFormatter.forApi(_cnicController.text);
     final body = <String, dynamic>{
       'id': widget.summary.patientId,
@@ -350,7 +459,7 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
       'gender': _genderApiValue(),
       'contactNumber': _phoneController.text.trim(),
       'address': _streetController.text.trim(),
-      'assignedHealthWorkerId': session.state.userId,
+      'assignedHealthWorkerId': hwKey,
     };
     if (cnicMasked.length == 15) body['cnic'] = cnicMasked;
     if (_dateOfBirth != null) {
@@ -374,6 +483,7 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
       await _patientApi!.updatePatient(body: body, bearerToken: token);
       if (!mounted) return;
       _toast('Patient updated successfully.');
+      context.read<PatientDirectoryCoordinator>().requestDashboardReload();
     } on Object catch (e) {
       if (!mounted || e is SessionEndedFailure) return;
       _toast(session.apiClient.mapError(e).message);
@@ -394,37 +504,33 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
     setState(() => _savingMedical = true);
     try {
       for (final row in _medical) {
-        await _patientApi!.patientHistoryUpdateMedical(
-          recordId: row.id,
+        final body = <String, dynamic>{
+          'id': row.id,
+          'patientId': pid,
+          'conditionId': row.conditionId,
+          'isOnMedication': row.isOnMedication,
+        };
+        if (row.durationInMonths != null) {
+          body['durationInMonths'] = row.durationInMonths;
+        }
+        if (row.complianceLevelId != null) {
+          body['complianceLevelId'] = row.complianceLevelId;
+        }
+        await _patientApi!.putMedicalHistory(
+          body: body,
           bearerToken: token,
-          body: {
-            'patientId': pid,
-            'conditionId': row.conditionId,
-            'durationInMonths': row.durationInMonths,
-            'isOnMedication': row.isOnMedication,
-            'complianceLevelId': row.complianceLevelId,
-          },
         );
       }
 
-      final lifestyleBody = <String, dynamic>{
-        'patientId': pid,
-        'familyHistoryOfHTNOrStroke': _familyHtn,
-        'tobaccoUse': _tobacco,
-      };
-      if (_baselineLoaded) {
-        await _patientApi!.patientHistoryUpdateLifestyle(
-          patientId: pid,
-          bearerToken: token,
-          body: lifestyleBody,
-        );
-      } else {
-        await _patientApi!.patientHistoryCreateLifestyle(
-          bearerToken: token,
-          body: lifestyleBody,
-        );
-        _baselineLoaded = true;
-      }
+      await _patientApi!.putBaselineLifestyle(
+        bearerToken: token,
+        body: <String, dynamic>{
+          'patientId': pid,
+          'familyHistoryOfHTNOrStroke': _familyHtn,
+          'tobaccoUse': _tobacco,
+        },
+      );
+      _baselineLoaded = true;
 
       if (!mounted) return;
       _toast('Medical data saved.');
@@ -452,9 +558,6 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
     );
   }
 
-  PatientVisitRow? get _latestVisit =>
-      _visits.isEmpty ? null : _visits.first;
-
   bool get _showsBottomSaveButton =>
       _section == PatientDetailSection.personalInfo ||
       _section == PatientDetailSection.medicalHistory ||
@@ -466,7 +569,6 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
         PatientDetailSection.medicalHistory =>
           _savingMedical ? null : _saveMedicalAndLifestyle,
         PatientDetailSection.visitHistory => _openVisitAssessment,
-        PatientDetailSection.vitals => null,
       };
 
   String get _bottomLabel => switch (_section) {
@@ -475,7 +577,6 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
         PatientDetailSection.medicalHistory =>
           _savingMedical ? 'Saving…' : 'Save Medical History',
         PatientDetailSection.visitHistory => 'Log New Visit',
-        PatientDetailSection.vitals => '',
       };
 
   InputDecoration _fieldDecoration({Widget? suffix, String? hint}) {
@@ -599,8 +700,7 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
               color: AppColors.textPrimary,
             ),
             decoration: _fieldDecoration(),
-            validator: (v) =>
-                v == null || v.trim().isEmpty ? 'Required' : null,
+            validator: (v) => v == null || v.trim().isEmpty ? 'Required' : null,
           ),
           SizedBox(height: 16.h),
           _label('Last Name'),
@@ -612,8 +712,7 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
               color: AppColors.textPrimary,
             ),
             decoration: _fieldDecoration(),
-            validator: (v) =>
-                v == null || v.trim().isEmpty ? 'Required' : null,
+            validator: (v) => v == null || v.trim().isEmpty ? 'Required' : null,
           ),
           SizedBox(height: 16.h),
           _label('Age (from records)'),
@@ -809,8 +908,7 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
               color: AppColors.textPrimary,
             ),
             decoration: _fieldDecoration(),
-            validator: (v) =>
-                v == null || v.trim().isEmpty ? 'Required' : null,
+            validator: (v) => v == null || v.trim().isEmpty ? 'Required' : null,
           ),
         ],
       ),
@@ -916,8 +1014,7 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
           ..._drugs.map(
             (d) => _infoCard(
               title: d.categoryName,
-              subtitle:
-                  '${d.adherenceLevelName}  ${d.sideEffects}'.trim(),
+              subtitle: '${d.adherenceLevelName}  ${d.sideEffects}'.trim(),
             ),
           ),
         SizedBox(height: 18.h),
@@ -926,7 +1023,7 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
           Padding(
             padding: EdgeInsets.only(bottom: 8.h),
             child: Text(
-              'No baseline lifestyle record yet — saving will create one.',
+              'No baseline lifestyle on record yet — save to send it to the server.',
               style: TextStyle(
                 fontSize: 12.sp,
                 fontWeight: FontWeight.w600,
@@ -993,107 +1090,48 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
     );
   }
 
-  Widget _vitalsBody() {
-    final v = _latestVisit;
-    if (_loadingDetail && v == null) {
-      return Center(
-        child: CircularProgressIndicator(color: AppColors.dashboardPrimary),
-      );
-    }
-    if (v == null) {
-      return Text(
-        'No visits recorded yet. Vitals appear after you log a visit.',
-        style: TextStyle(
-          fontSize: 13.sp,
-          fontWeight: FontWeight.w600,
-          color: AppColors.textSecondary,
-        ),
-      );
-    }
-    final bp = (v.avgSystolicBp != null && v.avgDiastolicBp != null)
-        ? '${v.avgSystolicBp}/${v.avgDiastolicBp}'
-        : '—';
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        _sectionTitle('LATEST FROM VISITS'),
-        Text(
-          'Visit: ${patientDetailShortVisit(v.visitDate)} • ${v.visitTypeName}',
-          style: TextStyle(
-            fontSize: 13.sp,
-            fontWeight: FontWeight.w700,
-            color: AppColors.dashboardPrimaryDark,
-          ),
-        ),
-        SizedBox(height: 12.h),
-        Row(
-          children: [
-            Expanded(
-              child: _vitalMini('Blood pressure', bp, 'mmHg'),
-            ),
-            SizedBox(width: 10.w),
-            Expanded(
-              child: _vitalMini(
-                'Pulse',
-                v.pulse?.toString() ?? '—',
-                'bpm',
-              ),
-            ),
-          ],
-        ),
-        SizedBox(height: 12.h),
-        Text(
-          v.reasonForVisit,
-          style: TextStyle(
-            fontSize: 12.sp,
-            fontWeight: FontWeight.w600,
-            color: AppColors.textSecondary,
-            height: 1.35,
-          ),
-        ),
-      ],
+  Widget _visitHistoryMetaLine(PatientVisitRow v) {
+    final base = TextStyle(
+      fontSize: 12.sp,
+      fontWeight: FontWeight.w600,
+      color: AppColors.textSecondary,
+      height: 1.35,
     );
-  }
+    final spans = <InlineSpan>[];
 
-  Widget _vitalMini(String label, String value, String unit) {
-    return Container(
-      padding: EdgeInsets.all(12.r),
-      decoration: BoxDecoration(
-        color: AppColors.registrationFieldFill,
-        borderRadius: BorderRadius.circular(12.r),
-        border: Border.all(color: AppColors.registrationFieldBorder),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 10.sp,
-              fontWeight: FontWeight.w800,
-              color: AppColors.registrationSectionLabel,
-            ),
-          ),
-          SizedBox(height: 6.h),
-          Text(
-            value,
-            style: TextStyle(
-              fontSize: 18.sp,
-              fontWeight: FontWeight.w900,
-              color: AppColors.textPrimary,
-            ),
-          ),
-          Text(
-            unit,
-            style: TextStyle(
-              fontSize: 10.sp,
-              fontWeight: FontWeight.w600,
-              color: AppColors.textSecondary,
-            ),
-          ),
-        ],
-      ),
-    );
+    void appendSep() {
+      if (spans.isNotEmpty) {
+        spans.add(TextSpan(text: ' • ', style: base));
+      }
+    }
+
+    if (v.avgSystolicBp != null && v.avgDiastolicBp != null) {
+      appendSep();
+      final c = BpReadingColor.forPair(
+        v.avgSystolicBp!,
+        v.avgDiastolicBp!,
+      );
+      spans.add(
+        TextSpan(
+          text: 'BP ${v.avgSystolicBp}/${v.avgDiastolicBp}',
+          style: base.copyWith(color: c, fontWeight: FontWeight.w800),
+        ),
+      );
+    }
+    if (v.pulse != null) {
+      appendSep();
+      spans.add(TextSpan(text: 'Pulse ${v.pulse}', style: base));
+    }
+    final reason = v.reasonForVisit.trim();
+    if (reason.isNotEmpty) {
+      appendSep();
+      spans.add(TextSpan(text: reason, style: base));
+    }
+
+    if (spans.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    return Text.rich(TextSpan(children: spans));
   }
 
   int _visitCountForSegment(_VisitHistorySegment s) {
@@ -1223,117 +1261,104 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
           )
         else
           ...shown.map(
-          (v) => Padding(
-            padding: EdgeInsets.only(bottom: 10.h),
-            child: Material(
-              color: AppColors.surface,
-              elevation: 0,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(14.r),
-                side: const BorderSide(color: AppColors.registrationFieldBorder),
-              ),
-              child: InkWell(
-                borderRadius: BorderRadius.circular(14.r),
-                onTap: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute<void>(
-                      builder: (ctx) => VisitDetailScreen(
-                        patientName: widget.summary.fullName,
-                        visit: v,
+            (v) => Padding(
+              padding: EdgeInsets.only(bottom: 10.h),
+              child: Material(
+                color: AppColors.surface,
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14.r),
+                  side: const BorderSide(
+                      color: AppColors.registrationFieldBorder),
+                ),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(14.r),
+                  onTap: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (ctx) => VisitDetailScreen(
+                          patientName: widget.summary.fullName,
+                          visit: v,
+                        ),
                       ),
-                    ),
-                  );
-                },
-                child: Padding(
-                  padding: EdgeInsets.all(14.r),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              patientDetailShortVisit(v.visitDate),
-                              style: TextStyle(
-                                fontSize: 13.sp,
-                                fontWeight: FontWeight.w900,
-                                color: AppColors.dashboardPrimaryDark,
-                              ),
-                            ),
-                          ),
-                          Container(
-                            padding: EdgeInsets.symmetric(
-                              horizontal: 9.w,
-                              vertical: 4.h,
-                            ),
-                            decoration: BoxDecoration(
-                              color: AppColors.followUpcomingBg,
-                              borderRadius: BorderRadius.circular(999),
-                            ),
-                            child: Text(
-                              v.visitStatusName.isNotEmpty
-                                  ? v.visitStatusName
-                                  : '—',
-                              style: TextStyle(
-                                fontSize: 10.sp,
-                                fontWeight: FontWeight.w800,
-                                color: AppColors.followAccentGreen,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      SizedBox(height: 8.h),
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Expanded(
-                            child: Text(
-                              v.visitTypeName,
-                              style: TextStyle(
-                                fontSize: 13.sp,
-                                fontWeight: FontWeight.w800,
-                                color: AppColors.textPrimary,
-                              ),
-                            ),
-                          ),
-                          if (v.isFollowUpVisit)
-                            Padding(
-                              padding: EdgeInsets.only(left: 6.w),
+                    );
+                  },
+                  child: Padding(
+                    padding: EdgeInsets.all(14.r),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
                               child: Text(
-                                'فالو اپ',
+                                patientDetailShortVisit(v.visitDate),
                                 style: TextStyle(
-                                  fontSize: 10.sp,
-                                  fontWeight: FontWeight.w800,
-                                  color: AppColors.dashboardWarning,
+                                  fontSize: 13.sp,
+                                  fontWeight: FontWeight.w900,
+                                  color: AppColors.dashboardPrimaryDark,
                                 ),
                               ),
                             ),
-                        ],
-                      ),
-                      SizedBox(height: 6.h),
-                      Text(
-                        [
-                          if (v.avgSystolicBp != null &&
-                              v.avgDiastolicBp != null)
-                            'BP ${v.avgSystolicBp}/${v.avgDiastolicBp}',
-                          if (v.pulse != null) 'Pulse ${v.pulse}',
-                          v.reasonForVisit,
-                        ].where((s) => s.trim().isNotEmpty).join(' • '),
-                        style: TextStyle(
-                          fontSize: 12.sp,
-                          fontWeight: FontWeight.w600,
-                          color: AppColors.textSecondary,
-                          height: 1.35,
+                            Container(
+                              padding: EdgeInsets.symmetric(
+                                horizontal: 9.w,
+                                vertical: 4.h,
+                              ),
+                              decoration: BoxDecoration(
+                                color: AppColors.followUpcomingBg,
+                                borderRadius: BorderRadius.circular(999),
+                              ),
+                              child: Text(
+                                v.visitStatusName.isNotEmpty
+                                    ? v.visitStatusName
+                                    : '—',
+                                style: TextStyle(
+                                  fontSize: 10.sp,
+                                  fontWeight: FontWeight.w800,
+                                  color: AppColors.followAccentGreen,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
-                      ),
-                    ],
+                        SizedBox(height: 8.h),
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              child: Text(
+                                v.visitTypeName,
+                                style: TextStyle(
+                                  fontSize: 13.sp,
+                                  fontWeight: FontWeight.w800,
+                                  color: AppColors.textPrimary,
+                                ),
+                              ),
+                            ),
+                            if (v.isFollowUpVisit)
+                              Padding(
+                                padding: EdgeInsets.only(left: 6.w),
+                                child: Text(
+                                  'فالو اپ',
+                                  style: TextStyle(
+                                    fontSize: 10.sp,
+                                    fontWeight: FontWeight.w800,
+                                    color: AppColors.dashboardWarning,
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                        SizedBox(height: 6.h),
+                        _visitHistoryMetaLine(v),
+                      ],
+                    ),
                   ),
                 ),
               ),
             ),
           ),
-        ),
         SizedBox(height: 8.h),
         FilledButton.icon(
           onPressed: _openVisitAssessment,
@@ -1362,7 +1387,6 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
     return switch (_section) {
       PatientDetailSection.personalInfo => _personalForm(),
       PatientDetailSection.medicalHistory => _medicalBody(),
-      PatientDetailSection.vitals => _vitalsBody(),
       PatientDetailSection.visitHistory => _visitsBody(),
     };
   }
@@ -1402,8 +1426,9 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
   @override
   Widget build(BuildContext context) {
     final s = widget.summary;
-    final initials =
-        s.initials.trim().isNotEmpty ? s.initials : NameInitials.fromFullName(s.fullName);
+    final initials = s.initials.trim().isNotEmpty
+        ? s.initials
+        : NameInitials.fromFullName(s.fullName);
     final avatarBg = _avatarForCondition(s.primaryCondition);
 
     return ColoredBox(
@@ -1565,7 +1590,8 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
                               style: TextStyle(
                                 fontSize: 11.sp,
                                 fontWeight: FontWeight.w700,
-                                color: AppColors.surface.withValues(alpha: 0.85),
+                                color:
+                                    AppColors.surface.withValues(alpha: 0.85),
                               ),
                             ),
                           ),
@@ -1582,9 +1608,7 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
             child: SingleChildScrollView(
               scrollDirection: Axis.horizontal,
               child: Row(
-                children: PatientDetailSection.values
-                    .map(_tab)
-                    .toList(),
+                children: PatientDetailSection.values.map(_tab).toList(),
               ),
             ),
           ),
@@ -1595,7 +1619,7 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
               child: _sectionBody(),
             ),
           ),
-          if (_showsBottomSaveButton && _section != PatientDetailSection.vitals)
+          if (_showsBottomSaveButton)
             SafeArea(
               top: false,
               child: Padding(

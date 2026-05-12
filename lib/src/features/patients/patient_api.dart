@@ -14,32 +14,58 @@ List<dynamic> _unwrapEnvelopeList(dynamic root) {
   return const [];
 }
 
-Map<String, dynamic>? _unwrapEnvelopeMap(dynamic root) {
-  if (root is Map) {
-    final m = Map<String, dynamic>.from(root);
-    final inner = m['data'] ?? m['Data'];
-    if (inner is Map) return Map<String, dynamic>.from(inner);
-    return m;
+String? _visitIdFromMap(Map<String, dynamic> map) {
+  const keys = <String>[
+    'visitId',
+    'VisitId',
+    'visit_id',
+    'Visit_Id',
+    'id',
+    'Id',
+  ];
+  for (final k in keys) {
+    final v = map[k];
+    if (v is String) {
+      final t = v.trim();
+      if (t.isNotEmpty) return t;
+    } else if (v != null) {
+      final t = v.toString().trim();
+      if (t.isNotEmpty) return t;
+    }
   }
   return null;
 }
 
-int? _parseCreatedIntId(dynamic root) {
-  if (root is! Map) return null;
-  final m = Map<String, dynamic>.from(root);
-  final v = m['id'] ?? m['Id'];
-  if (v is int) return v;
-  if (v is num) return v.toInt();
-  if (v is String) return int.tryParse(v.trim());
-  return null;
-}
-
+/// Accepts common API shapes for `POST/PUT …/Patient/visit` responses.
 String? _parseVisitId(dynamic root) {
+  if (root is String) {
+    final t = root.trim();
+    return t.isEmpty ? null : t;
+  }
   if (root is! Map) return null;
   final m = Map<String, dynamic>.from(root);
-  final v = m['visitId'] ?? m['VisitId'];
-  if (v is String && v.trim().isNotEmpty) return v.trim();
-  return v?.toString().trim();
+
+  final rawData = m['data'] ?? m['Data'];
+  if (rawData is String) {
+    final t = rawData.trim();
+    if (t.isNotEmpty) return t;
+  }
+  if (rawData is Map) {
+    final fromData = _visitIdFromMap(Map<String, dynamic>.from(rawData));
+    if (fromData != null) return fromData;
+  }
+
+  final rawResult = m['result'] ?? m['Result'];
+  if (rawResult is String) {
+    final t = rawResult.trim();
+    if (t.isNotEmpty) return t;
+  }
+  if (rawResult is Map) {
+    final fromResult = _visitIdFromMap(Map<String, dynamic>.from(rawResult));
+    if (fromResult != null) return fromResult;
+  }
+
+  return _visitIdFromMap(m);
 }
 
 class PatientApi {
@@ -79,182 +105,61 @@ class PatientApi {
     return parsed;
   }
 
-  /// Read-only: `GET /api/Patient/medicalhistory/{patientId}`.
-  Future<List<PatientMedicalHistoryRow>> getMedicalHistory({
+  /// `GET /api/Patient/{patientId}` — bare [PatientProfileResponseModel].
+  Future<PatientProfileData> getPatientProfile({
     required String patientId,
     required String bearerToken,
   }) async {
     final res = await _client.get(
-      Endpoints.patientMedicalHistory(patientId),
+      Endpoints.patientById(patientId),
       bearerToken: bearerToken,
     );
-    final raw = _unwrapEnvelopeList(res.data);
-    final out = <PatientMedicalHistoryRow>[];
-    for (final item in raw) {
-      final row = PatientMedicalHistoryRow.tryFromJson(item);
-      if (row != null) out.add(row);
+    final parsed = PatientProfileData.tryFromJson(res.data);
+    if (parsed == null) {
+      throw StateError('Invalid patient profile response.');
     }
-    return out;
+    return parsed;
   }
 
-  /// `PUT /api/PatientHistory/medical/{id}` — preferred for updates (matches `PatientHistoryController`).
-  Future<void> patientHistoryUpdateMedical({
-    required int recordId,
-    required Map<String, dynamic> body,
-    required String bearerToken,
-  }) async {
-    await _client.put(
-      Endpoints.patientHistoryMedicalPut(recordId),
-      body: body,
-      bearerToken: bearerToken,
-    );
-  }
-
-  /// `POST /api/PatientHistory/medical`.
-  Future<int> patientHistoryCreateMedical({
-    required Map<String, dynamic> body,
-    required String bearerToken,
-  }) async {
-    final res = await _client.post(
-      Endpoints.patientHistoryMedicalPost,
-      body: body,
-      bearerToken: bearerToken,
-    );
-    final id = _parseCreatedIntId(res.data);
-    if (id == null) {
-      throw StateError('Invalid medical history create response.');
-    }
-    return id;
-  }
-
-  /// `POST /api/PatientHistory/surgical`.
-  Future<int> patientHistoryCreateSurgical({
-    required Map<String, dynamic> body,
-    required String bearerToken,
-  }) async {
-    final res = await _client.post(
-      Endpoints.patientHistorySurgicalPost,
-      body: body,
-      bearerToken: bearerToken,
-    );
-    final id = _parseCreatedIntId(res.data);
-    if (id == null) {
-      throw StateError('Invalid surgical history create response.');
-    }
-    return id;
-  }
-
-  /// `POST /api/PatientHistory/drug`.
-  Future<int> patientHistoryCreateDrug({
-    required Map<String, dynamic> body,
-    required String bearerToken,
-  }) async {
-    final res = await _client.post(
-      Endpoints.patientHistoryDrugPost,
-      body: body,
-      bearerToken: bearerToken,
-    );
-    final id = _parseCreatedIntId(res.data);
-    if (id == null) {
-      throw StateError('Invalid drug history create response.');
-    }
-    return id;
-  }
-
-  /// `POST /api/PatientHistory/lifestyle`.
-  Future<void> patientHistoryCreateLifestyle({
-    required Map<String, dynamic> body,
-    required String bearerToken,
-  }) async {
-    await _client.post(
-      Endpoints.patientHistoryLifestylePost,
-      body: body,
-      bearerToken: bearerToken,
-    );
-  }
-
-  /// `PUT /api/PatientHistory/lifestyle/{patientId}`.
-  Future<void> patientHistoryUpdateLifestyle({
-    required String patientId,
-    required Map<String, dynamic> body,
-    required String bearerToken,
-  }) async {
-    await _client.put(
-      Endpoints.patientHistoryLifestylePut(patientId),
-      body: body,
-      bearerToken: bearerToken,
-    );
-  }
-
-  Future<List<PatientSurgicalHistoryRow>> getSurgicalHistory({
-    required String patientId,
-    required String bearerToken,
-  }) async {
-    final res = await _client.get(
-      Endpoints.patientSurgicalHistory(patientId),
-      bearerToken: bearerToken,
-    );
-    final raw = _unwrapEnvelopeList(res.data);
-    final out = <PatientSurgicalHistoryRow>[];
-    for (final item in raw) {
-      final row = PatientSurgicalHistoryRow.tryFromJson(item);
-      if (row != null) out.add(row);
-    }
-    return out;
-  }
-
-  Future<List<PatientDrugHistoryRow>> getDrugHistory({
-    required String patientId,
-    required String bearerToken,
-  }) async {
-    final res = await _client.get(
-      Endpoints.patientDrugHistory(patientId),
-      bearerToken: bearerToken,
-    );
-    final raw = _unwrapEnvelopeList(res.data);
-    final out = <PatientDrugHistoryRow>[];
-    for (final item in raw) {
-      final row = PatientDrugHistoryRow.tryFromJson(item);
-      if (row != null) out.add(row);
-    }
-    return out;
-  }
-
-  /// Returns `null` when the server responds 404 (no baseline row yet).
-  Future<PatientBaselineLifestyle?> getBaselineLifestyle({
+  /// `GET /api/Patient/complete-history/{patientId}`.
+  /// Returns `null` on **404** (controller: history not fully present).
+  Future<PatientCompleteHistoryData?> getCompleteHistory({
     required String patientId,
     required String bearerToken,
   }) async {
     try {
       final res = await _client.get(
-        Endpoints.patientBaselineLifestyle(patientId),
+        Endpoints.patientCompleteHistory(patientId),
         bearerToken: bearerToken,
       );
-      final m = _unwrapEnvelopeMap(res.data);
-      if (m == null) return null;
-      return PatientBaselineLifestyle.tryFromJson(m);
+      return PatientCompleteHistoryData.tryFromJson(res.data);
     } on DioException catch (e) {
       if (e.response?.statusCode == 404) return null;
       rethrow;
     }
   }
 
-  /// Visit list + upsert: `PatientController` (`PatientVisitResponseModel` rows).
+  /// Visit list: `GET /api/Patient/visits/{patientId}/` → `{ message, data }`.
   Future<List<PatientVisitRow>> getVisits({
     required String patientId,
     required String bearerToken,
   }) async {
-    final res = await _client.get(
-      Endpoints.patientVisits(patientId),
-      bearerToken: bearerToken,
-    );
-    final raw = _unwrapEnvelopeList(res.data);
-    final out = <PatientVisitRow>[];
-    for (final item in raw) {
-      final row = PatientVisitRow.tryFromJson(item);
-      if (row != null) out.add(row);
+    try {
+      final res = await _client.get(
+        Endpoints.patientVisits(patientId),
+        bearerToken: bearerToken,
+      );
+      final raw = _unwrapEnvelopeList(res.data);
+      final out = <PatientVisitRow>[];
+      for (final item in raw) {
+        final row = PatientVisitRow.tryFromJson(item);
+        if (row != null) out.add(row);
+      }
+      return out;
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 404) return const [];
+      rethrow;
     }
-    return out;
   }
 
   /// `POST /api/Patient/visit` — returns new visit id string.
@@ -289,5 +194,53 @@ class PatientApi {
       throw StateError('Invalid update visit response.');
     }
     return id;
+  }
+
+  /// `PUT /api/Patient/medicalhistory` — upsert [PatientMedicalHistoryModel].
+  Future<void> putMedicalHistory({
+    required Map<String, dynamic> body,
+    required String bearerToken,
+  }) async {
+    await _client.put(
+      Endpoints.patientMedicalHistoryUpsert,
+      body: body,
+      bearerToken: bearerToken,
+    );
+  }
+
+  /// `PUT /api/Patient/surgicalhistory` — upsert [PatientSurgicalHistoryModel].
+  Future<void> putSurgicalHistory({
+    required Map<String, dynamic> body,
+    required String bearerToken,
+  }) async {
+    await _client.put(
+      Endpoints.patientSurgicalHistoryUpsert,
+      body: body,
+      bearerToken: bearerToken,
+    );
+  }
+
+  /// `PUT /api/Patient/drughistory` — upsert [PatientDrugHistoryModel].
+  Future<void> putDrugHistory({
+    required Map<String, dynamic> body,
+    required String bearerToken,
+  }) async {
+    await _client.put(
+      Endpoints.patientDrugHistoryUpsert,
+      body: body,
+      bearerToken: bearerToken,
+    );
+  }
+
+  /// `PUT /api/Patient/baselinelifestyle` — [PatientBaselineLifestyleModel].
+  Future<void> putBaselineLifestyle({
+    required Map<String, dynamic> body,
+    required String bearerToken,
+  }) async {
+    await _client.put(
+      Endpoints.patientBaselineLifestyleUpsert,
+      body: body,
+      bearerToken: bearerToken,
+    );
   }
 }

@@ -11,6 +11,7 @@ import 'package:doctor_app/src/features/home/health_worker_dashboard_api.dart';
 import 'package:doctor_app/src/features/home/home_dashboard_controller.dart';
 import 'package:doctor_app/src/features/home/home_tab_page.dart';
 import 'package:doctor_app/src/features/patients/new_patient_registration_screen.dart';
+import 'package:doctor_app/src/features/patients/patient_directory_coordinator.dart';
 import 'package:doctor_app/src/features/shell/home_shell_tab.dart';
 import 'package:doctor_app/src/features/shell/shell_nav_item.dart';
 import 'package:doctor_app/src/features/shell/tabs/patients_tab_page.dart';
@@ -38,6 +39,7 @@ class _HomeShellState extends State<HomeShell> {
     );
     if (!mounted) return;
     if (created == true) {
+      setState(() => _tabIndex = HomeShellTab.patients.index);
       final session = context.read<SessionController>();
       await context.read<HomeDashboardController>().refreshFromSession(
             session.state,
@@ -72,7 +74,9 @@ class _HomeShellState extends State<HomeShell> {
     ];
 
     return ChangeNotifierProvider<HomeDashboardController>(
-      key: ValueKey<String?>(session.state.userId),
+      key: ValueKey<String>(
+        '${session.state.userId ?? ''}|${session.state.healthWorkerId ?? ''}',
+      ),
       create: (context) {
         final s = context.read<SessionController>();
         final ctrl = HomeDashboardController(
@@ -80,16 +84,20 @@ class _HomeShellState extends State<HomeShell> {
           apiClient: s.apiClient,
         );
         unawaited(
-          Future.microtask(() => ctrl.refreshFromSession(s.state)),
+          Future.microtask(() async {
+            await s.hydrateLhwHealthWorkerIdIfNeeded();
+            await ctrl.refreshFromSession(s.state);
+          }),
         );
         return ctrl;
       },
-      child: Scaffold(
-        backgroundColor: AppColors.dashboardBackground,
-        body: IndexedStack(
-          index: _tabIndex,
-          children: pages,
-        ),
+      child: _PatientDirectoryRefreshScope(
+        child: Scaffold(
+          backgroundColor: AppColors.dashboardBackground,
+          body: IndexedStack(
+            index: _tabIndex,
+            children: pages,
+          ),
         floatingActionButton: FloatingActionButton(
           onPressed: _onFab,
           backgroundColor: AppColors.dashboardPrimaryDark,
@@ -149,7 +157,52 @@ class _HomeShellState extends State<HomeShell> {
             ),
           ),
         ),
+        ),
       ),
     );
   }
+}
+
+/// Reloads [HomeDashboardController] when [PatientDirectoryCoordinator] fires
+/// (e.g. patient created from a pushed route that sits above this subtree).
+class _PatientDirectoryRefreshScope extends StatefulWidget {
+  const _PatientDirectoryRefreshScope({required this.child});
+
+  final Widget child;
+
+  @override
+  State<_PatientDirectoryRefreshScope> createState() =>
+      _PatientDirectoryRefreshScopeState();
+}
+
+class _PatientDirectoryRefreshScopeState
+    extends State<_PatientDirectoryRefreshScope> {
+  PatientDirectoryCoordinator? _coord;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final next = context.read<PatientDirectoryCoordinator>();
+    if (!identical(_coord, next)) {
+      _coord?.removeListener(_onReloadRequested);
+      _coord = next..addListener(_onReloadRequested);
+    }
+  }
+
+  void _onReloadRequested() {
+    if (!mounted) return;
+    final session = context.read<SessionController>();
+    unawaited(
+      context.read<HomeDashboardController>().refreshFromSession(session.state),
+    );
+  }
+
+  @override
+  void dispose() {
+    _coord?.removeListener(_onReloadRequested);
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
 }

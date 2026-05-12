@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 
 import 'package:doctor_app/src/core/auth/auth_api.dart';
@@ -120,6 +121,7 @@ class SessionController extends ChangeNotifier implements SessionAuthHooks {
 
       // Avoid route flicker: compute final "registration complete" before first notifyListeners().
       RegistrationDetails? nextDetails;
+      String? healthWorkerIdFromProfile;
       if (approval == ApprovalStatus.approved) {
         try {
           final existing = await _profileApi.getHealthWorkerProfile(
@@ -136,6 +138,10 @@ class SessionController extends ChangeNotifier implements SessionAuthHooks {
                 phone: phone,
               );
             }
+            final hid = existing.healthWorkerId?.trim();
+            if (hid != null && hid.isNotEmpty) {
+              healthWorkerIdFromProfile = hid;
+            }
           }
         } catch (_) {
           // If prefill fails, fallback to current redirect behavior.
@@ -148,12 +154,37 @@ class SessionController extends ChangeNotifier implements SessionAuthHooks {
           approvalStatus: approval,
           showDeclinedMessageOnce: false,
           userId: session.userId,
+          healthWorkerId: healthWorkerIdFromProfile,
           accessToken: session.accessToken,
           refreshToken: session.refreshToken,
           registrationDetails: nextDetails ?? _state.registrationDetails,
         ),
       );
-    } catch (e) {
+      AppLogger.instance.i(
+        '[AUTH] google-login OK userId=${session.userId} '
+        'healthWorkerId=$healthWorkerIdFromProfile '
+        'isVerified=${session.isVerified} approvalStatus=$approval role=${_state.role}',
+      );
+    } catch (e, st) {
+      if (e is DioException) {
+        final uri = e.requestOptions.uri;
+        final status = e.response?.statusCode;
+        final data = e.response?.data;
+        AppLogger.instance.e(
+          '[AUTH] google-login API error '
+          'dioType=${e.type} status=$status uri=$uri '
+          'method=${e.requestOptions.method} '
+          'responseData=$data message=${e.message}',
+          error: e,
+          stackTrace: st,
+        );
+      } else {
+        AppLogger.instance.e(
+          '[AUTH] google-login unexpected error type=${e.runtimeType}',
+          error: e,
+          stackTrace: st,
+        );
+      }
       throw _apiClient.mapError(e);
     }
   }
@@ -165,6 +196,7 @@ class SessionController extends ChangeNotifier implements SessionAuthHooks {
       registrationDetails: const RegistrationDetails(fullName: '', phone: ''),
       showDeclinedMessageOnce: false,
       userId: null,
+      healthWorkerId: null,
       accessToken: null,
       refreshToken: null,
       role: keepRole ? _state.role : UserRole.unknown,
@@ -189,6 +221,18 @@ class SessionController extends ChangeNotifier implements SessionAuthHooks {
         bearerToken: token,
       );
 
+      HealthWorkerProfile? refreshed;
+      try {
+        refreshed = await _profileApi.getHealthWorkerProfile(
+          userId: profile.userId,
+          bearerToken: token,
+        );
+      } catch (_) {}
+
+      final hid = refreshed?.healthWorkerId?.trim();
+      final nextHwId =
+          (hid != null && hid.isNotEmpty) ? hid : _state.healthWorkerId;
+
       final fullName = '${profile.firstName} ${profile.lastName}'.trim();
       await _setState(
         _state.copyWith(
@@ -196,6 +240,7 @@ class SessionController extends ChangeNotifier implements SessionAuthHooks {
             fullName: fullName,
             phone: profile.phoneNumber,
           ),
+          healthWorkerId: nextHwId,
         ),
       );
     } catch (e) {
@@ -219,6 +264,40 @@ class SessionController extends ChangeNotifier implements SessionAuthHooks {
       );
     } catch (e) {
       throw _apiClient.mapError(e);
+    }
+  }
+
+  /// Cold-start sessions may have been saved before [AppSession.healthWorkerId] was persisted.
+  /// Loads profile once (approved LHW only) so patient list/create use `healthWorkerId`, not account `userId`.
+  Future<void> hydrateLhwHealthWorkerIdIfNeeded() async {
+    if (_state.role != UserRole.ladyHealthWorker) return;
+    if (!_state.isSignedIn) return;
+    if (_state.approvalStatus != ApprovalStatus.approved) return;
+    final existing = _state.healthWorkerId?.trim();
+    if (existing != null && existing.isNotEmpty) return;
+
+    final token = _state.accessToken?.trim();
+    final userId = _state.userId?.trim();
+    if (token == null ||
+        token.isEmpty ||
+        userId == null ||
+        userId.isEmpty) {
+      return;
+    }
+    try {
+      final profile = await _profileApi.getHealthWorkerProfile(
+        userId: userId,
+        bearerToken: token,
+      );
+      final hid = profile?.healthWorkerId?.trim();
+      if (hid == null || hid.isEmpty) return;
+      await _setState(_state.copyWith(healthWorkerId: hid));
+    } catch (e, st) {
+      AppLogger.instance.w(
+        '[SESSION] hydrate healthWorkerId failed',
+        error: e,
+        stackTrace: st,
+      );
     }
   }
 

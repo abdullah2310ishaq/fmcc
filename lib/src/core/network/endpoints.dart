@@ -16,7 +16,7 @@ class Endpoints {
   static String tehsils(int provinceId, int districtId) =>
       '/api/Reference/tehsils/$provinceId/$districtId';
 
-  /// [healthWorkerId] is typically the signed-in worker's `AppSession.userId`.
+  /// [healthWorkerId] = profile `healthWorkerId` (LHW code). Use [AppSession.healthWorkerIdForPatientApis].
   static String healthWorkerDashboardStats(String healthWorkerId) =>
       '/api/HealthWorkerDashboard/${Uri.encodeComponent(healthWorkerId)}/stats';
 
@@ -29,19 +29,17 @@ class Endpoints {
   static const String patientCreate = '/api/Patient';
   static const String patientUpdate = '/api/Patient';
 
-  static String patientMedicalHistory(String patientId) =>
-      '/api/Patient/medicalhistory/${Uri.encodeComponent(patientId)}';
+  static String patientById(String patientId) =>
+      '/api/Patient/${Uri.encodeComponent(patientId)}';
+
+  static String patientCompleteHistory(String patientId) =>
+      '/api/Patient/complete-history/${Uri.encodeComponent(patientId)}';
 
   static const String patientMedicalHistoryUpsert = '/api/Patient/medicalhistory';
 
-  static String patientSurgicalHistory(String patientId) =>
-      '/api/Patient/surgicalhistory/${Uri.encodeComponent(patientId)}';
+  static const String patientSurgicalHistoryUpsert = '/api/Patient/surgicalhistory';
 
-  static String patientDrugHistory(String patientId) =>
-      '/api/Patient/drughistory/${Uri.encodeComponent(patientId)}';
-
-  static String patientBaselineLifestyle(String patientId) =>
-      '/api/Patient/baselinelifestyle/${Uri.encodeComponent(patientId)}';
+  static const String patientDrugHistoryUpsert = '/api/Patient/drughistory';
 
   static const String patientBaselineLifestyleUpsert = '/api/Patient/baselinelifestyle';
 
@@ -62,21 +60,5 @@ class Endpoints {
 
   static const String patientVisitCreate = '/api/Patient/visit';
   static const String patientVisitUpdate = '/api/Patient/visit';
-
-  static const String patientHistoryMedicalPost = '/api/PatientHistory/medical';
-  static String patientHistoryMedicalPut(int id) =>
-      '/api/PatientHistory/medical/$id';
-
-  static const String patientHistorySurgicalPost = '/api/PatientHistory/surgical';
-  static String patientHistorySurgicalPut(int id) =>
-      '/api/PatientHistory/surgical/$id';
-
-  static const String patientHistoryDrugPost = '/api/PatientHistory/drug';
-  static String patientHistoryDrugPut(int id) =>
-      '/api/PatientHistory/drug/$id';
-
-  static const String patientHistoryLifestylePost = '/api/PatientHistory/lifestyle';
-  static String patientHistoryLifestylePut(String patientId) =>
-      '/api/PatientHistory/lifestyle/${Uri.encodeComponent(patientId)}';
 }
 
