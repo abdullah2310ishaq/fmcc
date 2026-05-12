@@ -11,6 +11,7 @@ class SessionStorage {
   static const _kPhone = 'session.phone';
   static const _kShowDeclinedOnce = 'session.showDeclinedOnce';
   static const _kUserId = 'session.userId';
+  static const _kHealthWorkerId = 'session.healthWorkerId';
 
   static const _kAccessToken = 'session.accessToken';
   static const _kRefreshToken = 'session.refreshToken';
@@ -28,6 +29,7 @@ class SessionStorage {
     final phone = prefs.getString(_kPhone) ?? '';
     final showDeclinedOnce = prefs.getBool(_kShowDeclinedOnce) ?? false;
     final userId = prefs.getString(_kUserId);
+    final healthWorkerId = prefs.getString(_kHealthWorkerId);
     final accessToken = await _secure.read(key: _kAccessToken);
     final refreshToken = await _secure.read(key: _kRefreshToken);
 
@@ -35,9 +37,11 @@ class SessionStorage {
       role: role,
       isSignedIn: isSignedIn,
       approvalStatus: approval,
-      registrationDetails: RegistrationDetails(fullName: fullName, phone: phone),
+      registrationDetails:
+          RegistrationDetails(fullName: fullName, phone: phone),
       showDeclinedMessageOnce: showDeclinedOnce,
       userId: userId,
+      healthWorkerId: healthWorkerId,
       accessToken: accessToken,
       refreshToken: refreshToken,
     );
@@ -55,6 +59,13 @@ class SessionStorage {
       await prefs.remove(_kUserId);
     } else {
       await prefs.setString(_kUserId, session.userId!);
+    }
+
+    if (session.healthWorkerId == null ||
+        session.healthWorkerId!.trim().isEmpty) {
+      await prefs.remove(_kHealthWorkerId);
+    } else {
+      await prefs.setString(_kHealthWorkerId, session.healthWorkerId!.trim());
     }
 
     if (session.accessToken == null || session.accessToken!.trim().isEmpty) {
@@ -81,6 +92,7 @@ class SessionStorage {
     await prefs.remove(_kPhone);
     await prefs.remove(_kShowDeclinedOnce);
     await prefs.remove(_kUserId);
+    await prefs.remove(_kHealthWorkerId);
     await _secure.delete(key: _kAccessToken);
     await _secure.delete(key: _kRefreshToken);
   }
@@ -133,4 +145,3 @@ class SessionStorage {
     }
   }
 }
-

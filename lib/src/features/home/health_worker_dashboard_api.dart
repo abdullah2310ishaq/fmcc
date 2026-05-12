@@ -2,6 +2,17 @@ import 'package:doctor_app/src/core/network/api_client.dart';
 import 'package:doctor_app/src/core/network/endpoints.dart';
 import 'package:doctor_app/src/features/home/health_worker_dashboard_models.dart';
 
+/// Some deployments return a bare JSON array; others wrap in `{ "data": [...] }`.
+dynamic _unwrapListPayload(dynamic root) {
+  if (root is List) return root;
+  if (root is Map) {
+    final m = Map<String, dynamic>.from(root);
+    final inner = m['data'] ?? m['Data'];
+    if (inner is List) return inner;
+  }
+  return root;
+}
+
 class HealthWorkerDashboardApi {
   HealthWorkerDashboardApi(this._client);
 
@@ -30,7 +41,7 @@ class HealthWorkerDashboardApi {
       Endpoints.healthWorkerDashboardFollowUps(healthWorkerId),
       bearerToken: bearerToken,
     );
-    return _parseFollowUpList(res.data);
+    return _parseFollowUpList(_unwrapListPayload(res.data));
   }
 
   Future<List<HwPatientSummary>> getAllPatients({
@@ -41,7 +52,7 @@ class HealthWorkerDashboardApi {
       Endpoints.healthWorkerDashboardPatients(healthWorkerId),
       bearerToken: bearerToken,
     );
-    return _parsePatientSummaryList(res.data);
+    return _parsePatientSummaryList(_unwrapListPayload(res.data));
   }
 
   static List<HwFollowUpPatient> _parseFollowUpList(dynamic data) {

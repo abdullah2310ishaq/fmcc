@@ -44,11 +44,8 @@ class HomeDashboardController extends ChangeNotifier {
     }
 
     final token = session.accessToken?.trim();
-    final hwId = session.userId?.trim();
-    if (token == null ||
-        token.isEmpty ||
-        hwId == null ||
-        hwId.isEmpty) {
+    final hwId = session.healthWorkerIdForPatientApis?.trim();
+    if (token == null || token.isEmpty || hwId == null || hwId.isEmpty) {
       _stats = null;
       _followUps = const [];
       _patients = const [];
@@ -62,22 +59,52 @@ class HomeDashboardController extends ChangeNotifier {
     _error = null;
     notifyListeners();
 
-    try {
-      final results = await Future.wait([
-        _api.getStats(healthWorkerId: hwId, bearerToken: token),
-        _api.getFollowUps(healthWorkerId: hwId, bearerToken: token),
-        _api.getAllPatients(healthWorkerId: hwId, bearerToken: token),
-      ]);
+    final errors = <String>[];
 
-      _stats = results[0] as HwDashboardStats;
-      _followUps = results[1] as List<HwFollowUpPatient>;
-      _patients = results[2] as List<HwPatientSummary>;
-      _error = null;
-    } catch (e) {
-      _error = _apiClient.mapError(e).message;
-    } finally {
-      _loading = false;
-      notifyListeners();
+    Future<void> loadStats() async {
+      try {
+        _stats = await _api.getStats(
+          healthWorkerId: hwId,
+          bearerToken: token,
+        );
+      } catch (e) {
+        _stats = null;
+        errors.add(_apiClient.mapError(e).message);
+      }
     }
+
+    Future<void> loadFollowUps() async {
+      try {
+        _followUps = await _api.getFollowUps(
+          healthWorkerId: hwId,
+          bearerToken: token,
+        );
+      } catch (e) {
+        _followUps = const [];
+        errors.add(_apiClient.mapError(e).message);
+      }
+    }
+
+    Future<void> loadPatients() async {
+      try {
+        _patients = await _api.getAllPatients(
+          healthWorkerId: hwId,
+          bearerToken: token,
+        );
+      } catch (e) {
+        _patients = const [];
+        errors.add(_apiClient.mapError(e).message);
+      }
+    }
+
+    await Future.wait([
+      loadStats(),
+      loadFollowUps(),
+      loadPatients(),
+    ]);
+    _error = errors.isEmpty ? null : errors.join('\n');
+
+    _loading = false;
+    notifyListeners();
   }
 }

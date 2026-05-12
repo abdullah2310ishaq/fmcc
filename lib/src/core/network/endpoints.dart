@@ -16,7 +16,7 @@ class Endpoints {
   static String tehsils(int provinceId, int districtId) =>
       '/api/Reference/tehsils/$provinceId/$districtId';
 
-  /// [healthWorkerId] is typically the signed-in worker's `AppSession.userId`.
+  /// [healthWorkerId] = profile `healthWorkerId` (LHW code). Use [AppSession.healthWorkerIdForPatientApis].
   static String healthWorkerDashboardStats(String healthWorkerId) =>
       '/api/HealthWorkerDashboard/${Uri.encodeComponent(healthWorkerId)}/stats';
 

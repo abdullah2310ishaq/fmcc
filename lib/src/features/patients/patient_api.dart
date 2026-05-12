@@ -34,12 +34,58 @@ int? _parseCreatedIntId(dynamic root) {
   return null;
 }
 
+String? _visitIdFromMap(Map<String, dynamic> map) {
+  const keys = <String>[
+    'visitId',
+    'VisitId',
+    'visit_id',
+    'Visit_Id',
+    'id',
+    'Id',
+  ];
+  for (final k in keys) {
+    final v = map[k];
+    if (v is String) {
+      final t = v.trim();
+      if (t.isNotEmpty) return t;
+    } else if (v != null) {
+      final t = v.toString().trim();
+      if (t.isNotEmpty) return t;
+    }
+  }
+  return null;
+}
+
+/// Accepts common API shapes for `POST/PUT …/Patient/visit` responses.
 String? _parseVisitId(dynamic root) {
+  if (root is String) {
+    final t = root.trim();
+    return t.isEmpty ? null : t;
+  }
   if (root is! Map) return null;
   final m = Map<String, dynamic>.from(root);
-  final v = m['visitId'] ?? m['VisitId'];
-  if (v is String && v.trim().isNotEmpty) return v.trim();
-  return v?.toString().trim();
+
+  final rawData = m['data'] ?? m['Data'];
+  if (rawData is String) {
+    final t = rawData.trim();
+    if (t.isNotEmpty) return t;
+  }
+  if (rawData is Map) {
+    final fromData = _visitIdFromMap(Map<String, dynamic>.from(rawData));
+    if (fromData != null) return fromData;
+  }
+
+  final rawResult = m['result'] ?? m['Result'];
+  if (rawResult is String) {
+    final t = rawResult.trim();
+    if (t.isNotEmpty) return t;
+  }
+  if (rawResult is Map) {
+    final fromResult = _visitIdFromMap(Map<String, dynamic>.from(rawResult));
+    if (fromResult != null) return fromResult;
+  }
+
+  return _visitIdFromMap(m);
 }
 
 class PatientApi {
@@ -80,21 +126,29 @@ class PatientApi {
   }
 
   /// Read-only: `GET /api/Patient/medicalhistory/{patientId}`.
+  ///
+  /// Returns an empty list on **404** (no rows yet, or some servers return
+  /// "patient not found" for this route while other patient routes still work).
   Future<List<PatientMedicalHistoryRow>> getMedicalHistory({
     required String patientId,
     required String bearerToken,
   }) async {
-    final res = await _client.get(
-      Endpoints.patientMedicalHistory(patientId),
-      bearerToken: bearerToken,
-    );
-    final raw = _unwrapEnvelopeList(res.data);
-    final out = <PatientMedicalHistoryRow>[];
-    for (final item in raw) {
-      final row = PatientMedicalHistoryRow.tryFromJson(item);
-      if (row != null) out.add(row);
+    try {
+      final res = await _client.get(
+        Endpoints.patientMedicalHistory(patientId),
+        bearerToken: bearerToken,
+      );
+      final raw = _unwrapEnvelopeList(res.data);
+      final out = <PatientMedicalHistoryRow>[];
+      for (final item in raw) {
+        final row = PatientMedicalHistoryRow.tryFromJson(item);
+        if (row != null) out.add(row);
+      }
+      return out;
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 404) return const [];
+      rethrow;
     }
-    return out;
   }
 
   /// `PUT /api/PatientHistory/medical/{id}` — preferred for updates (matches `PatientHistoryController`).
@@ -161,63 +215,99 @@ class PatientApi {
     return id;
   }
 
-  /// `POST /api/PatientHistory/lifestyle`.
+  /// `POST /api/PatientHistory/lifestyle`, or `POST /api/Patient/baselinelifestyle`
+  /// when the server returns **404** (deploy has `PatientController` only).
   Future<void> patientHistoryCreateLifestyle({
     required Map<String, dynamic> body,
     required String bearerToken,
   }) async {
-    await _client.post(
-      Endpoints.patientHistoryLifestylePost,
-      body: body,
-      bearerToken: bearerToken,
-    );
+    try {
+      await _client.post(
+        Endpoints.patientHistoryLifestylePost,
+        body: body,
+        bearerToken: bearerToken,
+      );
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 404) {
+        await _client.post(
+          Endpoints.patientBaselineLifestyleUpsert,
+          body: body,
+          bearerToken: bearerToken,
+        );
+        return;
+      }
+      rethrow;
+    }
   }
 
-  /// `PUT /api/PatientHistory/lifestyle/{patientId}`.
+  /// `PUT /api/PatientHistory/lifestyle/{patientId}`, or `PUT /api/Patient/baselinelifestyle`
+  /// when the server returns **404** (same as [patientHistoryCreateLifestyle]).
   Future<void> patientHistoryUpdateLifestyle({
     required String patientId,
     required Map<String, dynamic> body,
     required String bearerToken,
   }) async {
-    await _client.put(
-      Endpoints.patientHistoryLifestylePut(patientId),
-      body: body,
-      bearerToken: bearerToken,
-    );
+    try {
+      await _client.put(
+        Endpoints.patientHistoryLifestylePut(patientId),
+        body: body,
+        bearerToken: bearerToken,
+      );
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 404) {
+        await _client.put(
+          Endpoints.patientBaselineLifestyleUpsert,
+          body: body,
+          bearerToken: bearerToken,
+        );
+        return;
+      }
+      rethrow;
+    }
   }
 
   Future<List<PatientSurgicalHistoryRow>> getSurgicalHistory({
     required String patientId,
     required String bearerToken,
   }) async {
-    final res = await _client.get(
-      Endpoints.patientSurgicalHistory(patientId),
-      bearerToken: bearerToken,
-    );
-    final raw = _unwrapEnvelopeList(res.data);
-    final out = <PatientSurgicalHistoryRow>[];
-    for (final item in raw) {
-      final row = PatientSurgicalHistoryRow.tryFromJson(item);
-      if (row != null) out.add(row);
+    try {
+      final res = await _client.get(
+        Endpoints.patientSurgicalHistory(patientId),
+        bearerToken: bearerToken,
+      );
+      final raw = _unwrapEnvelopeList(res.data);
+      final out = <PatientSurgicalHistoryRow>[];
+      for (final item in raw) {
+        final row = PatientSurgicalHistoryRow.tryFromJson(item);
+        if (row != null) out.add(row);
+      }
+      return out;
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 404) return const [];
+      rethrow;
     }
-    return out;
   }
 
   Future<List<PatientDrugHistoryRow>> getDrugHistory({
     required String patientId,
     required String bearerToken,
   }) async {
-    final res = await _client.get(
-      Endpoints.patientDrugHistory(patientId),
-      bearerToken: bearerToken,
-    );
-    final raw = _unwrapEnvelopeList(res.data);
-    final out = <PatientDrugHistoryRow>[];
-    for (final item in raw) {
-      final row = PatientDrugHistoryRow.tryFromJson(item);
-      if (row != null) out.add(row);
+    try {
+      final res = await _client.get(
+        Endpoints.patientDrugHistory(patientId),
+        bearerToken: bearerToken,
+      );
+      final raw = _unwrapEnvelopeList(res.data);
+      final out = <PatientDrugHistoryRow>[];
+      for (final item in raw) {
+        final row = PatientDrugHistoryRow.tryFromJson(item);
+        if (row != null) out.add(row);
+      }
+      return out;
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 404) return const [];
+      rethrow;
     }
-    return out;
   }
 
   /// Returns `null` when the server responds 404 (no baseline row yet).
@@ -244,17 +334,22 @@ class PatientApi {
     required String patientId,
     required String bearerToken,
   }) async {
-    final res = await _client.get(
-      Endpoints.patientVisits(patientId),
-      bearerToken: bearerToken,
-    );
-    final raw = _unwrapEnvelopeList(res.data);
-    final out = <PatientVisitRow>[];
-    for (final item in raw) {
-      final row = PatientVisitRow.tryFromJson(item);
-      if (row != null) out.add(row);
+    try {
+      final res = await _client.get(
+        Endpoints.patientVisits(patientId),
+        bearerToken: bearerToken,
+      );
+      final raw = _unwrapEnvelopeList(res.data);
+      final out = <PatientVisitRow>[];
+      for (final item in raw) {
+        final row = PatientVisitRow.tryFromJson(item);
+        if (row != null) out.add(row);
+      }
+      return out;
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 404) return const [];
+      rethrow;
     }
-    return out;
   }
 
   /// `POST /api/Patient/visit` — returns new visit id string.

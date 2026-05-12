@@ -271,6 +271,13 @@ class ApiClient {
       return UnknownFailure(error.message ?? 'Unexpected error occurred.');
     }
 
+    if (error is StateError) {
+      return UnknownFailure(error.message);
+    }
+    if (error is FormatException) {
+      return UnknownFailure(error.message);
+    }
+
     return UnknownFailure('Unexpected error occurred.');
   }
 

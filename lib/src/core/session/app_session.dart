@@ -36,6 +36,7 @@ class AppSession extends Equatable {
     required this.registrationDetails,
     required this.showDeclinedMessageOnce,
     required this.userId,
+    this.healthWorkerId,
     required this.accessToken,
     required this.refreshToken,
   });
@@ -48,6 +49,7 @@ class AppSession extends Equatable {
       registrationDetails: RegistrationDetails(fullName: '', phone: ''),
       showDeclinedMessageOnce: false,
       userId: null,
+      healthWorkerId: null,
       accessToken: null,
       refreshToken: null,
     );
@@ -64,6 +66,9 @@ class AppSession extends Equatable {
   /// Backend user identifier (from JWT claim `name` in current API).
   final String? userId;
 
+  /// LHW profile `healthWorkerId` (e.g. certificate code). Dashboard + patient assignment use this when set.
+  final String? healthWorkerId;
+
   /// Bearer token for authorized API calls.
   final String? accessToken;
 
@@ -72,6 +77,15 @@ class AppSession extends Equatable {
 
   bool get hasCompletedRegistrationDetails => registrationDetails.isComplete;
 
+  /// Profile `healthWorkerId` only (e.g. `A171DE66`). Used for dashboard routes,
+  /// `assignedHealthWorkerId` on patient create/update, and visit `healthWorkerId`.
+  /// Never use JWT [userId] here — backend keys patients by LHW id.
+  String? get healthWorkerIdForPatientApis {
+    final h = healthWorkerId?.trim();
+    if (h != null && h.isNotEmpty) return h;
+    return null;
+  }
+
   AppSession copyWith({
     UserRole? role,
     bool? isSignedIn,
@@ -79,6 +93,7 @@ class AppSession extends Equatable {
     RegistrationDetails? registrationDetails,
     bool? showDeclinedMessageOnce,
     Object? userId = _unset,
+    Object? healthWorkerId = _unset,
     Object? accessToken = _unset,
     Object? refreshToken = _unset,
   }) {
@@ -90,6 +105,9 @@ class AppSession extends Equatable {
       showDeclinedMessageOnce:
           showDeclinedMessageOnce ?? this.showDeclinedMessageOnce,
       userId: userId == _unset ? this.userId : userId as String?,
+      healthWorkerId: healthWorkerId == _unset
+          ? this.healthWorkerId
+          : healthWorkerId as String?,
       accessToken:
           accessToken == _unset ? this.accessToken : accessToken as String?,
       refreshToken:
@@ -105,8 +123,8 @@ class AppSession extends Equatable {
         registrationDetails,
         showDeclinedMessageOnce,
         userId,
+        healthWorkerId,
         accessToken,
         refreshToken,
       ];
 }
-

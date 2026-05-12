@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 
+import 'package:doctor_app/src/core/presentation/bp_reading_color.dart';
 import 'package:doctor_app/src/core/theme/app_colors.dart';
 import 'package:doctor_app/src/features/patients/patient_api_models.dart';
 
@@ -67,13 +68,27 @@ class VisitDetailScreen extends StatelessWidget {
           ),
           SizedBox(height: 20.h),
           _tile('Visit date', _formatDateTime(visit.visitDate)),
-          _tile('Visit type', visit.visitTypeName.isNotEmpty ? visit.visitTypeName : '—'),
+          _tile('Visit type',
+              visit.visitTypeName.isNotEmpty ? visit.visitTypeName : '—'),
           _tile('Follow-up visit', visit.isFollowUpVisit ? 'Yes' : 'No'),
-          _tile('Status', visit.visitStatusName.isNotEmpty ? visit.visitStatusName : '—'),
-          _tile('Action', visit.visitActionName.isNotEmpty ? visit.visitActionName : '—'),
-          _tile('Reason', visit.reasonForVisit.trim().isNotEmpty ? visit.reasonForVisit : '—'),
+          _tile('Status',
+              visit.visitStatusName.isNotEmpty ? visit.visitStatusName : '—'),
+          _tile('Action',
+              visit.visitActionName.isNotEmpty ? visit.visitActionName : '—'),
+          _tile(
+              'Reason',
+              visit.reasonForVisit.trim().isNotEmpty
+                  ? visit.reasonForVisit
+                  : '—'),
           if (visit.avgSystolicBp != null && visit.avgDiastolicBp != null)
-            _tile('Blood pressure', '${visit.avgSystolicBp}/${visit.avgDiastolicBp} mmHg'),
+            _tile(
+              'Blood pressure',
+              '${visit.avgSystolicBp}/${visit.avgDiastolicBp} mmHg',
+              valueColor: BpReadingColor.forPair(
+                visit.avgSystolicBp!,
+                visit.avgDiastolicBp!,
+              ),
+            ),
           if (visit.pulse != null) _tile('Pulse', '${visit.pulse} bpm'),
           if (visit.medicalAdherenceNote != null &&
               visit.medicalAdherenceNote!.trim().isNotEmpty)
@@ -88,7 +103,7 @@ class VisitDetailScreen extends StatelessWidget {
     );
   }
 
-  Widget _tile(String label, String value) {
+  Widget _tile(String label, String value, {Color? valueColor}) {
     return Padding(
       padding: EdgeInsets.only(bottom: 14.h),
       child: Column(
@@ -109,7 +124,7 @@ class VisitDetailScreen extends StatelessWidget {
             style: TextStyle(
               fontSize: 14.sp,
               fontWeight: FontWeight.w700,
-              color: AppColors.textPrimary,
+              color: valueColor ?? AppColors.textPrimary,
               height: 1.35,
             ),
           ),

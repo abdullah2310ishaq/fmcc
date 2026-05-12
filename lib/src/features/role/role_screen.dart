@@ -2,157 +2,102 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+
 import 'package:doctor_app/src/core/session/app_session.dart';
 import 'package:doctor_app/src/core/session/session_controller.dart';
 import 'package:doctor_app/src/core/theme/app_colors.dart';
 import 'package:doctor_app/src/features/auth/auth_screen.dart';
 
+/// Matches [AuthScreen] hero gradient and curved body for a consistent pre-auth flow.
 class RoleScreen extends StatelessWidget {
   const RoleScreen({super.key});
 
   static const routePath = '/role';
 
+  static const List<Color> _heroGradientColors = [
+    Color(0xFF1F6FAB),
+    Color(0xFF0E947E),
+  ];
+
   @override
   Widget build(BuildContext context) {
-    final controller = context.read<SessionController>();
+    final bottomInset = MediaQuery.paddingOf(context).bottom;
 
     return Scaffold(
-      backgroundColor: AppColors.background, // from colors.dart
+      backgroundColor: AppColors.registrationScreenBg,
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: EdgeInsets.only(
-            left: 20.w,
-            right: 20.w,
-            top: 24.h,
-            bottom: MediaQuery.of(context).padding.bottom + 20.h,
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const _HeaderCard(),
-              SizedBox(height: 28.h),
-              _RoleOptionCard(
-                titleEn: 'Lady Health Worker',
-                titleUr: 'لیڈی ہیلتھ ورکر',
-                subtitleEn: 'Request access and continue',
-                subtitleUr: 'رسائی کی درخواست کریں اور آگے بڑھیں',
-                icon: Icons.health_and_safety_outlined,
-                onTap: () async {
-                  await controller.selectRole(UserRole.ladyHealthWorker);
-                  if (!context.mounted) return;
-                  context.go(AuthScreen.routePath);
-                },
-              ),
-              SizedBox(height: 16.h),
-              _RoleOptionCard(
-                titleEn: 'Doctor',
-                titleUr: 'ڈاکٹر',
-                subtitleEn: 'Request access and manage patients',
-                subtitleUr: 'رسائی کی درخواست کریں اور مریضوں کو منظم کریں',
-                icon: Icons.local_hospital_outlined,
-                onTap: () async {
-                  await controller.selectRole(UserRole.doctor);
-                  if (!context.mounted) return;
-                  context.go(AuthScreen.routePath);
-                },
-              ),
-              SizedBox(height: 24.h),
-              const _FooterNote(),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _HeaderCard extends StatelessWidget {
-  const _HeaderCard();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(24.r),
-        color: AppColors.surface,
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.blue.withValues(alpha: 0.08),
-            blurRadius: 16.r,
-            offset: Offset(0, 4.h),
-          ),
-        ],
-        border: Border.all(color: AppColors.border),
-      ),
-      child: Padding(
-        padding: EdgeInsets.all(24.w),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Row(
-              children: [
-                Container(
-                  width: 56.w,
-                  height: 56.h,
-                  decoration: BoxDecoration(
-                    color: AppColors.blue.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(20.r),
-                  ),
-                  child: Icon(
-                    Icons.badge_outlined,
-                    size: 28.sp,
-                    color: AppColors.blueDark,
-                  ),
-                ),
-                SizedBox(width: 16.w),
-                Expanded(
-                  child: Text(
-                    'Choose your role',
-                    style: TextStyle(
-                      fontSize: 24.sp,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.textPrimary,
-                      letterSpacing: -0.3,
+            Expanded(flex: 5, child: _RoleHero(colors: _heroGradientColors)),
+            Expanded(
+              flex: 5,
+              child: Transform.translate(
+                offset: Offset(0, -34.h),
+                child: ClipPath(
+                  clipper: const _RoleBodyCurveClipper(),
+                  child: ColoredBox(
+                    color: AppColors.registrationScreenBg,
+                    child: Padding(
+                      padding: EdgeInsets.fromLTRB(
+                        24.w,
+                        72.h,
+                        24.w,
+                        16.h + bottomInset,
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Text(
+                            'Pick how you use Careho — one tap to continue.',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 14.sp,
+                              fontWeight: FontWeight.w500,
+                              color: AppColors.dashboardPrimaryDark
+                                  .withValues(alpha: 0.82),
+                              height: 1.45,
+                            ),
+                          ),
+                          SizedBox(height: 22.h),
+                          _RoleTile(
+                            icon: Icons.health_and_safety_rounded,
+                            iconTint: const Color(0xFF1565C0),
+                            titleEn: 'Lady Health Worker',
+                            titleUr: 'لیڈی ہیلتھ ورکر',
+                            onTap: () => _selectRole(
+                              context,
+                              UserRole.ladyHealthWorker,
+                            ),
+                          ),
+                          SizedBox(height: 12.h),
+                          _RoleTile(
+                            icon: Icons.medical_services_rounded,
+                            iconTint: const Color(0xFF0E7668),
+                            titleEn: 'Doctor',
+                            titleUr: 'ڈاکٹر',
+                            onTap: () => _selectRole(
+                              context,
+                              UserRole.doctor,
+                            ),
+                          ),
+                          const Spacer(),
+                          Text(
+                            'You can switch role later from profile settings.\n'
+                            'پروفائل سیٹنگز سے بعد میں کردار تبدیل کر سکتے ہیں۔',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 11.sp,
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.registrationSectionLabel,
+                              height: 1.4,
+                              fontFamily: 'NotoNastaliqUrdu',
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
-                ),
-              ],
-            ),
-            SizedBox(height: 18.h),
-            Directionality(
-              textDirection: TextDirection.rtl,
-              child: Text(
-                'اپنا کردار منتخب کریں',
-                style: TextStyle(
-                  fontSize: 20.sp,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.textPrimary,
-                  fontFamily: 'NotoNastaliqUrdu',
-                  height: 1.4, // slight spacing, clean
-                ),
-              ),
-            ),
-            SizedBox(height: 14.h),
-            Text(
-              'Select one to continue',
-              style: TextStyle(
-                fontSize: 14.sp,
-                color: AppColors.textSecondary,
-                height: 1.4,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-            SizedBox(height: 8.h),
-            Directionality(
-              textDirection: TextDirection.rtl,
-              child: Text(
-                'جاری رکھنے کے لیے ایک انتخاب کریں',
-                style: TextStyle(
-                  fontSize: 14.sp,
-                  color: AppColors.textSecondary,
-                  height: 1.4,
-                  fontWeight: FontWeight.w500,
-                  fontFamily: 'NotoNastaliqUrdu',
                 ),
               ),
             ),
@@ -161,192 +106,213 @@ class _HeaderCard extends StatelessWidget {
       ),
     );
   }
+
+  static Future<void> _selectRole(
+    BuildContext context,
+    UserRole role,
+  ) async {
+    final controller = context.read<SessionController>();
+    await controller.selectRole(role);
+    if (!context.mounted) return;
+    context.go(AuthScreen.routePath);
+  }
 }
 
-class _RoleOptionCard extends StatelessWidget {
-  const _RoleOptionCard({
+class _RoleBodyCurveClipper extends CustomClipper<Path> {
+  const _RoleBodyCurveClipper();
+
+  @override
+  Path getClip(Size size) {
+    final path = Path()
+      ..moveTo(0, 34)
+      ..cubicTo(
+        size.width * 0.26,
+        2,
+        size.width * 0.74,
+        2,
+        size.width,
+        34,
+      )
+      ..lineTo(size.width, size.height)
+      ..lineTo(0, size.height)
+      ..close();
+    return path;
+  }
+
+  @override
+  bool shouldReclip(covariant CustomClipper<Path> oldClipper) => false;
+}
+
+class _RoleHero extends StatelessWidget {
+  const _RoleHero({required this.colors});
+
+  final List<Color> colors;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: colors,
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            width: 76.r,
+            height: 76.r,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: AppColors.surface.withValues(alpha: 0.18),
+              borderRadius: BorderRadius.circular(22.r),
+              border: Border.all(
+                color: AppColors.surface.withValues(alpha: 0.45),
+                width: 2,
+              ),
+            ),
+            child: Icon(
+              Icons.badge_rounded,
+              size: 40.sp,
+              color: AppColors.surface,
+            ),
+          ),
+          SizedBox(height: 20.h),
+          Text(
+            'Your role',
+            style: TextStyle(
+              fontSize: 26.sp,
+              fontWeight: FontWeight.w900,
+              color: AppColors.surface,
+              letterSpacing: -0.3,
+            ),
+          ),
+          SizedBox(height: 6.h),
+          Text(
+            'Choose one to sign in',
+            style: TextStyle(
+              fontSize: 14.sp,
+              fontWeight: FontWeight.w500,
+              color: AppColors.surface.withValues(alpha: 0.92),
+            ),
+          ),
+          SizedBox(height: 10.h),
+          Padding(
+            padding: EdgeInsets.symmetric(horizontal: 32.w),
+            child: Directionality(
+              textDirection: TextDirection.rtl,
+              child: Text(
+                'سائن اِن کے لیے ایک کردار منتخب کریں',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 15.sp,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.surface.withValues(alpha: 0.95),
+                  height: 1.35,
+                  fontFamily: 'NotoNastaliqUrdu',
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _RoleTile extends StatelessWidget {
+  const _RoleTile({
+    required this.icon,
+    required this.iconTint,
     required this.titleEn,
     required this.titleUr,
-    required this.subtitleEn,
-    required this.subtitleUr,
-    required this.icon,
     required this.onTap,
   });
 
+  final IconData icon;
+  final Color iconTint;
   final String titleEn;
   final String titleUr;
-  final String subtitleEn;
-  final String subtitleUr;
-  final IconData icon;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: Colors.transparent,
-      borderRadius: BorderRadius.circular(20.r),
+      color: AppColors.surface,
+      elevation: 0,
+      borderRadius: BorderRadius.circular(14.r),
       child: InkWell(
-        borderRadius: BorderRadius.circular(20.r),
         onTap: onTap,
-        splashColor: AppColors.blue.withValues(alpha: 0.08),
-        highlightColor: AppColors.blue.withValues(alpha: 0.04),
-        child: Container(
+        borderRadius: BorderRadius.circular(14.r),
+        child: Ink(
           decoration: BoxDecoration(
-            color: AppColors.surface,
-            borderRadius: BorderRadius.circular(20.r),
-            border: Border.all(color: AppColors.border),
+            borderRadius: BorderRadius.circular(14.r),
+            border: Border.all(color: AppColors.registrationFieldBorder),
             boxShadow: [
               BoxShadow(
-                color: AppColors.blue.withValues(alpha: 0.04),
-                blurRadius: 8.r,
-                offset: Offset(0, 2.h),
+                color: AppColors.dashboardPrimary.withValues(alpha: 0.06),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
               ),
             ],
           ),
-          padding: EdgeInsets.all(18.w),
-          child: Row(
-            children: [
-              Container(
-                width: 60.w,
-                height: 60.h,
-                decoration: BoxDecoration(
-                  color: AppColors.blue.withValues(alpha: 0.08),
-                  borderRadius: BorderRadius.circular(18.r),
+          child: Padding(
+            padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 16.h),
+            child: Row(
+              children: [
+                Container(
+                  width: 48.r,
+                  height: 48.r,
+                  decoration: BoxDecoration(
+                    color: iconTint.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(14.r),
+                  ),
+                  child: Icon(icon, color: iconTint, size: 26.sp),
                 ),
-                child: Icon(icon, size: 30.sp, color: AppColors.blueDark),
-              ),
-              SizedBox(width: 16.w),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      titleEn,
-                      style: TextStyle(
-                        fontSize: 18.sp,
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.textPrimary,
-                        letterSpacing: -0.2,
-                      ),
-                    ),
-                    SizedBox(height: 4.h),
-                    Directionality(
-                      textDirection: TextDirection.rtl,
-                      child: Text(
-                        titleUr,
+                SizedBox(width: 14.w),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        titleEn,
                         style: TextStyle(
                           fontSize: 16.sp,
-                          fontWeight: FontWeight.w600,
+                          fontWeight: FontWeight.w800,
                           color: AppColors.textPrimary,
-                          fontFamily: 'NotoNastaliqUrdu',
-                          height: 1.4, // clean, not too loose
+                          letterSpacing: -0.2,
                         ),
                       ),
-                    ),
-                    SizedBox(height: 12.h),
-                    Text(
-                      subtitleEn,
-                      style: TextStyle(
-                        fontSize: 13.sp,
-                        color: AppColors.textSecondary,
-                        height: 1.4,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                    SizedBox(height: 6.h),
-                    Directionality(
-                      textDirection: TextDirection.rtl,
-                      child: Text(
-                        subtitleUr,
-                        style: TextStyle(
-                          fontSize: 13.sp,
-                          color: AppColors.textSecondary,
-                          height: 1.4,
-                          fontWeight: FontWeight.w500,
-                          fontFamily: 'NotoNastaliqUrdu',
+                      SizedBox(height: 4.h),
+                      Directionality(
+                        textDirection: TextDirection.rtl,
+                        child: Align(
+                          alignment: Alignment.centerLeft,
+                          child: Text(
+                            titleUr,
+                            style: TextStyle(
+                              fontSize: 14.sp,
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.dashboardPrimaryDark,
+                              height: 1.25,
+                              fontFamily: 'NotoNastaliqUrdu',
+                            ),
+                          ),
                         ),
                       ),
-                    ),
-                  ],
-                ),
-              ),
-              SizedBox(width: 12.w),
-              Container(
-                width: 34.w,
-                height: 34.h,
-                decoration: BoxDecoration(
-                  color: AppColors.blue.withValues(alpha: 0.06),
-                  borderRadius: BorderRadius.circular(12.r),
-                ),
-                child: Icon(
-                  Icons.arrow_forward_rounded,
-                  size: 20.sp,
-                  color: AppColors.blueDark,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _FooterNote extends StatelessWidget {
-  const _FooterNote();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(18.r),
-        border: Border.all(color: AppColors.border),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.blue.withValues(alpha: 0.04),
-            blurRadius: 6.r,
-            offset: Offset(0, 2.h),
-          ),
-        ],
-      ),
-      child: Padding(
-        padding: EdgeInsets.symmetric(horizontal: 18.w, vertical: 14.h),
-        child: Row(
-          children: [
-            Icon(Icons.lightbulb_outline,
-                size: 20.sp, color: AppColors.blueDark),
-            SizedBox(width: 12.w),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Tip: You can change your role later from settings.',
-                    style: TextStyle(
-                      fontSize: 13.sp,
-                      color: AppColors.textSecondary,
-                      fontWeight: FontWeight.w500,
-                    ),
+                    ],
                   ),
-                  SizedBox(height: 6.h),
-                  Directionality(
-                    textDirection: TextDirection.rtl,
-                    child: Text(
-                      'ٹِپ: آپ بعد میں سیٹنگز سے اپنا کردار تبدیل کر سکتے ہیں۔',
-                      style: TextStyle(
-                        fontSize: 13.sp,
-                        color: AppColors.textSecondary,
-                        fontWeight: FontWeight.w500,
-                        fontFamily: 'NotoNastaliqUrdu',
-                        height: 1.4,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
+                ),
+                Icon(
+                  Icons.arrow_forward_ios_rounded,
+                  size: 16.sp,
+                  color: AppColors.registrationSectionLabel,
+                ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );

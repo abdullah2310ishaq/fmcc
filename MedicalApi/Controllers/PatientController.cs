@@ -1,4 +1,5 @@
-﻿using IServices;
+﻿using System.Collections.Generic;
+using IServices;
 using Models.Patient;
 using Microsoft.AspNetCore.Mvc;
 using System;
@@ -202,6 +203,7 @@ namespace MedicalApi.Controllers
         public async Task<IActionResult> CreateVisit([FromBody] VisitUpsertModel model)
         {
             model.Id = null;
+            model.SymptomIds ??= new List<int>();
             var newId = await _patientService.CreateVisitAsync(model);
 
             if (string.IsNullOrWhiteSpace(newId))
@@ -215,6 +217,7 @@ namespace MedicalApi.Controllers
         [HttpPut("visit")]
         public async Task<IActionResult> UpdateVisit([FromBody] VisitUpsertModel model)
         {
+            model.SymptomIds ??= new List<int>();
             if (string.IsNullOrWhiteSpace(model.Id))
                 throw new ValidationException("Visit Id is required for updating.");
 

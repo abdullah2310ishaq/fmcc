@@ -257,11 +257,8 @@ class _PatientsTabPageState extends State<PatientsTabPage> {
       NewPatientRegistrationScreen.routePath,
     );
     if (!mounted) return;
-    if (created == true) {
-      final session = context.read<SessionController>();
-      await context.read<HomeDashboardController>().refreshFromSession(
-            session.state,
-          );
+    if (created == true && _selectedPatient != null) {
+      setState(() => _selectedPatient = null);
     }
   }
 
@@ -298,6 +295,26 @@ class _PatientsTabPageState extends State<PatientsTabPage> {
     final selected = _selectedPatient;
 
     if (selected != null) {
+      // After PUT /api/Patient (or other flows) we reload the dashboard list.
+      // `_selectedPatient` was captured from an older list instance, so the detail
+      // screen would keep showing stale `fullName` / age / etc. until the user
+      // re-tapped the row. Re-bind to the same `patientId` from the latest fetch.
+      final dashPatients = dash.patients;
+      HwPatientSummary? match;
+      for (final p in dashPatients) {
+        if (p.patientId == selected.patientId) {
+          match = p;
+          break;
+        }
+      }
+      if (match != null && !identical(match, selected)) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          if (_selectedPatient?.patientId != selected.patientId) return;
+          setState(() => _selectedPatient = match);
+        });
+      }
+
       return SafeArea(
         bottom: false,
         child: PatientDetailTabView(

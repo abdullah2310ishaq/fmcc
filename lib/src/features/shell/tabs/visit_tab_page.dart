@@ -5,6 +5,7 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:provider/provider.dart';
 
 import 'package:doctor_app/src/core/format/name_initials.dart';
+import 'package:doctor_app/src/core/presentation/bp_reading_color.dart';
 import 'package:doctor_app/src/core/network/api_failure.dart';
 import 'package:doctor_app/src/core/reference/reference_api.dart';
 import 'package:doctor_app/src/core/reference/reference_models.dart';
@@ -241,7 +242,8 @@ class _VisitTabPageState extends State<VisitTabPage> {
                             }
                             return _VisitPatientCard(
                               patient: seed,
-                              onTap: () => setState(() => _selectedPatient = seed),
+                              onTap: () =>
+                                  setState(() => _selectedPatient = seed),
                             );
                           },
                         ),
@@ -255,8 +257,18 @@ class _VisitTabPageState extends State<VisitTabPage> {
   static String _shortVisit(DateTime? d) {
     if (d == null) return '—';
     const months = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
     ];
     return '${d.day} ${months[d.month - 1]} ${d.year}';
   }
@@ -402,10 +414,16 @@ class _VisitAssessmentViewState extends State<_VisitAssessmentView> {
 
   bool _submitting = false;
 
+  void _onBpControllersChanged() {
+    if (mounted) setState(() {});
+  }
+
   @override
   void initState() {
     super.initState();
     _isFollowUpVisit = widget.patient.openedFromFollowUpList;
+    _systolicController.addListener(_onBpControllersChanged);
+    _diastolicController.addListener(_onBpControllersChanged);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       unawaited(_loadReferencePayload());
     });
@@ -421,6 +439,8 @@ class _VisitAssessmentViewState extends State<_VisitAssessmentView> {
 
   @override
   void dispose() {
+    _systolicController.removeListener(_onBpControllersChanged);
+    _diastolicController.removeListener(_onBpControllersChanged);
     _systolicController.dispose();
     _diastolicController.dispose();
     _pulseController.dispose();
@@ -476,12 +496,15 @@ class _VisitAssessmentViewState extends State<_VisitAssessmentView> {
         _visitStatusId = _firstPositiveId(_visitStatuses);
         _visitActionId = _firstPositiveId(_visitActions);
         _physicalActivityLevelId = _firstPositiveId(_physicalLevels);
-        _medicalConditionId = _firstNonNoneId(_medicalConditions) ?? _firstPositiveId(_medicalConditions);
-        _surgicalProcedureId = _firstIdNamedNone(_surgicalProcedures) ?? _firstPositiveId(_surgicalProcedures);
+        _medicalConditionId = _firstNonNoneId(_medicalConditions) ??
+            _firstPositiveId(_medicalConditions);
+        _surgicalProcedureId = _firstIdNamedNone(_surgicalProcedures) ??
+            _firstPositiveId(_surgicalProcedures);
       });
     } on Object catch (e) {
       if (!mounted || e is SessionEndedFailure) return;
-      final msg = context.read<SessionController>().apiClient.mapError(e).message;
+      final msg =
+          context.read<SessionController>().apiClient.mapError(e).message;
       setState(() => _refsError = msg);
     } finally {
       if (mounted) setState(() => _refsLoading = false);
@@ -517,6 +540,13 @@ class _VisitAssessmentViewState extends State<_VisitAssessmentView> {
   int? _parseIntCtl(TextEditingController c) {
     final v = int.tryParse(c.text.trim());
     return v;
+  }
+
+  Color _bpPairInputColor() {
+    final sys = _parseIntCtl(_systolicController);
+    final dia = _parseIntCtl(_diastolicController);
+    if (sys == null || dia == null) return AppColors.textPrimary;
+    return BpReadingColor.forPair(sys, dia);
   }
 
   Map<String, dynamic> _buildVisitBody({
@@ -576,11 +606,8 @@ class _VisitAssessmentViewState extends State<_VisitAssessmentView> {
 
     final session = context.read<SessionController>();
     final token = session.state.accessToken?.trim();
-    final hwId = session.state.userId?.trim();
-    if (token == null ||
-        token.isEmpty ||
-        hwId == null ||
-        hwId.isEmpty) {
+    final hwId = session.state.healthWorkerIdForPatientApis?.trim();
+    if (token == null || token.isEmpty || hwId == null || hwId.isEmpty) {
       _toast('Please sign in again.');
       return;
     }
@@ -613,48 +640,74 @@ class _VisitAssessmentViewState extends State<_VisitAssessmentView> {
       final body = _buildVisitBody(patientId: pid, healthWorkerId: hwId);
       await api.createVisit(body: body, bearerToken: token);
 
-      final medId = _medicalConditionId;
-      if (medId != null && medId > 0) {
-        final label = _labelForId(_medicalConditions, medId);
-        if (!_isNoneName(label)) {
-          await api.patientHistoryCreateMedical(
-            bearerToken: token,
-            body: {
-              'patientId': pid,
-              'conditionId': medId,
-              'isOnMedication': false,
-            },
-          );
+      var historyFailures = 0;
+      String? historyFirstError;
+      Future<void> tryHistory(Future<void> Function() run) async {
+        try {
+          await run();
+        } on Object catch (e) {
+          historyFailures++;
+          historyFirstError ??= session.apiClient.mapError(e).message;
         }
       }
 
-      final surgId = _surgicalProcedureId;
-      if (surgId != null && surgId > 0) {
-        final label = _labelForId(_surgicalProcedures, surgId);
-        if (!_isNoneName(label)) {
-          await api.patientHistoryCreateSurgical(
+      await tryHistory(() async {
+        final medId = _medicalConditionId;
+        if (medId != null && medId > 0) {
+          final label = _labelForId(_medicalConditions, medId);
+          if (!_isNoneName(label)) {
+            await api.patientHistoryCreateMedical(
+              bearerToken: token,
+              body: {
+                'patientId': pid,
+                'conditionId': medId,
+                'isOnMedication': false,
+              },
+            );
+          }
+        }
+      });
+
+      await tryHistory(() async {
+        final surgId = _surgicalProcedureId;
+        if (surgId != null && surgId > 0) {
+          final label = _labelForId(_surgicalProcedures, surgId);
+          if (!_isNoneName(label)) {
+            await api.patientHistoryCreateSurgical(
+              bearerToken: token,
+              body: {
+                'patientId': pid,
+                'procedureId': surgId,
+              },
+            );
+          }
+        }
+      });
+
+      await tryHistory(() async {
+        for (final catId in _medicineCategoryIds) {
+          if (catId <= 0) continue;
+          await api.patientHistoryCreateDrug(
             bearerToken: token,
             body: {
               'patientId': pid,
-              'procedureId': surgId,
+              'medicineCategoryId': catId,
             },
           );
         }
-      }
-
-      for (final catId in _medicineCategoryIds) {
-        if (catId <= 0) continue;
-        await api.patientHistoryCreateDrug(
-          bearerToken: token,
-          body: {
-            'patientId': pid,
-            'medicineCategoryId': catId,
-          },
-        );
-      }
+      });
 
       if (!mounted) return;
-      _toast('Visit saved for ${widget.patient.name}.');
+      if (historyFailures > 0) {
+        final hint = historyFirstError?.trim();
+        _toast(
+          'Visit saved for ${widget.patient.name}. '
+          'Some PatientHistory creates failed'
+          '${hint != null && hint.isNotEmpty ? ': $hint' : '.'}',
+        );
+      } else {
+        _toast('Visit saved for ${widget.patient.name}.');
+      }
       try {
         await context.read<HomeDashboardController>().refreshFromSession(
               session.state,
@@ -745,6 +798,7 @@ class _VisitAssessmentViewState extends State<_VisitAssessmentView> {
     required String label,
     required String unit,
     required TextEditingController controller,
+    Color? valueColor,
   }) {
     return TextFormField(
       controller: controller,
@@ -752,7 +806,7 @@ class _VisitAssessmentViewState extends State<_VisitAssessmentView> {
       style: TextStyle(
         fontSize: 18.sp,
         fontWeight: FontWeight.w900,
-        color: AppColors.textPrimary,
+        color: valueColor ?? AppColors.textPrimary,
       ),
       decoration: _fieldDecoration().copyWith(
         labelText: label,
@@ -915,7 +969,8 @@ class _VisitAssessmentViewState extends State<_VisitAssessmentView> {
               Material(
                 color: AppColors.dashboardPeach,
                 child: Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 8.h),
+                  padding:
+                      EdgeInsets.symmetric(horizontal: 12.w, vertical: 8.h),
                   child: Text(
                     _refsError!,
                     style: TextStyle(
@@ -1056,6 +1111,7 @@ class _VisitAssessmentViewState extends State<_VisitAssessmentView> {
                               label: 'Systolic',
                               unit: 'mmHg',
                               controller: _systolicController,
+                              valueColor: _bpPairInputColor(),
                             ),
                           ),
                           SizedBox(width: 10.w),
@@ -1064,6 +1120,7 @@ class _VisitAssessmentViewState extends State<_VisitAssessmentView> {
                               label: 'Diastolic',
                               unit: 'mmHg',
                               controller: _diastolicController,
+                              valueColor: _bpPairInputColor(),
                             ),
                           ),
                           SizedBox(width: 10.w),
@@ -1103,7 +1160,8 @@ class _VisitAssessmentViewState extends State<_VisitAssessmentView> {
                           }).toList(),
                         ),
                       SizedBox(height: 22.h),
-                      _sectionTitle('MEDICAL / SURGICAL / DRUG (PatientHistory)'),
+                      _sectionTitle(
+                          'MEDICAL / SURGICAL / DRUG (PatientHistory)'),
                       if (!_refsLoading) ...[
                         _dropdownInt(
                           label: 'Medical condition (optional row)',
@@ -1181,7 +1239,8 @@ class _VisitAssessmentViewState extends State<_VisitAssessmentView> {
                           ),
                         ),
                         value: _alcoholUse,
-                        onChanged: (v) => setState(() => _alcoholUse = v ?? false),
+                        onChanged: (v) =>
+                            setState(() => _alcoholUse = v ?? false),
                       ),
                       SizedBox(height: 8.h),
                       _label('Weight concerns'),
