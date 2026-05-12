@@ -1,10 +1,16 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
 
+import 'package:doctor_app/src/core/session/session_controller.dart';
 import 'package:doctor_app/src/core/theme/app_colors.dart';
-import 'package:doctor_app/src/features/patients/new_patient_registration_screen.dart';
+import 'package:doctor_app/src/features/home/health_worker_dashboard_api.dart';
+import 'package:doctor_app/src/features/home/home_dashboard_controller.dart';
 import 'package:doctor_app/src/features/home/home_tab_page.dart';
+import 'package:doctor_app/src/features/patients/new_patient_registration_screen.dart';
 import 'package:doctor_app/src/features/shell/home_shell_tab.dart';
 import 'package:doctor_app/src/features/shell/shell_nav_item.dart';
 import 'package:doctor_app/src/features/shell/tabs/patients_tab_page.dart';
@@ -26,8 +32,17 @@ class _HomeShellState extends State<HomeShell> {
   int _visitOpenRequestId = 0;
   VisitPatientSeed? _visitPatient;
 
-  void _onFab() {
-    context.push(NewPatientRegistrationScreen.routePath);
+  Future<void> _onFab() async {
+    final created = await context.push<bool>(
+      NewPatientRegistrationScreen.routePath,
+    );
+    if (!mounted) return;
+    if (created == true) {
+      final session = context.read<SessionController>();
+      await context.read<HomeDashboardController>().refreshFromSession(
+            session.state,
+          );
+    }
   }
 
   void _openVisitAssessment(VisitPatientSeed patient) {
@@ -40,6 +55,7 @@ class _HomeShellState extends State<HomeShell> {
 
   @override
   Widget build(BuildContext context) {
+    final session = context.watch<SessionController>();
     final bottomInset = MediaQuery.paddingOf(context).bottom;
     final pages = [
       HomeTabPage(
@@ -55,68 +71,82 @@ class _HomeShellState extends State<HomeShell> {
       const ProfileTabPage(),
     ];
 
-    return Scaffold(
-      backgroundColor: AppColors.dashboardBackground,
-      body: IndexedStack(
-        index: _tabIndex,
-        children: pages,
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _onFab,
-        backgroundColor: AppColors.dashboardPrimaryDark,
-        elevation: 4,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(14.r),
+    return ChangeNotifierProvider<HomeDashboardController>(
+      key: ValueKey<String?>(session.state.userId),
+      create: (context) {
+        final s = context.read<SessionController>();
+        final ctrl = HomeDashboardController(
+          api: HealthWorkerDashboardApi(s.apiClient),
+          apiClient: s.apiClient,
+        );
+        unawaited(
+          Future.microtask(() => ctrl.refreshFromSession(s.state)),
+        );
+        return ctrl;
+      },
+      child: Scaffold(
+        backgroundColor: AppColors.dashboardBackground,
+        body: IndexedStack(
+          index: _tabIndex,
+          children: pages,
         ),
-        child: Icon(Icons.note_add_rounded, color: Colors.white, size: 26.sp),
-      ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
-      bottomNavigationBar: BottomAppBar(
-        padding: EdgeInsets.zero,
-        height: 56.h + bottomInset,
-        color: AppColors.surface,
-        elevation: 12,
-        shadowColor: Colors.black26,
-        shape: const CircularNotchedRectangle(),
-        notchMargin: 8,
-        child: Padding(
-          padding: EdgeInsets.only(bottom: bottomInset),
-          child: Row(
-            children: [
-              Expanded(
-                child: ShellNavItem(
-                  tab: HomeShellTab.home,
-                  selected: _tabIndex == HomeShellTab.home.index,
-                  onTap: () =>
-                      setState(() => _tabIndex = HomeShellTab.home.index),
+        floatingActionButton: FloatingActionButton(
+          onPressed: _onFab,
+          backgroundColor: AppColors.dashboardPrimaryDark,
+          elevation: 4,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14.r),
+          ),
+          child: Icon(Icons.note_add_rounded, color: Colors.white, size: 26.sp),
+        ),
+        floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
+        bottomNavigationBar: BottomAppBar(
+          padding: EdgeInsets.zero,
+          height: 56.h + bottomInset,
+          color: AppColors.surface,
+          elevation: 12,
+          shadowColor: Colors.black26,
+          shape: const CircularNotchedRectangle(),
+          notchMargin: 8,
+          child: Padding(
+            padding: EdgeInsets.only(bottom: bottomInset),
+            child: Row(
+              children: [
+                Expanded(
+                  child: ShellNavItem(
+                    tab: HomeShellTab.home,
+                    selected: _tabIndex == HomeShellTab.home.index,
+                    onTap: () =>
+                        setState(() => _tabIndex = HomeShellTab.home.index),
+                  ),
                 ),
-              ),
-              Expanded(
-                child: ShellNavItem(
-                  tab: HomeShellTab.patients,
-                  selected: _tabIndex == HomeShellTab.patients.index,
-                  onTap: () =>
-                      setState(() => _tabIndex = HomeShellTab.patients.index),
+                Expanded(
+                  child: ShellNavItem(
+                    tab: HomeShellTab.patients,
+                    selected: _tabIndex == HomeShellTab.patients.index,
+                    onTap: () =>
+                        setState(() => _tabIndex = HomeShellTab.patients.index),
+                  ),
                 ),
-              ),
-              SizedBox(width: 56.w),
-              Expanded(
-                child: ShellNavItem(
-                  tab: HomeShellTab.visit,
-                  selected: _tabIndex == HomeShellTab.visit.index,
-                  onTap: () =>
-                      setState(() => _tabIndex = HomeShellTab.visit.index),
+                SizedBox(width: 56.w),
+                Expanded(
+                  child: ShellNavItem(
+                    tab: HomeShellTab.visit,
+                    selected: _tabIndex == HomeShellTab.visit.index,
+                    onTap: () =>
+                        setState(() => _tabIndex = HomeShellTab.visit.index),
+                  ),
                 ),
-              ),
-              Expanded(
-                child: ShellNavItem(
-                  tab: HomeShellTab.profile,
-                  selected: _tabIndex == HomeShellTab.profile.index,
-                  onTap: () =>
-                      setState(() => _tabIndex = HomeShellTab.profile.index),
+                Expanded(
+                  child: ShellNavItem(
+                    tab: HomeShellTab.profile,
+                    selected: _tabIndex == HomeShellTab.profile.index,
+                    onTap: () =>
+                        setState(() => _tabIndex = HomeShellTab.profile.index),
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),

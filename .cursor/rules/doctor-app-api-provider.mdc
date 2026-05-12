@@ -1,0 +1,38 @@
+---
+description: Doctor app — Dio/API integration and Provider state (doctor_app)
+alwaysApply: true
+---
+
+# API integration (Dio)
+
+- Use **`ApiClient`** from `lib/src/core/network/api_client.dart` only — do not create ad-hoc `Dio()` instances in features.
+- Put path strings in **`Endpoints`** (`lib/src/core/network/endpoints.dart`). No hardcoded `/api/...` strings in widgets or random services.
+- Add one **`*Api` class per domain** (constructor takes `ApiClient`), e.g. `AuthApi`, `ProfileApi`. Thin classes: map request/response, no UI.
+- Use **`ApiConfig.defaultBaseUrl`** (or injected base URL) for environment; never ship secrets in source.
+- Map failures with **`ApiFailure`** / project patterns; do not swallow `DioException`. Propagate or surface user-visible errors from controllers, not from raw widgets.
+- Respect **`ApiClient`** extras where relevant (e.g. `skipAuthRetry` for refresh/login calls) — follow existing `AuthApi` usage.
+
+```dart
+// Prefer
+final res = await _client.post(Endpoints.googleLogin, body: {...});
+
+// Avoid
+final dio = Dio();
+await dio.post('https://.../api/...');
+```
+
+# State: Provider
+
+- **`provider`** is the state solution — do not add Riverpod, Bloc, GetX, etc., unless the team explicitly migrates.
+- App/session-level state: **`ChangeNotifier`** (e.g. `SessionController`) + **`ChangeNotifierProvider`** / `.value` as in `lib/src/app.dart`.
+- **Inject** `ApiClient` / `*Api` into notifiers or a small composition root — not `Dio()` inside `build()`.
+- In widgets: **`context.read<T>()`** for one-off actions (tap, `initState` callbacks); **`context.watch<T>()`** or **`Selector`/`Consumer`** when the widget must rebuild on changes. Avoid `watch` in wide ancestors if it causes unnecessary rebuilds.
+- **No business rules or HTTP in `build()`** — keep async and API calls in notifiers or dedicated service methods called from there.
+
+```dart
+// Action
+await context.read<SessionController>().signInWithGoogleIdToken(...);
+
+// Rebuild when session changes
+final session = context.watch<SessionController>().state;
+```

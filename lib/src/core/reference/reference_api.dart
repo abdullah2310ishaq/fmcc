@@ -52,6 +52,100 @@ class ReferenceApi {
     return parsed;
   }
 
+  Future<List<NamedReferenceItem>> getMaritalStatuses({
+    required String bearerToken,
+  }) async {
+    final path = Endpoints.maritalStatuses;
+    final res = await _client.get(
+      path,
+      bearerToken: bearerToken,
+    );
+    final data = res.data;
+    _logReferenceRaw(path, data);
+    final parsed = _parseList(data, NamedReferenceItem.fromJson);
+    _logParsedSummary(path, parsed.length, parsed.map((e) => {'id': e.id, 'name': e.name}).toList());
+    return parsed;
+  }
+
+  Future<List<NamedReferenceItem>> getMedicalConditions({
+    required String bearerToken,
+  }) async {
+    final path = Endpoints.medicalConditions;
+    final res = await _client.get(
+      path,
+      bearerToken: bearerToken,
+    );
+    final data = res.data;
+    _logReferenceRaw(path, data);
+    final parsed = _parseList(data, NamedReferenceItem.fromJson);
+    _logParsedSummary(path, parsed.length, parsed.map((e) => {'id': e.id, 'name': e.name}).toList());
+    return parsed;
+  }
+
+  Future<List<NamedReferenceItem>> getVisitTypes({
+    required String bearerToken,
+  }) =>
+      _namedClinicalList(Endpoints.visitTypes, bearerToken);
+
+  Future<List<NamedReferenceItem>> getVisitStatuses({
+    required String bearerToken,
+  }) =>
+      _namedClinicalList(Endpoints.visitStatuses, bearerToken);
+
+  Future<List<NamedReferenceItem>> getVisitActions({
+    required String bearerToken,
+  }) =>
+      _namedClinicalList(Endpoints.visitActions, bearerToken);
+
+  Future<List<NamedReferenceItem>> getSymptoms({
+    required String bearerToken,
+  }) =>
+      _namedClinicalList(Endpoints.symptoms, bearerToken);
+
+  Future<List<NamedReferenceItem>> getSurgicalProcedures({
+    required String bearerToken,
+  }) =>
+      _namedClinicalList(Endpoints.surgicalProcedures, bearerToken);
+
+  Future<List<NamedReferenceItem>> getMedicineCategories({
+    required String bearerToken,
+  }) =>
+      _namedClinicalList(Endpoints.medicineCategories, bearerToken);
+
+  Future<List<NamedReferenceItem>> getPhysicalActivityLevels({
+    required String bearerToken,
+  }) =>
+      _namedClinicalList(Endpoints.physicalActivityLevels, bearerToken);
+
+  Future<List<NamedReferenceItem>> getAdherenceLevels({
+    required String bearerToken,
+  }) =>
+      _namedClinicalList(Endpoints.adherenceLevels, bearerToken);
+
+  Future<List<NamedReferenceItem>> getComplianceLevels({
+    required String bearerToken,
+  }) =>
+      _namedClinicalList(Endpoints.complianceLevels, bearerToken);
+
+  Future<List<NamedReferenceItem>> _namedClinicalList(
+    String path,
+    String bearerToken,
+  ) async {
+    final res = await _client.get(
+      path,
+      bearerToken: bearerToken,
+    );
+    final data = res.data;
+    _logReferenceRaw(path, data);
+    final parsed = _parseList(data, NamedReferenceItem.fromJson);
+    _logParsedSummary(
+      path,
+      parsed.length,
+      parsed.map((e) => {'id': e.id, 'name': e.name}).toList(),
+    );
+    return parsed;
+  }
+
   Future<List<Tehsil>> getTehsils({
     required int provinceId,
     required int districtId,

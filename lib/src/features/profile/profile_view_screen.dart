@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 
 import 'package:doctor_app/src/core/format/name_initials.dart';
 import 'package:doctor_app/src/core/network/api_failure.dart';
+import 'package:doctor_app/src/core/session/app_session.dart';
 import 'package:doctor_app/src/core/session/session_controller.dart';
 import 'package:doctor_app/src/core/theme/app_colors.dart';
 import 'package:doctor_app/src/features/profile/edit_profile_screen.dart';
@@ -291,6 +292,7 @@ class _ProfileViewScreenState extends State<ProfileViewScreen> {
     }
 
     final fullName = '${p.firstName} ${p.lastName}'.trim();
+    final session = context.watch<SessionController>();
 
     return ListView(
       physics: const AlwaysScrollableScrollPhysics(),
@@ -308,6 +310,10 @@ class _ProfileViewScreenState extends State<ProfileViewScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                if (session.state.role == UserRole.ladyHealthWorker) ...[
+                  _lhwVisitsGuideCard(),
+                  SizedBox(height: 14.h),
+                ],
                 _SectionCard(
                   title: 'PERSONAL DETAILS',
                   children: [
@@ -481,6 +487,53 @@ class _ProfileViewScreenState extends State<ProfileViewScreen> {
       default:
         return '';
     }
+  }
+
+  Widget _lhwVisitsGuideCard() {
+    return Container(
+      padding: EdgeInsets.fromLTRB(16.w, 14.h, 16.w, 14.h),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(16.r),
+        border: Border.all(color: AppColors.registrationFieldBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                Icons.health_and_safety_outlined,
+                size: 22.sp,
+                color: AppColors.dashboardPrimary,
+              ),
+              SizedBox(width: 10.w),
+              Expanded(
+                child: Text(
+                  'Visits & history',
+                  style: TextStyle(
+                    fontSize: 14.sp,
+                    fontWeight: FontWeight.w900,
+                    color: AppColors.dashboardPrimaryDark,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: 10.h),
+          Text(
+            'Home shows patients who need follow-up checks. On the Visit tab, pick Follow-ups for that queue or All patients for anyone in your directory.\n\n'
+            'After you save a visit, open Patients, choose a person, then Visit History to see the list. Tap a row for full details.',
+            style: TextStyle(
+              fontSize: 12.5.sp,
+              fontWeight: FontWeight.w600,
+              color: AppColors.textSecondary,
+              height: 1.45,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   static String _preferLabel(String label, int id) {

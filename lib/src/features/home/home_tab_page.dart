@@ -7,6 +7,8 @@ import 'package:doctor_app/src/core/format/name_initials.dart';
 import 'package:doctor_app/src/core/session/app_session.dart';
 import 'package:doctor_app/src/core/session/session_controller.dart';
 import 'package:doctor_app/src/core/theme/app_colors.dart';
+import 'package:doctor_app/src/features/home/health_worker_dashboard_models.dart';
+import 'package:doctor_app/src/features/home/home_dashboard_controller.dart';
 import 'package:doctor_app/src/features/profile/profile_view_screen.dart';
 import 'package:doctor_app/src/features/shell/tabs/visit_tab_page.dart';
 import 'package:doctor_app/src/widgets/urdu_help_suffix.dart';
@@ -55,11 +57,227 @@ class HomeTabPage extends StatelessWidget {
   static String _longDate(DateTime d) =>
       '${_weekday(d)}, ${d.day} ${_month(d)} ${d.year}';
 
+  static String _shortDate(DateTime d) {
+    final loc = d.toLocal();
+    return '${loc.day} ${_month(loc)} ${loc.year}';
+  }
+
+  static String _time12h(DateTime d) {
+    final loc = d.toLocal();
+    var h = loc.hour;
+    final m = loc.minute;
+    final isPm = h >= 12;
+    if (h > 12) h -= 12;
+    if (h == 0) h = 12;
+    final mm = m < 10 ? '0$m' : '$m';
+    return '$h:$mm ${isPm ? 'PM' : 'AM'}';
+  }
+
+  static String _dueInUrdu(int days) {
+    if (days <= 0) return 'آج یا گزر چکا۔';
+    return '$days دن بعد مقررہ';
+  }
+
+  static String _dueInEnglish(int days) {
+    if (days <= 0) return 'Due today';
+    if (days == 1) return 'Due in 1 day';
+    return 'Due in $days days';
+  }
+
+  static int _calendarDaysBetween(DateTime a, DateTime b) {
+    final aa = DateTime(a.year, a.month, a.day);
+    final bb = DateTime(b.year, b.month, b.day);
+    return bb.difference(aa).inDays;
+  }
+
+  static IconData _topicIcon(String condition) {
+    final s = condition.toLowerCase();
+    if (s.contains('diabet') || s.contains('glucose')) {
+      return Icons.medical_services_outlined;
+    }
+    if (s.contains('antenatal') ||
+        s.contains('pregnan') ||
+        s.contains('prenatal')) {
+      return Icons.pregnant_woman_rounded;
+    }
+    if (s.contains('post') && s.contains('op')) {
+      return Icons.assignment_turned_in_outlined;
+    }
+    if (s.contains('hygiene') || s.contains('counsel')) {
+      return Icons.health_and_safety_outlined;
+    }
+    if (s.contains('blood') || s.contains('bp') || s.contains('pressure')) {
+      return Icons.monitor_heart_outlined;
+    }
+    return Icons.medical_information_outlined;
+  }
+
+  static Color _topicAccent(String condition) {
+    final s = condition.toLowerCase();
+    if (s.contains('diabet')) return AppColors.followAccentPurple;
+    if (s.contains('antenatal') ||
+        s.contains('pregnan') ||
+        s.contains('prenatal')) {
+      return AppColors.dashboardPrimary;
+    }
+    if (s.contains('post') && s.contains('op')) {
+      return AppColors.followAccentGreen;
+    }
+    return AppColors.dashboardPrimary;
+  }
+
+  static String _topicUrduHint(String condition) {
+    final s = condition.toLowerCase();
+    if (s.contains('diabet')) return 'ذیابیطس / شوگر متعلقہ۔';
+    if (s.contains('antenatal') || s.contains('pregnan')) {
+      return 'حمل کی دیکھ بھال۔';
+    }
+    if (s.contains('blood') || s.contains('bp')) {
+      return 'بلڈ پریشر متعلقہ۔';
+    }
+    return 'کلینکل فالو اپ۔';
+  }
+
   static String _timeGreeting() {
     final h = DateTime.now().hour;
     if (h < 12) return 'Good Morning';
     if (h < 17) return 'Good Afternoon';
     return 'Good Evening';
+  }
+
+  static Future<void> _showPatientDirectorySheet(
+    BuildContext context, {
+    VoidCallback? onViewAllPatients,
+  }) {
+    final dash = context.read<HomeDashboardController>();
+    final patients = dash.patients;
+    return showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        return DraggableScrollableSheet(
+          expand: false,
+          initialChildSize: 0.55,
+          minChildSize: 0.35,
+          maxChildSize: 0.92,
+          builder: (ctx, scroll) {
+            return DecoratedBox(
+              decoration: BoxDecoration(
+                color: AppColors.surface,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(20.r)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  SizedBox(height: 10.h),
+                  Center(
+                    child: Container(
+                      width: 40.w,
+                      height: 4.h,
+                      decoration: BoxDecoration(
+                        color: AppColors.border,
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                    ),
+                  ),
+                  Padding(
+                    padding: EdgeInsets.fromLTRB(20.w, 16.h, 20.w, 8.h),
+                    child: Text(
+                      'All patients (${patients.length})',
+                      style: TextStyle(
+                        fontSize: 17.sp,
+                        fontWeight: FontWeight.w800,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                  ),
+                  if (patients.isEmpty)
+                    Padding(
+                      padding: EdgeInsets.all(24.w),
+                      child: Text(
+                        'No patients in directory yet.',
+                        style: TextStyle(
+                          fontSize: 13.sp,
+                          color: AppColors.textSecondary,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    )
+                  else
+                    Expanded(
+                      child: ListView.builder(
+                        controller: scroll,
+                        padding: EdgeInsets.fromLTRB(16.w, 0, 16.w, 12.h),
+                        itemCount: patients.length,
+                        itemBuilder: (c, i) {
+                          final p = patients[i];
+                          return ListTile(
+                            contentPadding: EdgeInsets.symmetric(vertical: 4.h),
+                            leading: CircleAvatar(
+                              backgroundColor:
+                                  AppColors.dashboardPrimary.withValues(alpha: 0.12),
+                              child: Text(
+                                p.initials,
+                                style: TextStyle(
+                                  fontSize: 12.sp,
+                                  fontWeight: FontWeight.w800,
+                                  color: AppColors.dashboardPrimary,
+                                ),
+                              ),
+                            ),
+                            title: Text(
+                              p.fullName,
+                              style: TextStyle(
+                                fontSize: 14.sp,
+                                fontWeight: FontWeight.w700,
+                                color: AppColors.textPrimary,
+                              ),
+                            ),
+                            subtitle: Text(
+                              '${p.age} yrs • ${p.gender} • ${p.displayId}\n${p.primaryCondition}',
+                              style: TextStyle(
+                                fontSize: 11.sp,
+                                color: AppColors.textSecondary,
+                                height: 1.3,
+                              ),
+                            ),
+                            isThreeLine: true,
+                          );
+                        },
+                      ),
+                    ),
+                  Padding(
+                    padding: EdgeInsets.fromLTRB(16.w, 8.h, 16.w, 16.h),
+                    child: FilledButton(
+                      onPressed: () {
+                        Navigator.of(ctx).pop();
+                        onViewAllPatients?.call();
+                      },
+                      style: FilledButton.styleFrom(
+                        backgroundColor: AppColors.dashboardPrimaryDark,
+                        foregroundColor: Colors.white,
+                        padding: EdgeInsets.symmetric(vertical: 14.h),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12.r),
+                        ),
+                      ),
+                      child: Text(
+                        'Open Patients tab',
+                        style: TextStyle(
+                          fontSize: 14.sp,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
   }
 
   @override
@@ -72,297 +290,304 @@ class HomeTabPage extends StatelessWidget {
 
     return SafeArea(
       bottom: false,
-      child: SingleChildScrollView(
-        padding: EdgeInsets.only(top: 28.h, bottom: 100.h),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Padding(
-              padding: EdgeInsets.fromLTRB(28.w, 0, 16.w, 0),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
+      child: Consumer<HomeDashboardController>(
+        builder: (context, dash, _) {
+          final isLhw = session.role == UserRole.ladyHealthWorker;
+          final hasOverdue =
+              isLhw && dash.followUps.any((f) => f.isOverdue);
+
+          return RefreshIndicator(
+            onRefresh: () async {
+              await context.read<HomeDashboardController>().refreshFromSession(
+                    context.read<SessionController>().state,
+                  );
+            },
+            child: SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: EdgeInsets.only(top: 28.h, bottom: 100.h),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Expanded(
-                    child: Column(
+                  Padding(
+                    padding: EdgeInsets.fromLTRB(28.w, 0, 16.w, 0),
+                    child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          fullName.isEmpty
-                              ? '${_timeGreeting()} 👋'
-                              : '${_timeGreeting()}, ${fullName}',
-                          style: TextStyle(
-                            fontSize: 20.sp,
-                            fontWeight: FontWeight.w800,
-                            color: AppColors.dashboardPrimaryDark,
-                            height: 1.2,
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                fullName.isEmpty
+                                    ? '${_timeGreeting()} 👋'
+                                    : '${_timeGreeting()}, $fullName',
+                                style: TextStyle(
+                                  fontSize: 20.sp,
+                                  fontWeight: FontWeight.w800,
+                                  color: AppColors.dashboardPrimaryDark,
+                                  height: 1.2,
+                                ),
+                                maxLines: 3,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              SizedBox(height: 6.h),
+                              Text(
+                                _longDate(now),
+                                style: TextStyle(
+                                  fontSize: 13.sp,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.textSecondary,
+                                ),
+                              ),
+                            ],
                           ),
-                          maxLines: 3,
-                          overflow: TextOverflow.ellipsis,
                         ),
-                        SizedBox(height: 6.h),
-                        Text(
-                          _longDate(now),
-                          style: TextStyle(
-                            fontSize: 13.sp,
-                            fontWeight: FontWeight.w600,
-                            color: AppColors.textSecondary,
-                          ),
+                        SizedBox(width: 14.w),
+                        Stack(
+                          clipBehavior: Clip.none,
+                          children: [
+                            Material(
+                              color: AppColors.dashboardPrimaryDark,
+                              shape: const CircleBorder(),
+                              clipBehavior: Clip.antiAlias,
+                              child: InkWell(
+                                customBorder: const CircleBorder(),
+                                onTap: () =>
+                                    context.push(ProfileViewScreen.routePath),
+                                child: SizedBox(
+                                  width: 52.r,
+                                  height: 52.r,
+                                  child: Center(
+                                    child: avatarLetters.isEmpty
+                                        ? Icon(
+                                            Icons.person_rounded,
+                                            color: Colors.white,
+                                            size: 26.sp,
+                                          )
+                                        : Text(
+                                            avatarLetters,
+                                            style: TextStyle(
+                                              fontSize: 15.sp,
+                                              fontWeight: FontWeight.w800,
+                                              color: Colors.white,
+                                            ),
+                                          ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                            Positioned(
+                              right: 0,
+                              bottom: 0,
+                              child: Container(
+                                width: 13.r,
+                                height: 13.r,
+                                decoration: BoxDecoration(
+                                  color: AppColors.success,
+                                  shape: BoxShape.circle,
+                                  border: Border.all(
+                                      color: AppColors.surface, width: 2),
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     ),
                   ),
-                  SizedBox(width: 14.w),
-                  Stack(
-                    clipBehavior: Clip.none,
-                    children: [
-                      Material(
-                        color: AppColors.dashboardPrimaryDark,
-                        shape: const CircleBorder(),
-                        clipBehavior: Clip.antiAlias,
-                        child: InkWell(
-                          customBorder: const CircleBorder(),
-                          onTap: () =>
-                              context.push(ProfileViewScreen.routePath),
-                          child: SizedBox(
-                            width: 52.r,
-                            height: 52.r,
-                            child: Center(
-                              child: avatarLetters.isEmpty
-                                  ? Icon(
-                                      Icons.person_rounded,
-                                      color: Colors.white,
-                                      size: 26.sp,
-                                    )
-                                  : Text(
-                                      avatarLetters,
-                                      style: TextStyle(
-                                        fontSize: 15.sp,
-                                        fontWeight: FontWeight.w800,
-                                        color: Colors.white,
-                                      ),
-                                    ),
+                  SizedBox(height: 20.h),
+                  const Divider(
+                    height: 1,
+                    thickness: 1,
+                    color: AppColors.border,
+                  ),
+                  SizedBox(height: 20.h),
+                  if (isLhw &&
+                      dash.error != null &&
+                      dash.error!.trim().isNotEmpty)
+                    Padding(
+                      padding: EdgeInsets.fromLTRB(24.w, 0, 16.w, 12.h),
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: AppColors.danger.withValues(alpha: 0.08),
+                          borderRadius: BorderRadius.circular(12.r),
+                          border: Border.all(
+                            color: AppColors.danger.withValues(alpha: 0.25),
+                          ),
+                        ),
+                        child: Padding(
+                          padding: EdgeInsets.all(12.w),
+                          child: Text(
+                            dash.error!,
+                            style: TextStyle(
+                              fontSize: 12.sp,
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.danger,
+                              height: 1.35,
                             ),
                           ),
                         ),
                       ),
-                      Positioned(
-                        right: 0,
-                        bottom: 0,
-                        child: Container(
-                          width: 13.r,
-                          height: 13.r,
-                          decoration: BoxDecoration(
-                            color: AppColors.success,
-                            shape: BoxShape.circle,
-                            border:
-                                Border.all(color: AppColors.surface, width: 2),
-                          ),
-                        ),
+                    ),
+                  Padding(
+                    padding: EdgeInsets.fromLTRB(24.w, 0, 16.w, 0),
+                    child: _StatsGrid(
+                      isLadyHealthWorker: isLhw,
+                      loading: dash.loading,
+                      stats: dash.stats,
+                      onOpenDirectory: () => _showPatientDirectorySheet(
+                        context,
+                        onViewAllPatients: onViewAllPatients,
                       ),
-                    ],
+                      onOpenPatientsTab: onViewAllPatients ?? () {},
+                    ),
                   ),
-                ],
-              ),
-            ),
-            SizedBox(height: 20.h),
-            Divider(
-              height: 1,
-              thickness: 1,
-              color: AppColors.border,
-            ),
-            SizedBox(height: 20.h),
-            Padding(
-              padding: EdgeInsets.fromLTRB(24.w, 0, 16.w, 0),
-              child: _StatsGrid(
-                onTotalPatientsTap: onViewAllPatients ?? () {},
-              ),
-            ),
-            SizedBox(height: 20.h),
-            Divider(
-              height: 1,
-              thickness: 1,
-              color: AppColors.border,
-            ),
-            SizedBox(height: 20.h),
-            Padding(
-              padding: EdgeInsets.fromLTRB(24.w, 0, 16.w, 0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Wrap(
-                    spacing: 8.w,
-                    runSpacing: 10.h,
-                    crossAxisAlignment: WrapCrossAlignment.center,
-                    children: [
-                      Text(
-                        "Today's Follow-ups",
-                        style: TextStyle(
-                          fontSize: 17.sp,
-                          fontWeight: FontWeight.w800,
-                          color: AppColors.textPrimary,
-                        ),
-                      ),
-                      const UrduHelpSuffix(
-                        urduText: 'آج کے فالو اپ وزٹس کی فہرست۔',
-                      ),
-                      Container(
-                        padding: EdgeInsets.symmetric(
-                            horizontal: 12.w, vertical: 6.h),
-                        decoration: BoxDecoration(
-                          color: AppColors.dashboardChipBlueBg,
-                          borderRadius: BorderRadius.circular(999),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
+                  SizedBox(height: 20.h),
+                  const Divider(
+                    height: 1,
+                    thickness: 1,
+                    color: AppColors.border,
+                  ),
+                  SizedBox(height: 20.h),
+                  Padding(
+                    padding: EdgeInsets.fromLTRB(24.w, 0, 16.w, 0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Wrap(
+                          spacing: 8.w,
+                          runSpacing: 10.h,
+                          crossAxisAlignment: WrapCrossAlignment.center,
                           children: [
                             Text(
-                              '5 Scheduled',
+                              "Today's Follow-ups",
                               style: TextStyle(
-                                fontSize: 12.sp,
-                                fontWeight: FontWeight.w700,
-                                color: AppColors.dashboardPrimary,
+                                fontSize: 17.sp,
+                                fontWeight: FontWeight.w800,
+                                color: AppColors.textPrimary,
                               ),
                             ),
-                            SizedBox(width: 4.w),
                             const UrduHelpSuffix(
-                              urduText: 'پانچ شیڈول / زیر التواء ملاقاتیں۔',
+                              urduText: 'آج کے فالو اپ وزٹس کی فہرست۔',
+                            ),
+                            Container(
+                              padding: EdgeInsets.symmetric(
+                                  horizontal: 12.w, vertical: 6.h),
+                              decoration: BoxDecoration(
+                                color: AppColors.dashboardChipBlueBg,
+                                borderRadius: BorderRadius.circular(999),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    isLhw
+                                        ? '${dash.followUps.length} listed'
+                                        : '—',
+                                    style: TextStyle(
+                                      fontSize: 12.sp,
+                                      fontWeight: FontWeight.w700,
+                                      color: AppColors.dashboardPrimary,
+                                    ),
+                                  ),
+                                  SizedBox(width: 4.w),
+                                  const UrduHelpSuffix(
+                                    urduText:
+                                        'فالو اپ فہرست میں موجود اندراجات کی تعداد۔',
+                                  ),
+                                ],
+                              ),
                             ),
                           ],
                         ),
-                      ),
-                    ],
+                        SizedBox(height: 12.h),
+                        if (!isLhw)
+                          Text(
+                            'Follow-up queue is available for Lady Health Worker accounts.',
+                            style: TextStyle(
+                              fontSize: 13.sp,
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.textSecondary,
+                              height: 1.35,
+                            ),
+                          )
+                        else if (dash.loading && dash.followUps.isEmpty)
+                          Padding(
+                            padding: EdgeInsets.symmetric(vertical: 24.h),
+                            child: Center(
+                              child: SizedBox(
+                                width: 28.r,
+                                height: 28.r,
+                                child: const CircularProgressIndicator(
+                                  strokeWidth: 2.5,
+                                  color: AppColors.dashboardPrimary,
+                                ),
+                              ),
+                            ),
+                          )
+                        else if (dash.followUps.isEmpty)
+                          Text(
+                            'No follow-up patients returned for your dashboard.',
+                            style: TextStyle(
+                              fontSize: 13.sp,
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.textSecondary,
+                              height: 1.35,
+                            ),
+                          )
+                        else
+                          ...dash.followUps.map(
+                            (f) => Padding(
+                              padding: EdgeInsets.only(bottom: 12.h),
+                              child: _FollowUpCardApi(
+                                data: f,
+                                onStartVisit: onStartVisit,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                  SizedBox(height: 16.h),
+                  Divider(
+                    height: 1,
+                    thickness: 1,
+                    color: hasOverdue
+                        ? AppColors.dashboardWarning.withValues(alpha: 0.55)
+                        : AppColors.border,
                   ),
                   SizedBox(height: 12.h),
-                  _FollowUpCard.overdue(
-                    initials: 'ZK',
-                    name: 'Zainab Khan',
-                    patientId: 'LHW-2026-0041',
-                    age: 34,
-                    gender: 'Female',
-                    subtitle: 'Age 34 • Female • ID: LHW-2026-0041',
-                    topicLabel: 'BP Monitoring',
-                    topicUrdu: 'بلڈ پریشر کی نگرانی',
-                    scheduleNote: 'Was: 09:00 AM',
-                    scheduleUrdu: 'وقت صبح نو بجے تھا۔',
-                    lastVisit:
-                        'Last visit: 03 May 2026 — Hypertension check, BP was 145/92',
-                    lastVisitUrdu:
-                        'پچھلا وزٹ: ۳ مئی ۲۰۲۶ — بلڈ پریشر چیک، ریڈنگ ۱۴۵/۹۲ تھی۔',
-                    onStartVisit: onStartVisit,
-                  ),
-                  SizedBox(height: 12.h),
-                  _FollowUpCard.today(
-                    initials: 'SA',
-                    name: 'Sajida Akhtar',
-                    patientId: 'LHW-2026-0038',
-                    age: 28,
-                    gender: 'Female',
-                    subtitle: 'Age 28 • Female • ID: LHW-2026-0038',
-                    topicLabel: 'Antenatal Care',
-                    topicUrdu: 'حمل کی دیکھ بھال (اینٹی نیٹل کیئر)',
-                    topicIcon: Icons.pregnant_woman_rounded,
-                    accentColor: AppColors.dashboardPrimary,
-                    timeBadge: '10:30 AM',
-                    timeBadgeUrdu: 'صبح ساڑھے دس بجے',
-                    lastVisit:
-                        'Last visit: 28 Apr 2026 — Week 28 checkup, weight 62kg, normal',
-                    lastVisitUrdu:
-                        'پچھلا وزٹ: ۲۸ اپریل ۲۰۲۶ — ہفتہ ۲۸ چیک، وزن ۶۲ کلو، عام۔',
-                    onStartVisit: onStartVisit,
-                  ),
-                  SizedBox(height: 12.h),
-                  _FollowUpCard.today(
-                    initials: 'MA',
-                    name: 'Muhammad Arif',
-                    patientId: 'LHW-2026-0029',
-                    age: 52,
-                    gender: 'Male',
-                    subtitle: 'Age 52 • Male • ID: LHW-2026-0029',
-                    topicLabel: 'Diabetes Follow-up',
-                    topicUrdu: 'ذیابیطس فالو اپ',
-                    topicIcon: Icons.medical_services_outlined,
-                    accentColor: AppColors.followAccentPurple,
-                    timeBadge: '12:00 PM',
-                    timeBadgeUrdu: 'دوپہر بارہ بجے',
-                    lastVisit:
-                        'Last visit: 02 May 2026 — Fasting glucose 118 mg/dL, meds reviewed',
-                    lastVisitUrdu:
-                        'پچھلا وزٹ: ۲ مئی ۲۰۲۶ — فاسٹنگ گلوکوز ۱۱۸، ادویات کا جائزہ۔',
-                    onStartVisit: onStartVisit,
-                  ),
-                  SizedBox(height: 12.h),
-                  _FollowUpCard.upcoming(
-                    initials: 'RF',
-                    name: 'Rubina Fatima',
-                    patientId: 'LHW-2026-0015',
-                    age: 41,
-                    gender: 'Female',
-                    subtitle: 'Age 41 • Female • ID: LHW-2026-0015',
-                    topicLabel: 'Post-Op Check',
-                    topicUrdu: 'آپریشن کے بعد معائنہ',
-                    topicIcon: Icons.assignment_turned_in_outlined,
-                    accentColor: AppColors.followAccentGreen,
-                    dueInLabel: 'Due in 3 days',
-                    dueInUrdu: '۳ دن بعد مقررہ',
-                    lastVisit:
-                        'Last visit: 05 May 2026 — Wound clean, vitals stable',
-                    lastVisitUrdu:
-                        'پچھلا وزٹ: ۵ مئی ۲۰۲۶ — زخم صاف، علامات مستحکم۔',
-                    onStartVisit: onStartVisit,
-                  ),
-                  SizedBox(height: 12.h),
-                  _FollowUpCard.upcoming(
-                    initials: 'AN',
-                    name: 'Ayesha Noor',
-                    patientId: 'LHW-2026-0052',
-                    age: 29,
-                    gender: 'Female',
-                    subtitle: 'Age 29 • Female • ID: LHW-2026-0052',
-                    topicLabel: 'Hygiene counselling',
-                    topicUrdu: 'حفظانِ صحت کی رہنمائی',
-                    topicIcon: Icons.health_and_safety_outlined,
-                    accentColor: AppColors.followAccentGreen,
-                    dueInLabel: 'Due in 2 days',
-                    dueInUrdu: '۲ دن بعد مقررہ',
-                    lastVisit: 'Last visit: 06 May 2026 — TB meds adherence OK',
-                    lastVisitUrdu:
-                        'پچھلا وزٹ: ۶ مئی ۲۰۲۶ — ٹی بی دوائیں باقاعدہ۔',
-                    onStartVisit: onStartVisit,
-                  ),
                 ],
               ),
             ),
-            SizedBox(height: 16.h),
-            Divider(
-              height: 1,
-              thickness: 1,
-              // Demo includes an overdue card → warning stripe; use [AppColors.border] when none overdue.
-              color: AppColors.dashboardWarning.withValues(alpha: 0.55),
-            ),
-            SizedBox(height: 12.h),
-            Padding(
-              padding: EdgeInsets.fromLTRB(24.w, 0, 16.w, 0),
-              child: Text(
-                'Demo cards — patient follow-ups API بعد میں',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 11.sp,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.textSecondary,
-                ),
-              ),
-            ),
-          ],
-        ),
+          );
+        },
       ),
     );
   }
 }
 
 class _StatsGrid extends StatelessWidget {
-  const _StatsGrid({required this.onTotalPatientsTap});
+  const _StatsGrid({
+    required this.isLadyHealthWorker,
+    required this.loading,
+    required this.stats,
+    required this.onOpenDirectory,
+    required this.onOpenPatientsTab,
+  });
 
-  final VoidCallback onTotalPatientsTap;
+  final bool isLadyHealthWorker;
+  final bool loading;
+  final HwDashboardStats? stats;
+  final VoidCallback onOpenDirectory;
+  final VoidCallback onOpenPatientsTab;
+
+  String _num(int? v) {
+    if (!isLadyHealthWorker) return '—';
+    if (v != null) return '$v';
+    if (loading) return '…';
+    return '—';
+  }
 
   Widget _tile(Widget child) {
     return Expanded(
@@ -373,8 +598,117 @@ class _StatsGrid extends StatelessWidget {
     );
   }
 
+  Widget _patientsTodayFooter() {
+    if (!isLadyHealthWorker) {
+      return Row(
+        children: [
+          Expanded(
+            child: Text(
+              'Health worker stats only',
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 11.sp,
+                fontWeight: FontWeight.w600,
+                color: AppColors.textSecondary,
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+    if (stats == null && loading) {
+      return Row(
+        children: [
+          SizedBox(
+            width: 16.r,
+            height: 16.r,
+            child: const CircularProgressIndicator(
+              strokeWidth: 2,
+              color: AppColors.dashboardPrimary,
+            ),
+          ),
+        ],
+      );
+    }
+    final diff = stats?.dailyDifference ?? 0;
+    if (diff > 0) {
+      return Row(
+        children: [
+          Icon(Icons.trending_up_rounded,
+              size: 14.sp, color: AppColors.success),
+          SizedBox(width: 4.w),
+          Expanded(
+            child: Text(
+              '↑ $diff from yesterday',
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 11.sp,
+                fontWeight: FontWeight.w700,
+                color: AppColors.success,
+              ),
+            ),
+          ),
+          UrduHelpSuffix(
+            urduText: 'کل کے مقابلے میں آج زیادہ مریض۔',
+          ),
+        ],
+      );
+    }
+    if (diff < 0) {
+      final down = -diff;
+      return Row(
+        children: [
+          Icon(Icons.trending_down_rounded,
+              size: 14.sp, color: AppColors.danger),
+          SizedBox(width: 4.w),
+          Expanded(
+            child: Text(
+              '↓ $down from yesterday',
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 11.sp,
+                fontWeight: FontWeight.w700,
+                color: AppColors.danger,
+              ),
+            ),
+          ),
+          UrduHelpSuffix(
+            urduText: 'کل کے مقابلے میں آج کم مریض۔',
+          ),
+        ],
+      );
+    }
+    return Row(
+      children: [
+        Expanded(
+          child: Text(
+            'Same as yesterday',
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 11.sp,
+              fontWeight: FontWeight.w600,
+              color: AppColors.textSecondary,
+            ),
+          ),
+        ),
+        UrduHelpSuffix(
+          urduText: 'کل جتنے ہی آج۔',
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final pending = stats?.pendingFollowUps;
+    final total = stats?.totalPatients;
+    final visits = stats?.visitsThisMonth;
+    final target = stats?.monthlyTarget;
+
     return Column(
       children: [
         Row(
@@ -383,30 +717,9 @@ class _StatsGrid extends StatelessWidget {
               _StatCard(
                 title: 'PATIENTS TODAY',
                 titleUrdu: 'آج کے مریض',
-                value: '12',
+                value: _num(stats?.patientsToday),
                 valueColor: AppColors.textPrimary,
-                footer: Row(
-                  children: [
-                    Icon(Icons.trending_up_rounded,
-                        size: 14.sp, color: AppColors.success),
-                    SizedBox(width: 4.w),
-                    Expanded(
-                      child: Text(
-                        '↑ 3 from yesterday',
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: 11.sp,
-                          fontWeight: FontWeight.w700,
-                          color: AppColors.success,
-                        ),
-                      ),
-                    ),
-                    UrduHelpSuffix(
-                      urduText: 'کل کے مقابلے میں آج تین زیادہ مریض۔',
-                    ),
-                  ],
-                ),
+                footer: _patientsTodayFooter(),
               ),
             ),
             SizedBox(width: 12.w),
@@ -414,7 +727,7 @@ class _StatsGrid extends StatelessWidget {
               _StatCard(
                 title: 'PENDING FOLLOW-UPS',
                 titleUrdu: 'زیر التواء فالو اپ',
-                value: '4',
+                value: _num(pending),
                 valueColor: AppColors.dashboardWarning,
                 footer: Row(
                   children: [
@@ -423,7 +736,7 @@ class _StatsGrid extends StatelessWidget {
                     SizedBox(width: 4.w),
                     Expanded(
                       child: Text(
-                        'Needs attention',
+                        isLadyHealthWorker ? 'Needs attention' : '—',
                         style: TextStyle(
                           fontSize: 11.sp,
                           fontWeight: FontWeight.w700,
@@ -431,7 +744,7 @@ class _StatsGrid extends StatelessWidget {
                         ),
                       ),
                     ),
-                    UrduHelpSuffix(
+                    const UrduHelpSuffix(
                       urduText: 'فوری توجہ درکار ہے۔',
                     ),
                   ],
@@ -447,7 +760,7 @@ class _StatsGrid extends StatelessWidget {
               _StatCard(
                 title: 'TOTAL PATIENTS',
                 titleUrdu: 'کل مریض',
-                value: '247',
+                value: _num(total),
                 valueColor: AppColors.dashboardPrimary,
                 border:
                     Border.all(color: AppColors.dashboardPrimary, width: 1.5),
@@ -456,7 +769,7 @@ class _StatsGrid extends StatelessWidget {
                   color: AppColors.dashboardPrimaryDark,
                   borderRadius: BorderRadius.circular(999),
                   child: InkWell(
-                    onTap: onTotalPatientsTap,
+                    onTap: onOpenPatientsTab,
                     borderRadius: BorderRadius.circular(999),
                     child: Padding(
                       padding: EdgeInsets.all(8.r),
@@ -472,7 +785,7 @@ class _StatsGrid extends StatelessWidget {
                   children: [
                     Expanded(
                       child: Text(
-                        'Tap to view all →',
+                        'Tap card for directory',
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
@@ -483,11 +796,11 @@ class _StatsGrid extends StatelessWidget {
                       ),
                     ),
                     UrduHelpSuffix(
-                      urduText: 'سب دیکھنے کے لیے تھپکی دیں۔',
+                      urduText: 'فہرست دیکھنے کے لیے کارڈ تھپتھپائیں۔',
                     ),
                   ],
                 ),
-                onTap: onTotalPatientsTap,
+                onTap: isLadyHealthWorker ? onOpenDirectory : null,
               ),
             ),
             SizedBox(width: 12.w),
@@ -495,13 +808,15 @@ class _StatsGrid extends StatelessWidget {
               _StatCard(
                 title: 'THIS MONTH',
                 titleUrdu: 'اس مہینے',
-                value: '84',
+                value: _num(visits),
                 valueColor: AppColors.textPrimary,
                 footer: Row(
                   children: [
                     Expanded(
                       child: Text(
-                        'of 120 target',
+                        isLadyHealthWorker && target != null && target > 0
+                            ? 'of $target target'
+                            : (isLadyHealthWorker ? 'Monthly visits' : '—'),
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
@@ -512,7 +827,9 @@ class _StatsGrid extends StatelessWidget {
                       ),
                     ),
                     UrduHelpSuffix(
-                      urduText: 'ہدف ۱۲۰ میں سے ۸۴۔',
+                      urduText: isLadyHealthWorker && target != null && target > 0
+                          ? 'ماہانہ ہدف کے مقابلے میں۔'
+                          : 'ماہانہ وزٹس۔',
                     ),
                   ],
                 ),
@@ -632,463 +949,6 @@ class _StatCard extends StatelessWidget {
 
 enum _FollowVariant { overdue, today, upcoming }
 
-class _FollowUpCard extends StatelessWidget {
-  const _FollowUpCard.overdue({
-    required this.initials,
-    required this.name,
-    required this.patientId,
-    required this.age,
-    required this.gender,
-    required this.subtitle,
-    required this.topicLabel,
-    required this.topicUrdu,
-    required this.scheduleNote,
-    required this.scheduleUrdu,
-    required this.lastVisit,
-    required this.lastVisitUrdu,
-    required this.onStartVisit,
-  })  : _variant = _FollowVariant.overdue,
-        topicIcon = Icons.monitor_heart_outlined,
-        accentColor = AppColors.dashboardPrimary,
-        timeBadge = null,
-        timeBadgeUrdu = null,
-        dueInLabel = null,
-        dueInUrdu = null;
-
-  const _FollowUpCard.today({
-    required this.initials,
-    required this.name,
-    required this.patientId,
-    required this.age,
-    required this.gender,
-    required this.subtitle,
-    required this.topicLabel,
-    required this.topicUrdu,
-    required this.topicIcon,
-    required this.accentColor,
-    required this.timeBadge,
-    required this.timeBadgeUrdu,
-    required this.lastVisit,
-    required this.lastVisitUrdu,
-    required this.onStartVisit,
-  })  : _variant = _FollowVariant.today,
-        scheduleNote = null,
-        scheduleUrdu = null,
-        dueInLabel = null,
-        dueInUrdu = null;
-
-  const _FollowUpCard.upcoming({
-    required this.initials,
-    required this.name,
-    required this.patientId,
-    required this.age,
-    required this.gender,
-    required this.subtitle,
-    required this.topicLabel,
-    required this.topicUrdu,
-    required this.topicIcon,
-    required this.accentColor,
-    required this.dueInLabel,
-    required this.dueInUrdu,
-    required this.lastVisit,
-    required this.lastVisitUrdu,
-    required this.onStartVisit,
-  })  : _variant = _FollowVariant.upcoming,
-        timeBadge = null,
-        timeBadgeUrdu = null,
-        scheduleNote = null,
-        scheduleUrdu = null;
-
-  final _FollowVariant _variant;
-  final IconData topicIcon;
-  final Color accentColor;
-  final String initials;
-  final String name;
-  final String patientId;
-  final int age;
-  final String gender;
-  final String subtitle;
-  final String topicLabel;
-  final String topicUrdu;
-  final String? scheduleNote;
-  final String? scheduleUrdu;
-  final String lastVisit;
-  final String lastVisitUrdu;
-  final String? timeBadge;
-  final String? timeBadgeUrdu;
-  final String? dueInLabel;
-  final String? dueInUrdu;
-  final ValueChanged<VisitPatientSeed>? onStartVisit;
-
-  void _openVisitAssessment() {
-    onStartVisit?.call(
-      VisitPatientSeed(
-        name: name,
-        id: patientId,
-        age: age,
-        gender: gender,
-        lastVisit: _lastVisitDateLabel(),
-      ),
-    );
-  }
-
-  String _lastVisitDateLabel() {
-    final marker = lastVisit.indexOf(':');
-    final rest =
-        marker >= 0 ? lastVisit.substring(marker + 1).trim() : lastVisit;
-    final dash = rest.indexOf('—');
-    return dash >= 0 ? rest.substring(0, dash).trim() : rest;
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final overdue = _variant == _FollowVariant.overdue;
-    final today = _variant == _FollowVariant.today;
-    final upcoming = _variant == _FollowVariant.upcoming;
-
-    late Color bg;
-    late Color borderCol;
-    late Color avatarBg;
-    late Color avatarFg;
-    late Color chipFg;
-    late Color chipBg;
-
-    if (overdue) {
-      bg = AppColors.dashboardPeach;
-      borderCol = AppColors.dashboardPeachBorder;
-      avatarBg = AppColors.dashboardWarning.withValues(alpha: 0.15);
-      avatarFg = AppColors.dashboardWarning;
-      chipFg = AppColors.dashboardWarning;
-      chipBg = AppColors.dashboardWarning.withValues(alpha: 0.12);
-    } else if (today) {
-      bg = AppColors.surface;
-      borderCol = AppColors.border;
-      avatarBg = accentColor.withValues(alpha: 0.12);
-      avatarFg = accentColor;
-      chipFg = accentColor;
-      chipBg = accentColor.withValues(alpha: 0.12);
-    } else {
-      bg = AppColors.followUpcomingBg;
-      borderCol = AppColors.followUpcomingBorder;
-      avatarBg = accentColor.withValues(alpha: 0.12);
-      avatarFg = accentColor;
-      chipFg = accentColor;
-      chipBg = accentColor.withValues(alpha: 0.12);
-    }
-
-    return Container(
-      padding: EdgeInsets.all(14.w),
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(16.r),
-        border: Border.all(color: borderCol),
-        boxShadow: [
-          if (!overdue)
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.05),
-              blurRadius: 8,
-              offset: const Offset(0, 3),
-            ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  Container(
-                    width: 44.r,
-                    height: 44.r,
-                    decoration: BoxDecoration(
-                      color: avatarBg,
-                      borderRadius: BorderRadius.circular(12.r),
-                    ),
-                    alignment: Alignment.center,
-                    child: Text(
-                      initials,
-                      style: TextStyle(
-                        fontSize: 14.sp,
-                        fontWeight: FontWeight.w800,
-                        color: avatarFg,
-                      ),
-                    ),
-                  ),
-                  if (overdue)
-                    Positioned(
-                      top: -4,
-                      right: -4,
-                      child: Container(
-                        width: 10.r,
-                        height: 10.r,
-                        decoration: const BoxDecoration(
-                          color: AppColors.danger,
-                          shape: BoxShape.circle,
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-              SizedBox(width: 12.w),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Wrap(
-                            crossAxisAlignment: WrapCrossAlignment.center,
-                            spacing: 4.w,
-                            runSpacing: 4.h,
-                            children: [
-                              Text(
-                                name,
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  fontSize: 16.sp,
-                                  fontWeight: FontWeight.w800,
-                                  color: AppColors.textPrimary,
-                                ),
-                              ),
-                              UrduHelpSuffix(urduText: 'مریض کا نام۔'),
-                            ],
-                          ),
-                        ),
-                        if (overdue)
-                          Container(
-                            padding: EdgeInsets.symmetric(
-                                horizontal: 8.w, vertical: 4.h),
-                            decoration: BoxDecoration(
-                              color: AppColors.danger.withValues(alpha: 0.12),
-                              borderRadius: BorderRadius.circular(999),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Text(
-                                  'Overdue',
-                                  style: TextStyle(
-                                    fontSize: 11.sp,
-                                    fontWeight: FontWeight.w800,
-                                    color: AppColors.danger,
-                                  ),
-                                ),
-                                UrduHelpSuffix(
-                                  urduText: 'وقت گزر چکا ہے۔',
-                                ),
-                              ],
-                            ),
-                          )
-                        else if (today && timeBadge != null)
-                          Container(
-                            padding: EdgeInsets.symmetric(
-                                horizontal: 8.w, vertical: 4.h),
-                            decoration: BoxDecoration(
-                              color: accentColor.withValues(alpha: 0.12),
-                              borderRadius: BorderRadius.circular(999),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Text(
-                                  timeBadge!,
-                                  style: TextStyle(
-                                    fontSize: 11.sp,
-                                    fontWeight: FontWeight.w800,
-                                    color: accentColor,
-                                  ),
-                                ),
-                                UrduHelpSuffix(urduText: timeBadgeUrdu!),
-                              ],
-                            ),
-                          )
-                        else if (upcoming &&
-                            dueInLabel != null &&
-                            dueInUrdu != null)
-                          Container(
-                            padding: EdgeInsets.symmetric(
-                                horizontal: 8.w, vertical: 4.h),
-                            decoration: BoxDecoration(
-                              color: accentColor.withValues(alpha: 0.14),
-                              borderRadius: BorderRadius.circular(999),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Text(
-                                  dueInLabel!,
-                                  style: TextStyle(
-                                    fontSize: 11.sp,
-                                    fontWeight: FontWeight.w800,
-                                    color: accentColor,
-                                  ),
-                                ),
-                                UrduHelpSuffix(urduText: dueInUrdu!),
-                              ],
-                            ),
-                          ),
-                      ],
-                    ),
-                    SizedBox(height: 4.h),
-                    Text(
-                      subtitle,
-                      style: TextStyle(
-                        fontSize: 12.sp,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.textSecondary,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          SizedBox(height: 10.h),
-          Wrap(
-            spacing: 8.w,
-            runSpacing: 8.h,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            children: [
-              _TopicChip(
-                label: topicLabel,
-                urdu: topicUrdu,
-                icon: topicIcon,
-                foreground: chipFg,
-                background: chipBg,
-              ),
-              if (scheduleNote != null)
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      scheduleNote!,
-                      style: TextStyle(
-                        fontSize: 11.sp,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.textSecondary,
-                      ),
-                    ),
-                    UrduHelpSuffix(urduText: scheduleUrdu!),
-                  ],
-                ),
-            ],
-          ),
-          SizedBox(height: 10.h),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: Text(
-                  lastVisit,
-                  style: TextStyle(
-                    fontSize: 11.sp,
-                    fontWeight: FontWeight.w500,
-                    color: AppColors.textSecondary,
-                    height: 1.35,
-                  ),
-                ),
-              ),
-              UrduHelpSuffix(urduText: lastVisitUrdu),
-            ],
-          ),
-          if (overdue) ...[
-            SizedBox(height: 12.h),
-            SizedBox(
-              width: double.infinity,
-              height: 46.h,
-              child: FilledButton.icon(
-                onPressed: _openVisitAssessment,
-                style: FilledButton.styleFrom(
-                  backgroundColor: AppColors.dashboardActionRed,
-                  foregroundColor: Colors.white,
-                  elevation: 0,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12.r),
-                  ),
-                ),
-                icon: Icon(Icons.play_arrow_rounded, size: 22.sp),
-                label: Wrap(
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  spacing: 4.w,
-                  children: [
-                    Text(
-                      'Start Visit Now',
-                      style: TextStyle(
-                        fontSize: 14.sp,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                    UrduHelpSuffix(
-                      urduText: 'اب وزٹ شروع کریں۔',
-                      foregroundColor: Colors.white,
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
-          if (today) ...[
-            SizedBox(height: 12.h),
-            SizedBox(
-              width: double.infinity,
-              height: 46.h,
-              child: FilledButton.icon(
-                onPressed: _openVisitAssessment,
-                style: FilledButton.styleFrom(
-                  backgroundColor: accentColor,
-                  foregroundColor: Colors.white,
-                  elevation: 0,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12.r),
-                  ),
-                ),
-                icon: Icon(Icons.play_arrow_rounded, size: 22.sp),
-                label: Text(
-                  'Start Visit',
-                  style: TextStyle(
-                    fontSize: 14.sp,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-              ),
-            ),
-          ],
-          if (upcoming) ...[
-            SizedBox(height: 12.h),
-            SizedBox(
-              width: double.infinity,
-              height: 46.h,
-              child: OutlinedButton.icon(
-                onPressed: _openVisitAssessment,
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: accentColor,
-                  side: BorderSide(color: accentColor.withValues(alpha: 0.65)),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12.r),
-                  ),
-                ),
-                icon: Icon(Icons.play_arrow_rounded, size: 22.sp),
-                label: Text(
-                  'Start Visit',
-                  style: TextStyle(
-                    fontSize: 14.sp,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
 class _TopicChip extends StatelessWidget {
   const _TopicChip({
     required this.label,
@@ -1127,6 +987,431 @@ class _TopicChip extends StatelessWidget {
             ),
           ),
           UrduHelpSuffix(urduText: urdu),
+        ],
+      ),
+    );
+  }
+}
+
+class _FollowUpCardApi extends StatelessWidget {
+  const _FollowUpCardApi({
+    required this.data,
+    required this.onStartVisit,
+  });
+
+  final HwFollowUpPatient data;
+  final ValueChanged<VisitPatientSeed>? onStartVisit;
+
+  _FollowVariant _variantFor() {
+    if (data.isOverdue) return _FollowVariant.overdue;
+    final now = DateTime.now().toLocal();
+    final today = DateTime(now.year, now.month, now.day);
+    final next = data.nextVisitDate.toLocal();
+    final nextDay = DateTime(next.year, next.month, next.day);
+    if (nextDay == today) return _FollowVariant.today;
+    return _FollowVariant.upcoming;
+  }
+
+  void _openVisit() {
+    onStartVisit?.call(
+      VisitPatientSeed(
+        name: data.fullName,
+        id: data.displayId,
+        apiPatientId: data.patientId,
+        age: data.age,
+        gender: data.gender,
+        lastVisit: HomeTabPage._shortDate(data.lastVisitDate),
+        openedFromFollowUpList: true,
+      ),
+    );
+  }
+
+  String _lastVisitLine() {
+    final buf = StringBuffer(
+      'Last visit: ${HomeTabPage._shortDate(data.lastVisitDate)} — ',
+    );
+    final reason = (data.lastVisitReason ?? '').trim();
+    if (reason.isNotEmpty) {
+      buf.write(reason);
+    } else {
+      buf.write('follow-up');
+    }
+    if (data.systolicBP1 != null && data.diastolicBP1 != null) {
+      buf.write(', BP ${data.systolicBP1}/${data.diastolicBP1}');
+    }
+    return buf.toString();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final variant = _variantFor();
+    final overdue = variant == _FollowVariant.overdue;
+    final today = variant == _FollowVariant.today;
+    final upcoming = variant == _FollowVariant.upcoming;
+
+    final topic = data.primaryCondition.trim().isEmpty
+        ? 'Follow-up'
+        : data.primaryCondition;
+    final topicIcon = HomeTabPage._topicIcon(data.primaryCondition);
+    final accent = HomeTabPage._topicAccent(data.primaryCondition);
+    final topicUrdu = HomeTabPage._topicUrduHint(data.primaryCondition);
+
+    final now = DateTime.now().toLocal();
+    final todayDay = DateTime(now.year, now.month, now.day);
+    final next = data.nextVisitDate.toLocal();
+    final nextDay = DateTime(next.year, next.month, next.day);
+    final dueDays = HomeTabPage._calendarDaysBetween(todayDay, nextDay);
+
+    final timeBadge = HomeTabPage._time12h(next);
+    final scheduleNote = overdue ? 'Was: $timeBadge' : null;
+    final scheduleUrdu = overdue ? 'مقررہ وقت۔' : null;
+    final dueInLabel =
+        upcoming ? HomeTabPage._dueInEnglish(dueDays) : null;
+    final dueInUrdu =
+        upcoming ? HomeTabPage._dueInUrdu(dueDays) : null;
+
+    late Color bg;
+    late Color borderCol;
+    late Color avatarBg;
+    late Color avatarFg;
+    late Color chipFg;
+    late Color chipBg;
+
+    if (overdue) {
+      bg = AppColors.dashboardPeach;
+      borderCol = AppColors.dashboardPeachBorder;
+      avatarBg = AppColors.dashboardWarning.withValues(alpha: 0.15);
+      avatarFg = AppColors.dashboardWarning;
+      chipFg = AppColors.dashboardWarning;
+      chipBg = AppColors.dashboardWarning.withValues(alpha: 0.12);
+    } else if (today) {
+      bg = AppColors.surface;
+      borderCol = AppColors.border;
+      avatarBg = accent.withValues(alpha: 0.12);
+      avatarFg = accent;
+      chipFg = accent;
+      chipBg = accent.withValues(alpha: 0.12);
+    } else {
+      bg = AppColors.followUpcomingBg;
+      borderCol = AppColors.followUpcomingBorder;
+      avatarBg = accent.withValues(alpha: 0.12);
+      avatarFg = accent;
+      chipFg = accent;
+      chipBg = accent.withValues(alpha: 0.12);
+    }
+
+    final subtitle =
+        'Age ${data.age} • ${data.gender} • ID: ${data.displayId}';
+
+    return Container(
+      padding: EdgeInsets.all(14.w),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(16.r),
+        border: Border.all(color: borderCol),
+        boxShadow: [
+          if (!overdue)
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.05),
+              blurRadius: 8,
+              offset: const Offset(0, 3),
+            ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  Container(
+                    width: 44.r,
+                    height: 44.r,
+                    decoration: BoxDecoration(
+                      color: avatarBg,
+                      borderRadius: BorderRadius.circular(12.r),
+                    ),
+                    alignment: Alignment.center,
+                    child: Text(
+                      data.initials,
+                      style: TextStyle(
+                        fontSize: 14.sp,
+                        fontWeight: FontWeight.w800,
+                        color: avatarFg,
+                      ),
+                    ),
+                  ),
+                  if (overdue)
+                    Positioned(
+                      top: -4,
+                      right: -4,
+                      child: Container(
+                        width: 10.r,
+                        height: 10.r,
+                        decoration: const BoxDecoration(
+                          color: AppColors.danger,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+              SizedBox(width: 12.w),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Wrap(
+                            crossAxisAlignment: WrapCrossAlignment.center,
+                            spacing: 4.w,
+                            runSpacing: 4.h,
+                            children: [
+                              Text(
+                                data.fullName,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontSize: 16.sp,
+                                  fontWeight: FontWeight.w800,
+                                  color: AppColors.textPrimary,
+                                ),
+                              ),
+                              const UrduHelpSuffix(urduText: 'مریض کا نام۔'),
+                            ],
+                          ),
+                        ),
+                        if (overdue)
+                          Container(
+                            padding: EdgeInsets.symmetric(
+                                horizontal: 8.w, vertical: 4.h),
+                            decoration: BoxDecoration(
+                              color: AppColors.danger.withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(999),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  'Overdue',
+                                  style: TextStyle(
+                                    fontSize: 11.sp,
+                                    fontWeight: FontWeight.w800,
+                                    color: AppColors.danger,
+                                  ),
+                                ),
+                                const UrduHelpSuffix(
+                                  urduText: 'وقت گزر چکا ہے۔',
+                                ),
+                              ],
+                            ),
+                          )
+                        else if (today)
+                          Container(
+                            padding: EdgeInsets.symmetric(
+                                horizontal: 8.w, vertical: 4.h),
+                            decoration: BoxDecoration(
+                              color: accent.withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(999),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  timeBadge,
+                                  style: TextStyle(
+                                    fontSize: 11.sp,
+                                    fontWeight: FontWeight.w800,
+                                    color: accent,
+                                  ),
+                                ),
+                                UrduHelpSuffix(
+                                  urduText: 'آج کا مقررہ وقت۔',
+                                ),
+                              ],
+                            ),
+                          )
+                        else if (upcoming &&
+                            dueInLabel != null &&
+                            dueInUrdu != null)
+                          Container(
+                            padding: EdgeInsets.symmetric(
+                                horizontal: 8.w, vertical: 4.h),
+                            decoration: BoxDecoration(
+                              color: accent.withValues(alpha: 0.14),
+                              borderRadius: BorderRadius.circular(999),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  dueInLabel,
+                                  style: TextStyle(
+                                    fontSize: 11.sp,
+                                    fontWeight: FontWeight.w800,
+                                    color: accent,
+                                  ),
+                                ),
+                                UrduHelpSuffix(urduText: dueInUrdu),
+                              ],
+                            ),
+                          ),
+                      ],
+                    ),
+                    SizedBox(height: 4.h),
+                    Text(
+                      subtitle,
+                      style: TextStyle(
+                        fontSize: 12.sp,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: 10.h),
+          Wrap(
+            spacing: 8.w,
+            runSpacing: 8.h,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              _TopicChip(
+                label: topic,
+                urdu: topicUrdu,
+                icon: topicIcon,
+                foreground: chipFg,
+                background: chipBg,
+              ),
+              if (scheduleNote != null)
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      scheduleNote,
+                      style: TextStyle(
+                        fontSize: 11.sp,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                    UrduHelpSuffix(urduText: scheduleUrdu!),
+                  ],
+                ),
+            ],
+          ),
+          SizedBox(height: 10.h),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Text(
+                  _lastVisitLine(),
+                  style: TextStyle(
+                    fontSize: 11.sp,
+                    fontWeight: FontWeight.w500,
+                    color: AppColors.textSecondary,
+                    height: 1.35,
+                  ),
+                ),
+              ),
+              const UrduHelpSuffix(urduText: 'پچھلا وزٹ (سرور ڈیٹا)۔'),
+            ],
+          ),
+          if (overdue) ...[
+            SizedBox(height: 12.h),
+            SizedBox(
+              width: double.infinity,
+              height: 46.h,
+              child: FilledButton.icon(
+                onPressed: _openVisit,
+                style: FilledButton.styleFrom(
+                  backgroundColor: AppColors.dashboardActionRed,
+                  foregroundColor: Colors.white,
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12.r),
+                  ),
+                ),
+                icon: Icon(Icons.play_arrow_rounded, size: 22.sp),
+                label: Wrap(
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  spacing: 4.w,
+                  children: [
+                    Text(
+                      'Start Visit Now',
+                      style: TextStyle(
+                        fontSize: 14.sp,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    UrduHelpSuffix(
+                      urduText: 'اب وزٹ شروع کریں۔',
+                      foregroundColor: Colors.white,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+          if (today) ...[
+            SizedBox(height: 12.h),
+            SizedBox(
+              width: double.infinity,
+              height: 46.h,
+              child: FilledButton.icon(
+                onPressed: _openVisit,
+                style: FilledButton.styleFrom(
+                  backgroundColor: accent,
+                  foregroundColor: Colors.white,
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12.r),
+                  ),
+                ),
+                icon: Icon(Icons.play_arrow_rounded, size: 22.sp),
+                label: Text(
+                  'Start Visit',
+                  style: TextStyle(
+                    fontSize: 14.sp,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+            ),
+          ],
+          if (upcoming) ...[
+            SizedBox(height: 12.h),
+            SizedBox(
+              width: double.infinity,
+              height: 46.h,
+              child: OutlinedButton.icon(
+                onPressed: _openVisit,
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: accent,
+                  side: BorderSide(color: accent.withValues(alpha: 0.65)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12.r),
+                  ),
+                ),
+                icon: Icon(Icons.play_arrow_rounded, size: 22.sp),
+                label: Text(
+                  'Start Visit',
+                  style: TextStyle(
+                    fontSize: 14.sp,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+            ),
+          ],
         ],
       ),
     );

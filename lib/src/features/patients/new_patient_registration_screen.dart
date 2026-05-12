@@ -1,10 +1,16 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
 
 import 'package:doctor_app/src/core/input_format/cnic_input_formatter.dart';
 import 'package:doctor_app/src/core/input_format/pakistan_phone_input_formatter.dart';
+import 'package:doctor_app/src/core/network/api_failure.dart';
+import 'package:doctor_app/src/core/session/session_controller.dart';
 import 'package:doctor_app/src/core/theme/app_colors.dart';
+import 'package:doctor_app/src/features/patients/patient_api.dart';
 import 'package:doctor_app/src/widgets/urdu_help_suffix.dart';
 
 /// Full-screen new patient form — pushed from Patients tab (+).
@@ -33,46 +39,169 @@ class _NewPatientRegistrationScreenState
   DateTime? _dateOfBirth;
   _PatientGenderForm _gender = _PatientGenderForm.female;
 
-  static const List<String> _provinces = [
-    'Punjab',
-    'Sindh',
-    'Khyber Pakhtunkhwa',
-    'Balochistan',
-    'Islamabad Capital Territory',
-  ];
+  List<({int id, String name})> _provinces = const [];
+  List<({int id, String name})> _districts = const [];
+  List<({int id, String name})> _tehsils = const [];
+  List<({int id, String name})> _maritalStatuses = const [];
 
-  late final Map<String, List<String>> _districtsByProvince;
-  late final Map<String, List<String>> _tehsilsByDistrict;
+  int? _provinceId;
+  int? _districtId;
+  int? _tehsilId;
+  int? _maritalStatusId;
 
-  late String _province;
-  late String _district;
-  late String _tehsil;
+  bool _loadingRefs = false;
+  bool _submitting = false;
+  String? _refsError;
+
+  PatientApi? _patientApi;
 
   @override
   void initState() {
     super.initState();
-    _districtsByProvince = {
-      'Punjab': ['Rawalpindi', 'Lahore', 'Multan'],
-      'Sindh': ['Karachi', 'Hyderabad'],
-      'Khyber Pakhtunkhwa': ['Peshawar', 'Mardan'],
-      'Balochistan': ['Quetta', 'Gwadar'],
-      'Islamabad Capital Territory': ['Islamabad'],
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      unawaited(_loadReferenceData());
+    });
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _patientApi ??= PatientApi(context.read<SessionController>().apiClient);
+  }
+
+  Future<void> _loadReferenceData() async {
+    final session = context.read<SessionController>();
+    final token = session.state.accessToken?.trim();
+    if (token == null || token.isEmpty) return;
+
+    setState(() {
+      _loadingRefs = true;
+      _refsError = null;
+    });
+    try {
+      final provinces = await session.fetchProvinces();
+      final marital = await session.fetchMaritalStatuses();
+      if (!mounted) return;
+      setState(() {
+        _provinces = provinces.map((e) => (id: e.id, name: e.name)).toList();
+        _maritalStatuses =
+            marital.map((e) => (id: e.id, name: e.name)).toList();
+      });
+    } on Object catch (e) {
+      if (!mounted || e is SessionEndedFailure) return;
+      setState(() => _refsError = session.apiClient.mapError(e).message);
+    } finally {
+      if (mounted) setState(() => _loadingRefs = false);
+    }
+  }
+
+  Future<void> _onProvinceChanged(int? id) async {
+    if (id == null) return;
+    final session = context.read<SessionController>();
+    final token = session.state.accessToken?.trim();
+    if (token == null || token.isEmpty) return;
+    setState(() {
+      _provinceId = id;
+      _districtId = null;
+      _tehsilId = null;
+      _districts = const [];
+      _tehsils = const [];
+    });
+    try {
+      final d = await session.fetchDistricts(provinceId: id);
+      if (!mounted) return;
+      setState(() {
+        _districts = d.map((e) => (id: e.id, name: e.name)).toList();
+      });
+    } on Object catch (e) {
+      if (!mounted || e is SessionEndedFailure) return;
+      _toast(session.apiClient.mapError(e).message);
+    }
+  }
+
+  Future<void> _onDistrictChanged(int? id) async {
+    if (id == null || _provinceId == null) return;
+    final session = context.read<SessionController>();
+    final token = session.state.accessToken?.trim();
+    if (token == null || token.isEmpty) return;
+    setState(() {
+      _districtId = id;
+      _tehsilId = null;
+      _tehsils = const [];
+    });
+    try {
+      final t = await session.fetchTehsils(
+        provinceId: _provinceId!,
+        districtId: id,
+      );
+      if (!mounted) return;
+      setState(() {
+        _tehsils = t.map((e) => (id: e.id, name: e.name)).toList();
+      });
+    } on Object catch (e) {
+      if (!mounted || e is SessionEndedFailure) return;
+      _toast(session.apiClient.mapError(e).message);
+    }
+  }
+
+  void _toast(String msg) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(msg, style: TextStyle(fontSize: 14.sp))),
+    );
+  }
+
+  String _genderApiValue() => switch (_gender) {
+        _PatientGenderForm.female => 'Female',
+        _PatientGenderForm.male => 'Male',
+        _PatientGenderForm.other => 'Other',
+      };
+
+  Future<void> _submit() async {
+    if (!_formKey.currentState!.validate()) return;
+    if (_provinceId == null ||
+        _districtId == null ||
+        _tehsilId == null ||
+        _maritalStatusId == null) {
+      _toast('Select province, district, tehsil, and marital status.');
+      return;
+    }
+
+    final session = context.read<SessionController>();
+    final token = session.state.accessToken?.trim();
+    if (token == null || token.isEmpty) {
+      _toast('Please sign in again.');
+      return;
+    }
+
+    final cnicMasked = CnicInputFormatter.forApi(_cnicController.text);
+    final body = <String, dynamic>{
+      'firstName': _firstNameController.text.trim(),
+      'lastName': _lastNameController.text.trim(),
+      'gender': _genderApiValue(),
+      'dateOfBirth': _dateOfBirth!.toIso8601String().split('T').first,
+      'maritalStatusId': _maritalStatusId,
+      'contactNumber': _phoneController.text.trim(),
+      'address': _streetController.text.trim(),
+      'provinceId': _provinceId,
+      'districtId': _districtId,
+      'tehsilId': _tehsilId,
+      'assignedHealthWorkerId': session.state.userId,
     };
-    _tehsilsByDistrict = {
-      'Rawalpindi': ['Rawalpindi', 'Murree'],
-      'Lahore': ['Lahore', 'Model Town'],
-      'Multan': ['Multan', 'Shujabad'],
-      'Karachi': ['Karachi South', 'Karachi East'],
-      'Hyderabad': ['Hyderabad', 'Latifabad'],
-      'Peshawar': ['Peshawar', 'Mathura'],
-      'Mardan': ['Mardan', 'Toru'],
-      'Quetta': ['Quetta', 'Chiltan'],
-      'Gwadar': ['Gwadar', 'Ormara'],
-      'Islamabad': ['Islamabad'],
-    };
-    _province = 'Punjab';
-    _district = _districtsByProvince[_province]!.first;
-    _tehsil = _tehsilsByDistrict[_district]!.first;
+    if (cnicMasked.length == 15) body['cnic'] = cnicMasked;
+
+    setState(() => _submitting = true);
+    try {
+      await _patientApi!.createPatient(body: body, bearerToken: token);
+      if (!mounted) return;
+      _toast('Patient registered successfully.');
+      context.pop(true);
+    } on Object catch (e) {
+      if (!mounted || e is SessionEndedFailure) return;
+      _toast(session.apiClient.mapError(e).message);
+    } finally {
+      if (mounted) setState(() => _submitting = false);
+    }
   }
 
   @override
@@ -192,30 +321,6 @@ class _NewPatientRegistrationScreenState
     }
   }
 
-  void _onProvinceChanged(String? v) {
-    if (v == null) return;
-    setState(() {
-      _province = v;
-      final districts = _districtsByProvince[v]!;
-      _district = districts.first;
-      _tehsil = _tehsilsByDistrict[_district]!.first;
-    });
-  }
-
-  void _onDistrictChanged(String? v) {
-    if (v == null) return;
-    setState(() {
-      _district = v;
-      _tehsil = _tehsilsByDistrict[v]!.first;
-    });
-  }
-
-  void _submit() {
-    if (!_formKey.currentState!.validate()) return;
-    // TODO: POST new patient to API.
-    context.pop();
-  }
-
   Widget _genderChip(String label, _PatientGenderForm value) {
     final selected = _gender == value;
     return Expanded(
@@ -305,6 +410,21 @@ class _NewPatientRegistrationScreenState
               ),
             ),
           ),
+          if (_refsError != null)
+            Material(
+              color: AppColors.dashboardPeach,
+              child: Padding(
+                padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 8.h),
+                child: Text(
+                  _refsError!,
+                  style: TextStyle(
+                    fontSize: 12.sp,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.dashboardWarning,
+                  ),
+                ),
+              ),
+            ),
           Expanded(
             child: SingleChildScrollView(
               padding: EdgeInsets.fromLTRB(16.w, 4.h, 16.w, 16.h),
@@ -395,6 +515,33 @@ class _NewPatientRegistrationScreenState
                         _genderChip('Other', _PatientGenderForm.other),
                       ],
                     ),
+                    SizedBox(height: 14.h),
+                    _labelRow('Marital status', 'ازدواجی حیثیت'),
+                    DropdownButtonFormField<int>(
+                      value: _maritalStatusId,
+                      decoration: _fieldDecoration(
+                        hint: _loadingRefs ? 'Loading…' : 'Select',
+                      ),
+                      items: _maritalStatuses
+                          .map(
+                            (e) => DropdownMenuItem(
+                              value: e.id,
+                              child: Text(
+                                e.name,
+                                style: TextStyle(
+                                  fontSize: 14.sp,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          )
+                          .toList(),
+                      onChanged: _loadingRefs
+                          ? null
+                          : (v) => setState(() => _maritalStatusId = v),
+                      validator: (v) =>
+                          v == null ? 'Select marital status' : null,
+                    ),
                     SizedBox(height: 22.h),
                     _sectionTitle('SECTION 2 — CONTACT & LOCATION'),
                     _labelRow('Phone Number', 'فون نمبر'),
@@ -415,18 +562,28 @@ class _NewPatientRegistrationScreenState
                     ),
                     SizedBox(height: 14.h),
                     _labelRow('Province', 'صوبہ'),
-                    DropdownButtonFormField<String>(
-                      // ignore: deprecated_member_use — controlled dropdown until DropdownMenu migration.
-                      value: _province,
-                      decoration: _fieldDecoration(),
+                    DropdownButtonFormField<int>(
+                      value: _provinceId,
+                      decoration: _fieldDecoration(
+                        hint: _loadingRefs ? 'Loading…' : 'Select province',
+                      ),
                       items: _provinces
                           .map(
-                            (e) => DropdownMenuItem(value: e, child: Text(e)),
+                            (e) => DropdownMenuItem(
+                              value: e.id,
+                              child: Text(
+                                e.name,
+                                style: TextStyle(
+                                  fontSize: 14.sp,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
                           )
                           .toList(),
-                      onChanged: _onProvinceChanged,
+                      onChanged: _loadingRefs ? null : _onProvinceChanged,
                       validator: (v) =>
-                          v == null || v.isEmpty ? 'Select province' : null,
+                          v == null ? 'Select province' : null,
                     ),
                     SizedBox(height: 14.h),
                     Row(
@@ -437,19 +594,29 @@ class _NewPatientRegistrationScreenState
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
                               _labelRow('District', 'ضلع'),
-                              DropdownButtonFormField<String>(
-                                // ignore: deprecated_member_use
-                                value: _district,
-                                decoration: _fieldDecoration(),
-                                items: _districtsByProvince[_province]!
+                              DropdownButtonFormField<int>(
+                                value: _districtId,
+                                decoration: _fieldDecoration(
+                                  hint: 'Select district',
+                                ),
+                                items: _districts
                                     .map(
                                       (e) => DropdownMenuItem(
-                                        value: e,
-                                        child: Text(e),
+                                        value: e.id,
+                                        child: Text(
+                                          e.name,
+                                          style: TextStyle(
+                                            fontSize: 14.sp,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
                                       ),
                                     )
                                     .toList(),
-                                onChanged: _onDistrictChanged,
+                                onChanged:
+                                    _districts.isEmpty ? null : _onDistrictChanged,
+                                validator: (v) =>
+                                    v == null ? 'Select district' : null,
                               ),
                             ],
                           ),
@@ -460,21 +627,30 @@ class _NewPatientRegistrationScreenState
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
                               _labelRow('Tehsil', 'تحصیل'),
-                              DropdownButtonFormField<String>(
-                                // ignore: deprecated_member_use
-                                value: _tehsil,
-                                decoration: _fieldDecoration(),
-                                items: _tehsilsByDistrict[_district]!
+                              DropdownButtonFormField<int>(
+                                value: _tehsilId,
+                                decoration: _fieldDecoration(
+                                  hint: 'Select tehsil',
+                                ),
+                                items: _tehsils
                                     .map(
                                       (e) => DropdownMenuItem(
-                                        value: e,
-                                        child: Text(e),
+                                        value: e.id,
+                                        child: Text(
+                                          e.name,
+                                          style: TextStyle(
+                                            fontSize: 14.sp,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
                                       ),
                                     )
                                     .toList(),
-                                onChanged: (v) {
-                                  if (v != null) setState(() => _tehsil = v);
-                                },
+                                onChanged: _tehsils.isEmpty
+                                    ? null
+                                    : (v) => setState(() => _tehsilId = v),
+                                validator: (v) =>
+                                    v == null ? 'Select tehsil' : null,
                               ),
                             ],
                           ),
@@ -506,10 +682,19 @@ class _NewPatientRegistrationScreenState
             child: Padding(
               padding: EdgeInsets.fromLTRB(16.w, 8.h, 16.w, 12.h + bottomInset),
               child: FilledButton.icon(
-                onPressed: _submit,
-                icon: Icon(Icons.check_rounded, size: 22.sp),
+                onPressed: _submitting ? null : _submit,
+                icon: _submitting
+                    ? SizedBox(
+                        width: 22.sp,
+                        height: 22.sp,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : Icon(Icons.check_rounded, size: 22.sp),
                 label: Text(
-                  'Save & Register Patient',
+                  _submitting ? 'Saving…' : 'Save & Register Patient',
                   style: TextStyle(
                     fontSize: 15.sp,
                     fontWeight: FontWeight.w800,

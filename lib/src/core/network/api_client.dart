@@ -290,8 +290,9 @@ class ApiClient {
   static String _safeBody(Object? body) {
     try {
       if (body == null) return 'null';
-      if (body is String)
+      if (body is String) {
         return body.length > 1500 ? '${body.substring(0, 1500)}…' : body;
+      }
       final encoded = jsonEncode(body);
       return encoded.length > 1500 ? '${encoded.substring(0, 1500)}…' : encoded;
     } catch (_) {
@@ -304,9 +305,35 @@ class ApiClient {
       return data.trim();
     }
     if (data is Map) {
-      final dynamic msg =
-          data['message'] ?? data['Message'] ?? data['error'] ?? data['Error'];
+      final map = Map<String, dynamic>.from(data);
+      final dynamic msg = map['message'] ??
+          map['Message'] ??
+          map['title'] ??
+          map['Title'] ??
+          map['error'] ??
+          map['Error'] ??
+          map['detail'] ??
+          map['Detail'];
       if (msg is String && msg.trim().isNotEmpty) return msg.trim();
+
+      final errors = map['errors'] ?? map['Errors'];
+      if (errors is Map) {
+        final parts = <String>[];
+        for (final e in errors.values) {
+          if (e is List) {
+            for (final item in e) {
+              final s = item?.toString().trim();
+              if (s != null && s.isNotEmpty) parts.add(s);
+            }
+          } else {
+            final s = e?.toString().trim();
+            if (s != null && s.isNotEmpty) parts.add(s);
+          }
+        }
+        if (parts.isNotEmpty) {
+          return parts.length == 1 ? parts.first : parts.join(' ');
+        }
+      }
     }
     return null;
   }

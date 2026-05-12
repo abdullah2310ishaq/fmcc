@@ -1,3 +1,30 @@
+/// Clinical / demographic reference row (`Id` + `Name` from API).
+class NamedReferenceItem {
+  const NamedReferenceItem({
+    required this.id,
+    required this.name,
+  });
+
+  final int id;
+  final String name;
+
+  factory NamedReferenceItem.fromJson(Map<String, dynamic> json) {
+    return NamedReferenceItem(
+      id: _readInt(
+        json['id'] ?? json['Id'],
+      ),
+      name: _firstNonEmptyField(json, const [
+        'name',
+        'Name',
+        'label',
+        'Label',
+        'title',
+        'Title',
+      ]),
+    );
+  }
+}
+
 class EducationLevel {
   const EducationLevel({
     required this.id,

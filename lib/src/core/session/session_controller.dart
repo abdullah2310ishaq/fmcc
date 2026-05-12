@@ -34,6 +34,9 @@ class SessionController extends ChangeNotifier implements SessionAuthHooks {
 
   AppSession get state => _state;
 
+  /// Shared HTTP client (auth interceptors, refresh). Use for feature `*Api` classes.
+  ApiClient get apiClient => _apiClient;
+
   @override
   String? get accessToken => _state.accessToken;
 
@@ -253,6 +256,30 @@ class SessionController extends ChangeNotifier implements SessionAuthHooks {
         provinceId: provinceId,
         bearerToken: token,
       );
+    } catch (e) {
+      throw _apiClient.mapError(e);
+    }
+  }
+
+  Future<List<NamedReferenceItem>> fetchMaritalStatuses() async {
+    final token = _state.accessToken;
+    if (token == null || token.trim().isEmpty) {
+      throw const UnauthorizedFailure('Unauthorized. Please login again.');
+    }
+    try {
+      return await _referenceApi.getMaritalStatuses(bearerToken: token);
+    } catch (e) {
+      throw _apiClient.mapError(e);
+    }
+  }
+
+  Future<List<NamedReferenceItem>> fetchMedicalConditions() async {
+    final token = _state.accessToken;
+    if (token == null || token.trim().isEmpty) {
+      throw const UnauthorizedFailure('Unauthorized. Please login again.');
+    }
+    try {
+      return await _referenceApi.getMedicalConditions(bearerToken: token);
     } catch (e) {
       throw _apiClient.mapError(e);
     }
