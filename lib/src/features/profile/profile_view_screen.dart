@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:go_router/go_router.dart';
@@ -19,6 +21,13 @@ class ProfileViewScreen extends StatefulWidget {
   final bool showBackButton;
 
   static const routePath = '/profile';
+
+  /// Same strip as [_HeroCard] — header + hero read as one band.
+  static const LinearGradient headerGradient = LinearGradient(
+    colors: [Color(0xFF1F6FAB), Color(0xFF0E947E)],
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+  );
 
   @override
   State<ProfileViewScreen> createState() => _ProfileViewScreenState();
@@ -68,56 +77,68 @@ class _ProfileViewScreenState extends State<ProfileViewScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: AppBar(
-        elevation: 0,
-        backgroundColor: AppColors.surface,
-        surfaceTintColor: Colors.transparent,
-        automaticallyImplyLeading: widget.showBackButton,
-        leading: widget.showBackButton
-            ? IconButton(
-                icon: Icon(
-                  Icons.arrow_back_ios_new_rounded,
-                  color: AppColors.blueDark,
-                  size: 20.sp,
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          DecoratedBox(
+            decoration: const BoxDecoration(
+              gradient: ProfileViewScreen.headerGradient,
+            ),
+            child: SafeArea(
+              bottom: false,
+              child: SizedBox(
+                height: 52.h,
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    if (widget.showBackButton)
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: IconButton(
+                          visualDensity: VisualDensity.compact,
+                          icon: Icon(
+                            Icons.arrow_back_ios_new_rounded,
+                            color: AppColors.surface,
+                            size: 18.sp,
+                          ),
+                          onPressed: () => context.pop(),
+                        ),
+                      ),
+                    Text(
+                      'My Profile',
+                      style: TextStyle(
+                        fontSize: 17.sp,
+                        fontWeight: FontWeight.w900,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: TextButton(
+                        onPressed: _confirmLogout,
+                        child: Text(
+                          'Logout',
+                          style: TextStyle(
+                            fontSize: 14.sp,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.textPrimary,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-                onPressed: () => context.pop(),
-              )
-            : null,
-        title: Text(
-          'My Profile',
-          style: TextStyle(
-            fontSize: 17.sp,
-            fontWeight: FontWeight.w900,
-            color: AppColors.textPrimary,
-          ),
-        ),
-        centerTitle: false,
-        actions: [
-          IconButton(
-            tooltip: 'Update profile',
-            onPressed: _openEditProfile,
-            icon: Icon(
-              Icons.edit_note_rounded,
-              size: 20.sp,
-              color: AppColors.blueDark,
+              ),
             ),
           ),
-          IconButton(
-            tooltip: 'Logout',
-            onPressed: _confirmLogout,
-            icon: Icon(
-              Icons.logout_rounded,
-              size: 20.sp,
-              color: AppColors.danger,
+          Expanded(
+            child: RefreshIndicator(
+              color: AppColors.blue,
+              onRefresh: _load,
+              child: _buildBody(),
             ),
           ),
-          SizedBox(width: 4.w),
         ],
-      ),
-      body: RefreshIndicator(
-        color: AppColors.blue,
-        onRefresh: _load,
-        child: _buildBody(),
       ),
     );
   }
@@ -298,7 +319,11 @@ class _ProfileViewScreenState extends State<ProfileViewScreen> {
       physics: const AlwaysScrollableScrollPhysics(),
       padding: EdgeInsets.zero,
       children: [
-        _HeroCard(profile: p, fullName: fullName.isEmpty ? '—' : fullName),
+        _HeroCard(
+          profile: p,
+          fullName: fullName.isEmpty ? '—' : fullName,
+          onEditPressed: () => unawaited(_openEditProfile()),
+        ),
         Transform.translate(
           offset: Offset(0, -18.h),
           child: Container(
@@ -378,28 +403,6 @@ class _ProfileViewScreenState extends State<ProfileViewScreen> {
                         value: _SalaryFmt.format(p.salary!),
                       ),
                   ],
-                ),
-                SizedBox(height: 18.h),
-                OutlinedButton.icon(
-                  onPressed: _confirmLogout,
-                  icon: Icon(Icons.logout_rounded, size: 20.sp),
-                  label: Text(
-                    'Logout',
-                    style: TextStyle(
-                      fontSize: 15.sp,
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: AppColors.danger,
-                    side: BorderSide(
-                      color: AppColors.danger.withValues(alpha: 0.35),
-                    ),
-                    minimumSize: Size(double.infinity, 52.h),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14.r),
-                    ),
-                  ),
                 ),
               ],
             ),
@@ -553,22 +556,23 @@ class _SalaryFmt {
 }
 
 class _HeroCard extends StatelessWidget {
-  const _HeroCard({required this.profile, required this.fullName});
+  const _HeroCard({
+    required this.profile,
+    required this.fullName,
+    required this.onEditPressed,
+  });
 
   final HealthWorkerProfile profile;
   final String fullName;
+  final VoidCallback onEditPressed;
 
   @override
   Widget build(BuildContext context) {
     final initials = NameInitials.fromFullName(fullName);
     final email = profile.email?.trim();
     return Container(
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFF1F6FAB), Color(0xFF0E947E)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
+      decoration: const BoxDecoration(
+        gradient: ProfileViewScreen.headerGradient,
       ),
       padding: EdgeInsets.fromLTRB(20.w, 28.h, 20.w, 44.h),
       child: Column(
@@ -648,11 +652,10 @@ class _HeroCard extends StatelessWidget {
           ),
           SizedBox(height: 12.h),
           OutlinedButton.icon(
-            onPressed: () => context.push(EditProfileScreen.routePath),
-            icon: Icon(Icons.edit_rounded, size: 17.sp),
+            onPressed: onEditPressed,
             label: Text(
-              'Update Profile',
-              style: TextStyle(fontSize: 12.sp, fontWeight: FontWeight.w900),
+              'Edit Profile',
+              style: TextStyle(fontSize: 20.sp, fontWeight: FontWeight.w900),
             ),
             style: OutlinedButton.styleFrom(
               foregroundColor: AppColors.surface,
@@ -660,7 +663,7 @@ class _HeroCard extends StatelessWidget {
                 color: AppColors.surface.withValues(alpha: 0.65),
               ),
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(999),
+                borderRadius: BorderRadius.circular(12),
               ),
             ),
           ),

@@ -1433,9 +1433,11 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
                     margin: EdgeInsets.only(bottom: 12.h),
                     padding: EdgeInsets.all(12.r),
                     decoration: BoxDecoration(
-                      color: AppColors.registrationFieldFill.withValues(alpha: 0.45),
+                      color: AppColors.registrationFieldFill
+                          .withValues(alpha: 0.45),
                       borderRadius: BorderRadius.circular(13.r),
-                      border: Border.all(color: AppColors.registrationFieldBorder),
+                      border:
+                          Border.all(color: AppColors.registrationFieldBorder),
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1496,8 +1498,10 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
                             )
                           else
                             DropdownButtonFormField<int>(
-                              value: row.conditionId > 0 ? row.conditionId : null,
-                              decoration: _fieldDecoration(hint: 'Medical condition'),
+                              value:
+                                  row.conditionId > 0 ? row.conditionId : null,
+                              decoration:
+                                  _fieldDecoration(hint: 'Medical condition'),
                               items: choices
                                   .map(
                                     (e) => DropdownMenuItem<int>(
@@ -1537,7 +1541,8 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
                           value: row.isOnMedication,
                           onChanged: (v) {
                             setState(() {
-                              _medical[i] = _medical[i].copyWith(isOnMedication: v);
+                              _medical[i] =
+                                  _medical[i].copyWith(isOnMedication: v);
                             });
                           },
                         ),
@@ -1561,7 +1566,8 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
                               row.complianceLevelId,
                               _complianceLevels,
                             ),
-                            decoration: _fieldDecoration(hint: 'Compliance level'),
+                            decoration:
+                                _fieldDecoration(hint: 'Compliance level'),
                             items: [
                               DropdownMenuItem<int?>(
                                 value: null,
@@ -1573,9 +1579,7 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
                                   ),
                                 ),
                               ),
-                              ..._complianceLevels
-                                  .where((e) => e.id > 0)
-                                  .map(
+                              ..._complianceLevels.where((e) => e.id > 0).map(
                                     (e) => DropdownMenuItem<int?>(
                                       value: e.id,
                                       child: Text(
@@ -1672,9 +1676,11 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
                     margin: EdgeInsets.only(bottom: 12.h),
                     padding: EdgeInsets.all(12.r),
                     decoration: BoxDecoration(
-                      color: AppColors.registrationFieldFill.withValues(alpha: 0.45),
+                      color: AppColors.registrationFieldFill
+                          .withValues(alpha: 0.45),
                       borderRadius: BorderRadius.circular(13.r),
-                      border: Border.all(color: AppColors.registrationFieldBorder),
+                      border:
+                          Border.all(color: AppColors.registrationFieldBorder),
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1772,7 +1778,8 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
                             fontWeight: FontWeight.w600,
                             color: AppColors.textPrimary,
                           ),
-                          decoration: _fieldDecoration(hint: 'Notes (optional)'),
+                          decoration:
+                              _fieldDecoration(hint: 'Notes (optional)'),
                         ),
                         SizedBox(height: 8.h),
                         Row(
@@ -1871,9 +1878,11 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
                     margin: EdgeInsets.only(bottom: 12.h),
                     padding: EdgeInsets.all(12.r),
                     decoration: BoxDecoration(
-                      color: AppColors.registrationFieldFill.withValues(alpha: 0.45),
+                      color: AppColors.registrationFieldFill
+                          .withValues(alpha: 0.45),
                       borderRadius: BorderRadius.circular(13.r),
-                      border: Border.all(color: AppColors.registrationFieldBorder),
+                      border:
+                          Border.all(color: AppColors.registrationFieldBorder),
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1937,7 +1946,8 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
                               value: d.medicineCategoryId > 0
                                   ? d.medicineCategoryId
                                   : null,
-                              decoration: _fieldDecoration(hint: 'Medicine category'),
+                              decoration:
+                                  _fieldDecoration(hint: 'Medicine category'),
                               items: catChoices
                                   .map(
                                     (e) => DropdownMenuItem<int>(
@@ -1971,7 +1981,8 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
                               d.adherenceLevelId,
                               _adherenceLevels,
                             ),
-                            decoration: _fieldDecoration(hint: 'Adherence level'),
+                            decoration:
+                                _fieldDecoration(hint: 'Adherence level'),
                             items: [
                               DropdownMenuItem<int?>(
                                 value: null,
@@ -1983,9 +1994,7 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
                                   ),
                                 ),
                               ),
-                              ..._adherenceLevels
-                                  .where((e) => e.id > 0)
-                                  .map(
+                              ..._adherenceLevels.where((e) => e.id > 0).map(
                                     (e) => DropdownMenuItem<int?>(
                                       value: e.id,
                                       child: Text(
@@ -2076,7 +2085,8 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
                 contentPadding: EdgeInsets.zero,
                 title: Text(
                   'Family history of HTN / stroke',
-                  style: TextStyle(fontSize: 13.sp, fontWeight: FontWeight.w600),
+                  style:
+                      TextStyle(fontSize: 13.sp, fontWeight: FontWeight.w600),
                 ),
                 value: _familyHtn,
                 onChanged: (v) => setState(() => _familyHtn = v),
@@ -2085,7 +2095,8 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
                 contentPadding: EdgeInsets.zero,
                 title: Text(
                   'Tobacco use',
-                  style: TextStyle(fontSize: 13.sp, fontWeight: FontWeight.w600),
+                  style:
+                      TextStyle(fontSize: 13.sp, fontWeight: FontWeight.w600),
                 ),
                 value: _tobacco,
                 onChanged: (v) => setState(() => _tobacco = v),
@@ -2374,26 +2385,6 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
               ),
             ),
           ),
-        SizedBox(height: 8.h),
-        FilledButton.icon(
-          onPressed: _openVisitAssessment,
-          icon: Icon(Icons.add_rounded, size: 21.sp),
-          label: Text(
-            'Log New Visit',
-            style: TextStyle(
-              fontSize: 15.sp,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-          style: FilledButton.styleFrom(
-            backgroundColor: AppColors.registrationSaveBlue,
-            foregroundColor: AppColors.surface,
-            minimumSize: Size(double.infinity, 52.h),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(14.r),
-            ),
-          ),
-        ),
       ],
     );
   }
@@ -2500,23 +2491,7 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
                     ),
                   ),
                 ),
-                SizedBox(
-                  width: 36.r,
-                  height: 36.r,
-                  child: Material(
-                    color: AppColors.followUpcomingBg,
-                    borderRadius: BorderRadius.circular(10.r),
-                    child: InkWell(
-                      borderRadius: BorderRadius.circular(10.r),
-                      onTap: _openVisitAssessment,
-                      child: Icon(
-                        Icons.note_add_outlined,
-                        size: 19.sp,
-                        color: AppColors.followAccentGreen,
-                      ),
-                    ),
-                  ),
-                ),
+                SizedBox(width: 36.r, height: 36.r),
               ],
             ),
           ),
@@ -2606,8 +2581,8 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
                               style: TextStyle(
                                 fontSize: 11.sp,
                                 fontWeight: FontWeight.w700,
-                                color: AppColors.surface
-                                    .withValues(alpha: 0.85),
+                                color:
+                                    AppColors.surface.withValues(alpha: 0.85),
                               ),
                             ),
                           ),
