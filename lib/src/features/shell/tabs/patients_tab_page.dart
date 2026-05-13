@@ -16,9 +16,15 @@ import 'package:doctor_app/src/features/shell/tabs/visit_tab_page.dart';
 
 /// Shell index **1** — patient directory from dashboard API + detail + registration.
 class PatientsTabPage extends StatefulWidget {
-  const PatientsTabPage({super.key, this.onStartVisit});
+  const PatientsTabPage({
+    super.key,
+    this.onStartVisit,
+    this.onLeaveToHomeTab,
+  });
 
   final ValueChanged<VisitPatientSeed>? onStartVisit;
+  /// System back / toolbar back from directory → Home tab (shell index 0).
+  final VoidCallback? onLeaveToHomeTab;
 
   @override
   State<PatientsTabPage> createState() => _PatientsTabPageState();
@@ -294,6 +300,7 @@ class _PatientsTabPageState extends State<PatientsTabPage> {
     final dash = context.watch<HomeDashboardController>();
     final selected = _selectedPatient;
 
+    Widget body;
     if (selected != null) {
       // After PUT /api/Patient (or other flows) we reload the dashboard list.
       // `_selectedPatient` was captured from an older list instance, so the detail
@@ -315,7 +322,7 @@ class _PatientsTabPageState extends State<PatientsTabPage> {
         });
       }
 
-      return SafeArea(
+      body = SafeArea(
         bottom: false,
         child: PatientDetailTabView(
           key: ValueKey(selected.patientId),
@@ -324,10 +331,8 @@ class _PatientsTabPageState extends State<PatientsTabPage> {
           onStartVisit: widget.onStartVisit,
         ),
       );
-    }
-
-    if (session.state.role != UserRole.ladyHealthWorker) {
-      return SafeArea(
+    } else if (session.state.role != UserRole.ladyHealthWorker) {
+      body = SafeArea(
         bottom: false,
         child: Center(
           child: Padding(
@@ -344,8 +349,7 @@ class _PatientsTabPageState extends State<PatientsTabPage> {
           ),
         ),
       );
-    }
-
+    } else {
     final patients = dash.patients;
     final filters = PatientDirectoryFilter.chipsFor(patients);
     final selectedFilter = filters.contains(_selectedFilter)
@@ -360,7 +364,7 @@ class _PatientsTabPageState extends State<PatientsTabPage> {
     }
     final visible = _visible(patients, selectedFilter);
 
-    return SafeArea(
+    body = SafeArea(
       bottom: false,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -374,7 +378,14 @@ class _PatientsTabPageState extends State<PatientsTabPage> {
                   borderRadius: BorderRadius.circular(12.r),
                   child: InkWell(
                     borderRadius: BorderRadius.circular(12.r),
-                    onTap: () => Navigator.maybePop(context),
+                    onTap: () {
+                      final h = widget.onLeaveToHomeTab;
+                      if (h != null) {
+                        h();
+                      } else {
+                        Navigator.maybePop(context);
+                      }
+                    },
                     child: SizedBox(
                       width: 42.r,
                       height: 42.r,
@@ -717,6 +728,20 @@ class _PatientsTabPageState extends State<PatientsTabPage> {
           ),
         ],
       ),
+    );
+    }
+
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        if (_selectedPatient != null) {
+          setState(() => _selectedPatient = null);
+        } else {
+          widget.onLeaveToHomeTab?.call();
+        }
+      },
+      child: body,
     );
   }
 }

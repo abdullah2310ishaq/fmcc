@@ -6,10 +6,6 @@ import 'package:doctor_app/src/core/presentation/bp_reading_color.dart';
 import 'package:doctor_app/src/core/theme/app_colors.dart';
 import 'package:doctor_app/src/features/patients/patient_api_models.dart';
 
-/// Read-only detail for one row from `GET /api/Patient/visits/{patientId}` (`PatientVisitResponseModel`).
-///
-/// Layout mirrors [VisitTabPage] assessment: section labels, card blocks, and the same
-/// three-column vitals row (Systolic / Diastolic / Pulse) with BP pair coloring.
 class VisitDetailScreen extends StatelessWidget {
   const VisitDetailScreen({
     super.key,

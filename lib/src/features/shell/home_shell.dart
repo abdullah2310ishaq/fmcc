@@ -55,6 +55,15 @@ class _HomeShellState extends State<HomeShell> {
     });
   }
 
+  /// Bottom-nav tabs are not routes — system back should return here and clear
+  /// any visit seed opened from Home so the Visit tab list stays consistent.
+  void _goHomeTab() {
+    setState(() {
+      _tabIndex = HomeShellTab.home.index;
+      _visitPatient = null;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final session = context.watch<SessionController>();
@@ -65,12 +74,16 @@ class _HomeShellState extends State<HomeShell> {
             setState(() => _tabIndex = HomeShellTab.patients.index),
         onStartVisit: _openVisitAssessment,
       ),
-      PatientsTabPage(onStartVisit: _openVisitAssessment),
+      PatientsTabPage(
+        onStartVisit: _openVisitAssessment,
+        onLeaveToHomeTab: _goHomeTab,
+      ),
       VisitTabPage(
         initialPatient: _visitPatient,
         openRequestId: _visitOpenRequestId,
+        onLeaveToHomeTab: _goHomeTab,
       ),
-      const ProfileTabPage(),
+      ProfileTabPage(onLeaveToHomeTab: _goHomeTab),
     ];
 
     return ChangeNotifierProvider<HomeDashboardController>(

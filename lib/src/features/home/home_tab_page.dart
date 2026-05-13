@@ -153,6 +153,8 @@ class HomeTabPage extends StatelessWidget {
     return showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
+      isDismissible: true,
+      enableDrag: true,
       backgroundColor: Colors.transparent,
       builder: (ctx) {
         return DraggableScrollableSheet(
@@ -434,6 +436,7 @@ class HomeTabPage extends StatelessWidget {
                       isLadyHealthWorker: isLhw,
                       loading: dash.loading,
                       stats: dash.stats,
+                      followUpsCount: dash.followUps.length,
                       onOpenDirectory: () => _showPatientDirectorySheet(
                         context,
                         onViewAllPatients: onViewAllPatients,
@@ -571,6 +574,7 @@ class _StatsGrid extends StatelessWidget {
     required this.isLadyHealthWorker,
     required this.loading,
     required this.stats,
+    required this.followUpsCount,
     required this.onOpenDirectory,
     required this.onOpenPatientsTab,
   });
@@ -578,6 +582,8 @@ class _StatsGrid extends StatelessWidget {
   final bool isLadyHealthWorker;
   final bool loading;
   final HwDashboardStats? stats;
+  /// Length of [HomeDashboardController.followUps] — same queue as the list below.
+  final int followUpsCount;
   final VoidCallback onOpenDirectory;
   final VoidCallback onOpenPatientsTab;
 
@@ -703,7 +709,11 @@ class _StatsGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final pending = stats?.pendingFollowUps;
+    // `stats.pendingFollowUps` can differ from the follow-ups API list length.
+    // After load, use the list count so the stat card matches "N listed" and the cards.
+    final int? pending = isLadyHealthWorker
+        ? (!loading ? followUpsCount : stats?.pendingFollowUps)
+        : null;
     final total = stats?.totalPatients;
     final visits = stats?.visitsThisMonth;
     final target = stats?.monthlyTarget;

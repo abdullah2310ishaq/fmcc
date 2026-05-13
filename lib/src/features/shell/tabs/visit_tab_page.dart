@@ -26,10 +26,13 @@ class VisitTabPage extends StatefulWidget {
     super.key,
     this.initialPatient,
     this.openRequestId = 0,
+    this.onLeaveToHomeTab,
   });
 
   final VisitPatientSeed? initialPatient;
   final int openRequestId;
+  /// System back from visit list (not assessment) → Home tab.
+  final VoidCallback? onLeaveToHomeTab;
 
   @override
   State<VisitTabPage> createState() => _VisitTabPageState();
@@ -86,171 +89,188 @@ class _VisitTabPageState extends State<VisitTabPage> {
   Widget build(BuildContext context) {
     final patient = _selectedPatient;
 
+    late final Widget page;
     if (patient != null) {
-      return _VisitAssessmentView(
+      page = _VisitAssessmentView(
         patient: patient,
         onBack: () => setState(() => _selectedPatient = null),
       );
-    }
+    } else {
+      final session = context.watch<SessionController>();
+      final dash = context.watch<HomeDashboardController>();
 
-    final session = context.watch<SessionController>();
-    final dash = context.watch<HomeDashboardController>();
-
-    if (session.state.role != UserRole.ladyHealthWorker) {
-      return SafeArea(
-        bottom: false,
-        child: Center(
-          child: Padding(
-            padding: EdgeInsets.all(24.w),
-            child: Text(
-              'Visit workflow is available for Lady Health Worker accounts.',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 14.sp,
-                fontWeight: FontWeight.w600,
-                color: AppColors.textSecondary,
+      if (session.state.role != UserRole.ladyHealthWorker) {
+        page = SafeArea(
+          bottom: false,
+          child: Center(
+            child: Padding(
+              padding: EdgeInsets.all(24.w),
+              child: Text(
+                'Visit workflow is available for Lady Health Worker accounts.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 14.sp,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.textSecondary,
+                ),
               ),
             ),
           ),
-        ),
-      );
-    }
+        );
+      } else {
+        final followUps = dash.followUps;
+        final patients = dash.patients;
+        final useFollowUps = _listKind == _VisitPatientListKind.followUps;
+        final listEmpty = useFollowUps ? followUps.isEmpty : patients.isEmpty;
+        final listLoading = dash.loading && listEmpty;
 
-    final followUps = dash.followUps;
-    final patients = dash.patients;
-    final useFollowUps = _listKind == _VisitPatientListKind.followUps;
-    final listEmpty = useFollowUps ? followUps.isEmpty : patients.isEmpty;
-    final listLoading = dash.loading && listEmpty;
-
-    return SafeArea(
-      bottom: false,
-      child: ColoredBox(
-        color: AppColors.registrationScreenBg,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Padding(
-              padding: EdgeInsets.fromLTRB(18.w, 10.h, 18.w, 8.h),
-              child: Text(
-                'Select Patient for Visit',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 17.sp,
-                  fontWeight: FontWeight.w900,
-                  color: AppColors.textPrimary,
-                ),
-              ),
-            ),
-            Padding(
-              padding: EdgeInsets.fromLTRB(16.w, 0, 16.w, 10.h),
-              child: SegmentedButton<_VisitPatientListKind>(
-                segments: [
-                  ButtonSegment(
-                    value: _VisitPatientListKind.followUps,
-                    label: Text(
-                      'Follow-ups',
-                      style: TextStyle(
-                        fontSize: 12.sp,
-                        fontWeight: FontWeight.w800,
-                      ),
+        page = SafeArea(
+          bottom: false,
+          child: ColoredBox(
+            color: AppColors.registrationScreenBg,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Padding(
+                  padding: EdgeInsets.fromLTRB(18.w, 10.h, 18.w, 8.h),
+                  child: Text(
+                    'Select Patient for Visit',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 17.sp,
+                      fontWeight: FontWeight.w900,
+                      color: AppColors.textPrimary,
                     ),
-                    icon: Icon(Icons.event_repeat_rounded, size: 18.sp),
-                  ),
-                  ButtonSegment(
-                    value: _VisitPatientListKind.directory,
-                    label: Text(
-                      'All patients',
-                      style: TextStyle(
-                        fontSize: 12.sp,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                    icon: Icon(Icons.people_outline_rounded, size: 18.sp),
-                  ),
-                ],
-                selected: {_listKind},
-                onSelectionChanged: (next) {
-                  setState(() => _listKind = next.single);
-                },
-              ),
-            ),
-            if (dash.error != null)
-              Padding(
-                padding: EdgeInsets.symmetric(horizontal: 16.w),
-                child: Text(
-                  dash.error!,
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 12.sp,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.dashboardWarning,
                   ),
                 ),
-              ),
-            Expanded(
-              child: listLoading
-                  ? Center(
-                      child: CircularProgressIndicator(
-                        color: AppColors.dashboardPrimary,
+                Padding(
+                  padding: EdgeInsets.fromLTRB(16.w, 0, 16.w, 10.h),
+                  child: SegmentedButton<_VisitPatientListKind>(
+                    segments: [
+                      ButtonSegment(
+                        value: _VisitPatientListKind.followUps,
+                        label: Text(
+                          'Follow-ups',
+                          style: TextStyle(
+                            fontSize: 12.sp,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        icon: Icon(Icons.event_repeat_rounded, size: 18.sp),
                       ),
-                    )
-                  : listEmpty
+                      ButtonSegment(
+                        value: _VisitPatientListKind.directory,
+                        label: Text(
+                          'All patients',
+                          style: TextStyle(
+                            fontSize: 12.sp,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        icon: Icon(Icons.people_outline_rounded, size: 18.sp),
+                      ),
+                    ],
+                    selected: {_listKind},
+                    onSelectionChanged: (next) {
+                      setState(() => _listKind = next.single);
+                    },
+                  ),
+                ),
+                if (dash.error != null)
+                  Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 16.w),
+                    child: Text(
+                      dash.error!,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 12.sp,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.dashboardWarning,
+                      ),
+                    ),
+                  ),
+                Expanded(
+                  child: listLoading
                       ? Center(
-                          child: Padding(
-                            padding: EdgeInsets.all(24.w),
-                            child: Text(
-                              useFollowUps
-                                  ? 'No pending follow-ups right now. Switch to All patients to log a visit for anyone in your directory.'
-                                  : 'No patients in your directory yet. Open Home or Patients — data loads automatically.',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                fontSize: 14.sp,
-                                fontWeight: FontWeight.w600,
-                                color: AppColors.textSecondary,
-                              ),
-                            ),
+                          child: CircularProgressIndicator(
+                            color: AppColors.dashboardPrimary,
                           ),
                         )
-                      : ListView.separated(
-                          padding: EdgeInsets.fromLTRB(16.w, 4.h, 16.w, 96.h),
-                          itemCount:
-                              useFollowUps ? followUps.length : patients.length,
-                          separatorBuilder: (_, __) => SizedBox(height: 10.h),
-                          itemBuilder: (context, index) {
-                            final VisitPatientSeed seed;
-                            if (useFollowUps) {
-                              final f = followUps[index];
-                              seed = VisitPatientSeed(
-                                name: f.fullName,
-                                id: f.displayId,
-                                apiPatientId: f.patientId,
-                                age: f.age,
-                                gender: f.gender,
-                                lastVisit: _shortVisit(f.lastVisitDate),
-                                openedFromFollowUpList: true,
-                              );
-                            } else {
-                              final p = patients[index];
-                              seed = VisitPatientSeed(
-                                name: p.fullName,
-                                id: p.displayId,
-                                apiPatientId: p.patientId,
-                                age: p.age,
-                                gender: p.gender,
-                                lastVisit: _shortVisit(p.lastVisitDate),
-                              );
-                            }
-                            return _VisitPatientCard(
-                              patient: seed,
-                              onTap: () =>
-                                  setState(() => _selectedPatient = seed),
-                            );
-                          },
-                        ),
+                      : listEmpty
+                          ? Center(
+                              child: Padding(
+                                padding: EdgeInsets.all(24.w),
+                                child: Text(
+                                  useFollowUps
+                                      ? 'No pending follow-ups right now. Switch to All patients to log a visit for anyone in your directory.'
+                                      : 'No patients in your directory yet. Open Home or Patients — data loads automatically.',
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    fontSize: 14.sp,
+                                    fontWeight: FontWeight.w600,
+                                    color: AppColors.textSecondary,
+                                  ),
+                                ),
+                              ),
+                            )
+                          : ListView.separated(
+                              padding: EdgeInsets.fromLTRB(16.w, 4.h, 16.w, 96.h),
+                              itemCount: useFollowUps
+                                  ? followUps.length
+                                  : patients.length,
+                              separatorBuilder: (_, __) =>
+                                  SizedBox(height: 10.h),
+                              itemBuilder: (context, index) {
+                                final VisitPatientSeed seed;
+                                if (useFollowUps) {
+                                  final f = followUps[index];
+                                  seed = VisitPatientSeed(
+                                    name: f.fullName,
+                                    id: f.displayId,
+                                    apiPatientId: f.patientId,
+                                    age: f.age,
+                                    gender: f.gender,
+                                    lastVisit: _shortVisit(f.lastVisitDate),
+                                    openedFromFollowUpList: true,
+                                  );
+                                } else {
+                                  final p = patients[index];
+                                  seed = VisitPatientSeed(
+                                    name: p.fullName,
+                                    id: p.displayId,
+                                    apiPatientId: p.patientId,
+                                    age: p.age,
+                                    gender: p.gender,
+                                    lastVisit: _shortVisit(p.lastVisitDate),
+                                  );
+                                }
+                                return _VisitPatientCard(
+                                  patient: seed,
+                                  onTap: () => setState(
+                                    () => _selectedPatient = seed,
+                                  ),
+                                );
+                              },
+                            ),
+                ),
+              ],
             ),
-          ],
-        ),
-      ),
+          ),
+        );
+      }
+    }
+
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        if (_selectedPatient != null) {
+          setState(() => _selectedPatient = null);
+        } else {
+          widget.onLeaveToHomeTab?.call();
+        }
+      },
+      child: page,
     );
   }
 
@@ -657,7 +677,7 @@ class _VisitAssessmentViewState extends State<_VisitAssessmentView> {
         if (medId != null && medId > 0) {
           final label = _labelForId(_medicalConditions, medId);
           if (!_isNoneName(label)) {
-            await api.putMedicalHistory(
+            await api.postMedicalHistory(
               bearerToken: token,
               body: {
                 'patientId': pid,
@@ -674,7 +694,7 @@ class _VisitAssessmentViewState extends State<_VisitAssessmentView> {
         if (surgId != null && surgId > 0) {
           final label = _labelForId(_surgicalProcedures, surgId);
           if (!_isNoneName(label)) {
-            await api.putSurgicalHistory(
+            await api.postSurgicalHistory(
               bearerToken: token,
               body: {
                 'patientId': pid,
@@ -688,7 +708,7 @@ class _VisitAssessmentViewState extends State<_VisitAssessmentView> {
       await tryHistory(() async {
         for (final catId in _medicineCategoryIds) {
           if (catId <= 0) continue;
-          await api.putDrugHistory(
+          await api.postDrugHistory(
             bearerToken: token,
             body: {
               'patientId': pid,
