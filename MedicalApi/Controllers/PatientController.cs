@@ -93,16 +93,16 @@ namespace MedicalApi.Controllers
         //        throw new NotFoundException("Patient not found");
         //}
 
-        //[HttpPost("medicalhistory")]
-        //public async Task<IActionResult> CreateMedicalHistory([FromBody] PatientMedicalHistoryModel model)
-        //{
-        //    if (model is null)
-        //        throw new ValidationException("Object can't be null");
-        //    var result = await _patientService.CreateMedicalHistoryAsync(model);
-        //    if (result > 0)
-        //        return Ok(new { Message = "Medical history created successfully.", Data = result });
-        //    throw new ValidationException("Failed to create medical history.");
-        //}
+        [HttpPost("medicalhistory")]
+        public async Task<IActionResult> CreateMedicalHistory([FromBody] PatientMedicalHistoryModel model)
+        {
+            if (model is null)
+                throw new ValidationException("Object can't be null");
+            var result = await _patientService.CreateMedicalHistoryAsync(model);
+            if (result > 0)
+                return Ok(new { Message = "Medical history created successfully.", Data = result });
+            throw new ValidationException("Failed to create medical history.");
+        }
 
         [HttpPut("medicalhistory")]
         public async Task<IActionResult> UpdateMedicalHistory([FromBody] PatientMedicalHistoryModel model)
@@ -127,14 +127,14 @@ namespace MedicalApi.Controllers
         //    return Ok(new { Message = "Surgical history fetched successfully.", Data = result });
         //}
 
-        //[HttpPost("surgicalhistory")]
-        //public async Task<IActionResult> CreateSurgicalHistory([FromBody] PatientSurgicalHistoryModel model)
-        //{
-        //    var result = await _patientService.CreateSurgicalHistoryAsync(model);
-        //    if (result > 0)
-        //        return Ok(new { Message = "Surgical history created successfully.", Data = result });
-        //    throw new ValidationException("Failed to create surgical history.");
-        //}
+        [HttpPost("surgicalhistory")]
+        public async Task<IActionResult> CreateSurgicalHistory([FromBody] PatientSurgicalHistoryModel model)
+        {
+            var result = await _patientService.CreateSurgicalHistoryAsync(model);
+            if (result > 0)
+                return Ok(new { Message = "Surgical history created successfully.", Data = result });
+            throw new ValidationException("Failed to create surgical history.");
+        }
 
         [HttpPut("surgicalhistory")]
         public async Task<IActionResult> UpdateSurgicalHistory([FromBody] PatientSurgicalHistoryModel model)
@@ -159,14 +159,14 @@ namespace MedicalApi.Controllers
         //    return Ok(new { Message = "Drug history fetched successfully.", Data = result });
         //}
 
-        //[HttpPost("drughistory")]
-        //public async Task<IActionResult> CreateDrugHistory([FromBody] PatientDrugHistoryModel model)
-        //{
-        //    var result = await _patientService.CreateDrugHistoryAsync(model);
-        //    if (result > 0)
-        //        return Ok(new { Message = "Drug history created successfully.", Data = result });
-        //    throw new ValidationException("Failed to create drug history.");
-        //}
+        [HttpPost("drughistory")]
+        public async Task<IActionResult> CreateDrugHistory([FromBody] PatientDrugHistoryModel model)
+        {
+            var result = await _patientService.CreateDrugHistoryAsync(model);
+            if (result > 0)
+                return Ok(new { Message = "Drug history created successfully.", Data = result });
+            throw new ValidationException("Failed to create drug history.");
+        }
 
         [HttpPut("drughistory")]
         public async Task<IActionResult> UpdateDrugHistory([FromBody] PatientDrugHistoryModel model)
@@ -195,16 +195,16 @@ namespace MedicalApi.Controllers
         //    return Ok(new { Message = "Baseline lifestyle fetched successfully.", Data = result });
         //}
 
-        //[HttpPost("baselinelifestyle")]
-        //public async Task<IActionResult> CreateBaselineLifestyle([FromBody] PatientBaselineLifestyleModel model)
-        //{
-        //    var result = await _patientService.CreateBaselineLifestyleAsync(model);
-        //    if (result)
-        //    {
-        //        return Ok(new { Message = "Baseline lifestyle created successfully." });
-        //    }
-        //    throw new ValidationException("Failed to create baseline lifestyle.");
-        //}
+        [HttpPost("baselinelifestyle")]
+        public async Task<IActionResult> CreateBaselineLifestyle([FromBody] PatientBaselineLifestyleModel model)
+        {
+            var result = await _patientService.CreateBaselineLifestyleAsync(model);
+            if (result)
+            {
+                return Ok(new { Message = "Baseline lifestyle created successfully." });
+            }
+            throw new ValidationException("Failed to create baseline lifestyle.");
+        }
 
         [HttpPut("baselinelifestyle")]
         public async Task<IActionResult> UpdateBaselineLifestyle([FromBody] PatientBaselineLifestyleModel model)

@@ -63,7 +63,9 @@ class PatientProfileData {
   }
 }
 
-/// `GET /api/Patient/complete-history/{patientId}` aggregate (camelCase JSON).
+/// `GET /api/Patient/complete-history/{patientId}` — matches
+/// `PatientCompleteHistoryResponseModel` (JSON: `baselineLifestyle`, `medicalHistory`,
+/// `surgicalHistory`, `drugHistory`; PascalCase aliases supported).
 class PatientCompleteHistoryData {
   const PatientCompleteHistoryData({
     this.baseline,
@@ -79,7 +81,11 @@ class PatientCompleteHistoryData {
 
   static PatientCompleteHistoryData? tryFromJson(dynamic json) {
     if (json is! Map) return null;
-    final m = Map<String, dynamic>.from(json);
+    var m = Map<String, dynamic>.from(json);
+    final envelope = m['data'] ?? m['Data'];
+    if (envelope is Map) {
+      m = Map<String, dynamic>.from(envelope);
+    }
 
     PatientBaselineLifestyle? baseline;
     final blRaw = m['baselineLifestyle'] ?? m['BaselineLifestyle'];
@@ -167,6 +173,8 @@ class PatientMedicalHistoryRow {
   final String complianceLevelName;
 
   PatientMedicalHistoryRow copyWith({
+    int? conditionId,
+    String? conditionName,
     bool? isOnMedication,
     int? durationInMonths,
     int? complianceLevelId,
@@ -176,8 +184,8 @@ class PatientMedicalHistoryRow {
     return PatientMedicalHistoryRow(
       id: id,
       patientId: patientId,
-      conditionId: conditionId,
-      conditionName: conditionName,
+      conditionId: conditionId ?? this.conditionId,
+      conditionName: conditionName ?? this.conditionName,
       durationInMonths: durationInMonths ?? this.durationInMonths,
       isOnMedication: isOnMedication ?? this.isOnMedication,
       complianceLevelId: clearComplianceLevel
@@ -201,8 +209,7 @@ class PatientMedicalHistoryRow {
       conditionName: _readString(m, 'conditionName', 'ConditionName') ?? '',
       durationInMonths: _readInt(m, 'durationInMonths', 'DurationInMonths'),
       isOnMedication: _readBool(m, 'isOnMedication', 'IsOnMedication') ?? false,
-      complianceLevelId:
-          _readInt(m, 'complianceLevelId', 'ComplianceLevelId'),
+      complianceLevelId: _readInt(m, 'complianceLevelId', 'ComplianceLevelId'),
       complianceLevelName:
           _readString(m, 'complianceLevelName', 'ComplianceLevelName') ?? '',
     );
@@ -229,6 +236,8 @@ class PatientSurgicalHistoryRow {
   final String notes;
 
   PatientSurgicalHistoryRow copyWith({
+    int? procedureId,
+    String? procedureName,
     int? approxMonth,
     int? approxYear,
     String? notes,
@@ -236,8 +245,8 @@ class PatientSurgicalHistoryRow {
     return PatientSurgicalHistoryRow(
       id: id,
       patientId: patientId,
-      procedureId: procedureId,
-      procedureName: procedureName,
+      procedureId: procedureId ?? this.procedureId,
+      procedureName: procedureName ?? this.procedureName,
       approxMonth: approxMonth ?? this.approxMonth,
       approxYear: approxYear ?? this.approxYear,
       notes: notes ?? this.notes,
@@ -281,6 +290,8 @@ class PatientDrugHistoryRow {
   final String sideEffects;
 
   PatientDrugHistoryRow copyWith({
+    int? medicineCategoryId,
+    String? categoryName,
     int? adherenceLevelId,
     String? adherenceLevelName,
     String? sideEffects,
@@ -289,8 +300,8 @@ class PatientDrugHistoryRow {
     return PatientDrugHistoryRow(
       id: id,
       patientId: patientId,
-      medicineCategoryId: medicineCategoryId,
-      categoryName: categoryName,
+      medicineCategoryId: medicineCategoryId ?? this.medicineCategoryId,
+      categoryName: categoryName ?? this.categoryName,
       adherenceLevelId: clearAdherenceLevel
           ? null
           : (adherenceLevelId ?? this.adherenceLevelId),
@@ -315,8 +326,7 @@ class PatientDrugHistoryRow {
       medicineCategoryId:
           _readInt(m, 'medicineCategoryId', 'MedicineCategoryId') ?? 0,
       categoryName: catName ?? '',
-      adherenceLevelId:
-          _readInt(m, 'adherenceLevelId', 'AdherenceLevelId'),
+      adherenceLevelId: _readInt(m, 'adherenceLevelId', 'AdherenceLevelId'),
       adherenceLevelName:
           _readString(m, 'adherenceLevelName', 'AdherenceLevelName') ?? '',
       sideEffects: _readString(m, 'sideEffects', 'SideEffects') ?? '',
@@ -340,10 +350,11 @@ class PatientBaselineLifestyle {
     final m = Map<String, dynamic>.from(json);
     return PatientBaselineLifestyle(
       patientId: _readString(m, 'patientId', 'PatientId') ?? '',
-      familyHistoryOfHtnOrStroke:
-          _readBool(m, 'familyHistoryOfHTNOrStroke', 'FamilyHistoryOfHTNOrStroke') ??
-              _readBool(m, 'familyHistoryOfHtnOrStroke', 'FamilyHistoryOfHtnOrStroke') ??
-              false,
+      familyHistoryOfHtnOrStroke: _readBool(
+              m, 'familyHistoryOfHTNOrStroke', 'FamilyHistoryOfHTNOrStroke') ??
+          _readBool(
+              m, 'familyHistoryOfHtnOrStroke', 'FamilyHistoryOfHtnOrStroke') ??
+          false,
       tobaccoUse: _readBool(m, 'tobaccoUse', 'TobaccoUse') ?? false,
     );
   }
@@ -392,8 +403,7 @@ class PatientVisitRow {
       visitTypeName: _readString(m, 'visitTypeName', 'VisitTypeName') ?? '',
       isFollowUpVisit:
           _readBool(m, 'isFollowUpVisit', 'IsFollowUpVisit') ?? false,
-      reasonForVisit:
-          _readString(m, 'reasonForVisit', 'ReasonForVisit') ?? '',
+      reasonForVisit: _readString(m, 'reasonForVisit', 'ReasonForVisit') ?? '',
       avgSystolicBp: _readInt(m, 'avgSystolicBP', 'AvgSystolicBP') ??
           _readInt(m, 'avgSystolicBp', 'AvgSystolicBp') ??
           _readInt(m, 'systolicBP1', 'SystolicBP1') ??

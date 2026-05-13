@@ -15,11 +15,11 @@ import 'package:doctor_app/src/core/theme/app_colors.dart';
 import 'package:doctor_app/src/features/home/home_dashboard_controller.dart';
 import 'package:doctor_app/src/features/patients/patient_api.dart';
 
-/// Shell index **2** — visit workflow: **`POST /api/Patient/visit`** only for submit.
+/// Shell index **2** — visit workflow: visit submit uses **`POST /api/Patient/visit`**.
 ///
-/// Optional medical / surgical / drug **POST** hooks after visit are **disabled** until
-/// `PatientController` exposes `POST …/medicalhistory` (and siblings) again — see
-/// `Endpoints` library doc for routes that exist today.
+/// Medical / surgical / drug history **create**/**update** live on separate
+/// `POST`/`PUT …/medicalhistory` (and siblings) and are handled from the patient
+/// detail **Medical History** tab after `GET …/complete-history/{id}` — not here.
 class VisitTabPage extends StatefulWidget {
   const VisitTabPage({
     super.key,
@@ -394,8 +394,10 @@ class _VisitAssessmentView extends StatefulWidget {
 
 class _VisitAssessmentViewState extends State<_VisitAssessmentView> {
   final _formKey = GlobalKey<FormState>();
-  final _systolicController = TextEditingController(text: '120');
-  final _diastolicController = TextEditingController(text: '80');
+  final _systolic1Controller = TextEditingController(text: '120');
+  final _diastolic1Controller = TextEditingController(text: '80');
+  final _systolic2Controller = TextEditingController(text: '120');
+  final _diastolic2Controller = TextEditingController(text: '80');
   final _pulseController = TextEditingController(text: '78');
   final _reasonController = TextEditingController();
   final _weightConcernsController = TextEditingController();
@@ -437,12 +439,38 @@ class _VisitAssessmentViewState extends State<_VisitAssessmentView> {
     if (mounted) setState(() {});
   }
 
+  static int _roundedMean(int a, int b) => ((a + b) / 2).round();
+
+  /// Both readings complete → average SBP/DBP for API + coloring.
+  ({int sbp, int dbp})? _averagedBpPair() {
+    final s1 = _parseIntCtl(_systolic1Controller);
+    final d1 = _parseIntCtl(_diastolic1Controller);
+    final s2 = _parseIntCtl(_systolic2Controller);
+    final d2 = _parseIntCtl(_diastolic2Controller);
+    if (s1 == null || d1 == null || s2 == null || d2 == null) return null;
+    return (sbp: _roundedMean(s1, s2), dbp: _roundedMean(d1, d2));
+  }
+
+  Color _bpTintForReading(int? sys, int? dia) {
+    if (sys == null || dia == null) return AppColors.textPrimary;
+    return BpReadingColor.forPair(sys, dia);
+  }
+
+  String _bpCategoryLabel(int sbp, int dbp) {
+    if (sbp >= 180 && dbp >= 120) return 'Severe HTN (urgent)';
+    if (sbp >= 140 && dbp >= 90) return 'Uncontrolled HTN';
+    if (sbp < 140 && dbp < 90) return 'Controlled';
+    return 'Mixed / borderline';
+  }
+
   @override
   void initState() {
     super.initState();
     _isFollowUpVisit = widget.patient.openedFromFollowUpList;
-    _systolicController.addListener(_onBpControllersChanged);
-    _diastolicController.addListener(_onBpControllersChanged);
+    _systolic1Controller.addListener(_onBpControllersChanged);
+    _diastolic1Controller.addListener(_onBpControllersChanged);
+    _systolic2Controller.addListener(_onBpControllersChanged);
+    _diastolic2Controller.addListener(_onBpControllersChanged);
     _pulseController.addListener(_onBpControllersChanged);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       unawaited(_loadReferencePayload());
@@ -459,11 +487,15 @@ class _VisitAssessmentViewState extends State<_VisitAssessmentView> {
 
   @override
   void dispose() {
-    _systolicController.removeListener(_onBpControllersChanged);
-    _diastolicController.removeListener(_onBpControllersChanged);
+    _systolic1Controller.removeListener(_onBpControllersChanged);
+    _diastolic1Controller.removeListener(_onBpControllersChanged);
+    _systolic2Controller.removeListener(_onBpControllersChanged);
+    _diastolic2Controller.removeListener(_onBpControllersChanged);
     _pulseController.removeListener(_onBpControllersChanged);
-    _systolicController.dispose();
-    _diastolicController.dispose();
+    _systolic1Controller.dispose();
+    _diastolic1Controller.dispose();
+    _systolic2Controller.dispose();
+    _diastolic2Controller.dispose();
     _pulseController.dispose();
     _reasonController.dispose();
     _weightConcernsController.dispose();
@@ -564,13 +596,6 @@ class _VisitAssessmentViewState extends State<_VisitAssessmentView> {
     return v;
   }
 
-  Color _bpPairInputColor() {
-    final sys = _parseIntCtl(_systolicController);
-    final dia = _parseIntCtl(_diastolicController);
-    if (sys == null || dia == null) return AppColors.textPrimary;
-    return BpReadingColor.forPair(sys, dia);
-  }
-
   Color _pulseInputColor() {
     final p = _parseIntCtl(_pulseController);
     if (p == null) return AppColors.textPrimary;
@@ -581,8 +606,10 @@ class _VisitAssessmentViewState extends State<_VisitAssessmentView> {
     required String patientId,
     required String healthWorkerId,
   }) {
-    final sys = _parseIntCtl(_systolicController);
-    final dia = _parseIntCtl(_diastolicController);
+    final s1 = _parseIntCtl(_systolic1Controller);
+    final d1 = _parseIntCtl(_diastolic1Controller);
+    final s2 = _parseIntCtl(_systolic2Controller);
+    final d2 = _parseIntCtl(_diastolic2Controller);
     final pulse = _parseIntCtl(_pulseController);
 
     final map = <String, dynamic>{
@@ -598,13 +625,14 @@ class _VisitAssessmentViewState extends State<_VisitAssessmentView> {
     final reason = _reasonController.text.trim();
     if (reason.isNotEmpty) map['reasonForVisit'] = reason;
 
-    if (sys != null) {
-      map['systolicBP1'] = sys;
-      map['avgSystolicBP'] = sys;
-    }
-    if (dia != null) {
-      map['diastolicBP1'] = dia;
-      map['avgDiastolicBP'] = dia;
+    if (s1 != null) map['systolicBP1'] = s1;
+    if (d1 != null) map['diastolicBP1'] = d1;
+    if (s2 != null) map['systolicBP2'] = s2;
+    if (d2 != null) map['diastolicBP2'] = d2;
+    final avg = _averagedBpPair();
+    if (avg != null) {
+      map['avgSystolicBP'] = avg.sbp;
+      map['avgDiastolicBP'] = avg.dbp;
     }
     if (pulse != null) map['pulse'] = pulse;
 
@@ -646,16 +674,23 @@ class _VisitAssessmentViewState extends State<_VisitAssessmentView> {
       return;
     }
 
-    final sys = _parseIntCtl(_systolicController);
-    final dia = _parseIntCtl(_diastolicController);
-    if (sys != null && (sys < 50 || sys > 300)) {
-      _toast('Systolic BP must be between 50 and 300.');
-      return;
+    int? bp(String label, TextEditingController c) {
+      final v = _parseIntCtl(c);
+      if (v == null) {
+        _toast('$label is required.');
+        return null;
+      }
+      if (v < 50 || v > 300) {
+        _toast('$label must be between 50 and 300.');
+        return null;
+      }
+      return v;
     }
-    if (dia != null && (dia < 50 || dia > 300)) {
-      _toast('Diastolic BP must be between 50 and 300.');
-      return;
-    }
+
+    if (bp('Reading 1 systolic', _systolic1Controller) == null) return;
+    if (bp('Reading 1 diastolic', _diastolic1Controller) == null) return;
+    if (bp('Reading 2 systolic', _systolic2Controller) == null) return;
+    if (bp('Reading 2 diastolic', _diastolic2Controller) == null) return;
     final pulse = _parseIntCtl(_pulseController);
     if (pulse != null && (pulse < 20 || pulse > 300)) {
       _toast('Pulse must be between 20 and 300.');
@@ -673,10 +708,6 @@ class _VisitAssessmentViewState extends State<_VisitAssessmentView> {
       final api = _patientApi!;
       final body = _buildVisitBody(patientId: pid, healthWorkerId: hwId);
       await api.createVisit(body: body, bearerToken: token);
-
-      // Optional history POSTs after visit are disabled: `PatientController` currently
-      // has only PUT for medical/surgical/drug (create POST actions commented in API).
-      // Re-enable when POST /api/Patient/medicalhistory|surgicalhistory|drughistory exists.
 
       if (!mounted) return;
       _toast('Visit saved for ${widget.patient.name}.');
@@ -900,6 +931,200 @@ class _VisitAssessmentViewState extends State<_VisitAssessmentView> {
     );
   }
 
+  Widget _visitVitalsRecordCard() {
+    final s1 = _parseIntCtl(_systolic1Controller);
+    final d1 = _parseIntCtl(_diastolic1Controller);
+    final s2 = _parseIntCtl(_systolic2Controller);
+    final d2 = _parseIntCtl(_diastolic2Controller);
+    final avg = _averagedBpPair();
+    final avgColor = avg != null
+        ? BpReadingColor.forPair(avg.sbp, avg.dbp)
+        : AppColors.textSecondary;
+
+    TextStyle readingLabelStyle() => TextStyle(
+          fontSize: 11.sp,
+          fontWeight: FontWeight.w800,
+          color: AppColors.registrationSectionLabel,
+          letterSpacing: 0.3,
+        );
+
+    return Container(
+      padding: EdgeInsets.all(14.r),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(14.r),
+        border: Border.all(color: AppColors.border),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.dashboardPrimaryDark.withValues(alpha: 0.06),
+            blurRadius: 12,
+            offset: Offset(0, 4.h),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Icon(
+                Icons.monitor_heart_outlined,
+                color: AppColors.dashboardPrimary,
+                size: 22.sp,
+              ),
+              SizedBox(width: 8.w),
+              Expanded(
+                child: Text(
+                  'Visit vitals (visit record)',
+                  style: TextStyle(
+                    fontSize: 14.sp,
+                    fontWeight: FontWeight.w900,
+                    color: AppColors.dashboardPrimaryDark,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: 6.h),
+          Text(
+            'دو ریڈنگز کا اوسط • Controlled: SBP < 140 & DBP < 90 (green) · '
+            'Uncontrolled: SBP ≥ 140 & DBP ≥ 90 (orange) · '
+            'Severe: SBP ≥ 180 & DBP ≥ 120 (red)',
+            style: TextStyle(
+              fontSize: 10.sp,
+              fontWeight: FontWeight.w600,
+              color: AppColors.textSecondary,
+              height: 1.35,
+            ),
+          ),
+          SizedBox(height: 14.h),
+          Text('Reading 1', style: readingLabelStyle()),
+          SizedBox(height: 6.h),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: _intField(
+                  label: 'Systolic',
+                  unit: 'mmHg',
+                  controller: _systolic1Controller,
+                  valueColor: _bpTintForReading(s1, d1),
+                ),
+              ),
+              SizedBox(width: 10.w),
+              Expanded(
+                child: _intField(
+                  label: 'Diastolic',
+                  unit: 'mmHg',
+                  controller: _diastolic1Controller,
+                  valueColor: _bpTintForReading(s1, d1),
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: 14.h),
+          Text('Reading 2', style: readingLabelStyle()),
+          SizedBox(height: 6.h),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: _intField(
+                  label: 'Systolic',
+                  unit: 'mmHg',
+                  controller: _systolic2Controller,
+                  valueColor: _bpTintForReading(s2, d2),
+                ),
+              ),
+              SizedBox(width: 10.w),
+              Expanded(
+                child: _intField(
+                  label: 'Diastolic',
+                  unit: 'mmHg',
+                  controller: _diastolic2Controller,
+                  valueColor: _bpTintForReading(s2, d2),
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: 14.h),
+          if (avg != null) ...[
+            Container(
+              padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 12.h),
+              decoration: BoxDecoration(
+                color: avgColor.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(12.r),
+                border: Border.all(
+                  color: avgColor.withValues(alpha: 0.4),
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    'Average BP (mean of reading 1 & 2)',
+                    style: TextStyle(
+                      fontSize: 11.sp,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.dashboardPrimaryDark,
+                    ),
+                  ),
+                  SizedBox(height: 6.h),
+                  Text(
+                    '${avg.sbp} / ${avg.dbp} mmHg',
+                    style: TextStyle(
+                      fontSize: 22.sp,
+                      fontWeight: FontWeight.w900,
+                      color: avgColor,
+                      height: 1.1,
+                    ),
+                  ),
+                  SizedBox(height: 8.h),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Container(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: 10.w,
+                        vertical: 5.h,
+                      ),
+                      decoration: BoxDecoration(
+                        color: avgColor.withValues(alpha: 0.2),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Text(
+                        _bpCategoryLabel(avg.sbp, avg.dbp),
+                        style: TextStyle(
+                          fontSize: 12.sp,
+                          fontWeight: FontWeight.w900,
+                          color: avgColor,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ] else
+            Text(
+              'Enter all four BP values to show the average and category.',
+              style: TextStyle(
+                fontSize: 11.sp,
+                fontWeight: FontWeight.w600,
+                color: AppColors.textSecondary,
+              ),
+            ),
+          SizedBox(height: 14.h),
+          _intField(
+            label: 'Pulse',
+            unit: 'bpm',
+            controller: _pulseController,
+            valueColor: _pulseInputColor(),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _pickNextVisit() async {
     final now = DateTime.now();
     final picked = await showDatePicker(
@@ -1039,6 +1264,8 @@ class _VisitAssessmentViewState extends State<_VisitAssessmentView> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
+                      _visitVitalsRecordCard(),
+                      SizedBox(height: 20.h),
                       _sectionTitle('VISIT'),
                       if (_refsLoading)
                         Padding(
@@ -1098,39 +1325,6 @@ class _VisitAssessmentViewState extends State<_VisitAssessmentView> {
                           decoration: _fieldDecoration(),
                         ),
                       ],
-                      SizedBox(height: 18.h),
-                      _sectionTitle('VITALS (VISIT RECORD)'),
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Expanded(
-                            child: _intField(
-                              label: 'Systolic',
-                              unit: 'mmHg',
-                              controller: _systolicController,
-                              valueColor: _bpPairInputColor(),
-                            ),
-                          ),
-                          SizedBox(width: 10.w),
-                          Expanded(
-                            child: _intField(
-                              label: 'Diastolic',
-                              unit: 'mmHg',
-                              controller: _diastolicController,
-                              valueColor: _bpPairInputColor(),
-                            ),
-                          ),
-                          SizedBox(width: 10.w),
-                          Expanded(
-                            child: _intField(
-                              label: 'Pulse',
-                              unit: 'bpm',
-                              controller: _pulseController,
-                              valueColor: _pulseInputColor(),
-                            ),
-                          ),
-                        ],
-                      ),
                       SizedBox(height: 18.h),
                       _sectionTitle('SYMPTOMS'),
                       if (_symptoms.isEmpty)

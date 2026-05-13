@@ -69,6 +69,16 @@ String? _parseVisitId(dynamic root) {
 
 }
 
+/// Patient HTTP API — mirrors `MedicalApi/Controllers/PatientController.cs`.
+///
+/// **Bundled read:** [getCompleteHistory] calls
+/// `GET /api/Patient/complete-history/{patientId}` and maps one payload to
+/// baseline lifestyle plus **medical**, **surgical**, and **drug** history lists.
+///
+/// **Writes:** create and update are **different methods** on the same paths:
+/// - `POST …/medicalhistory` — body **without** row `id` (create).
+/// - `PUT …/medicalhistory` — body **with** row `id` (update).
+/// Same pattern for `surgicalhistory`, `drughistory`, and `baselinelifestyle`.
 class PatientApi {
   PatientApi(this._client);
 
@@ -122,8 +132,11 @@ class PatientApi {
     return parsed;
   }
 
-  /// `GET /api/Patient/complete-history/{patientId}`.
-  /// Returns `null` on **404** (controller: history not fully present).
+  /// `GET /api/Patient/complete-history/{patientId}` — aggregate
+  /// [PatientCompleteHistoryData] (`medicalHistory`, `surgicalHistory`, `drugHistory`,
+  /// `baselineLifestyle` per API model).
+  ///
+  /// Returns `null` on **404** (controller requires all four parts present).
   Future<PatientCompleteHistoryData?> getCompleteHistory({
     required String patientId,
     required String bearerToken,
@@ -221,7 +234,7 @@ class PatientApi {
     );
   }
 
-  /// `PUT /api/Patient/surgicalhistory` — upsert [PatientSurgicalHistoryModel].
+  /// `PUT /api/Patient/surgicalhistory` — update row (**requires** `id` in body).
   Future<void> putSurgicalHistory({
     required Map<String, dynamic> body,
     required String bearerToken,
@@ -245,7 +258,7 @@ class PatientApi {
     );
   }
 
-  /// `PUT /api/Patient/drughistory` — upsert [PatientDrugHistoryModel].
+  /// `PUT /api/Patient/drughistory` — update row (**requires** `id` in body).
   Future<void> putDrugHistory({
     required Map<String, dynamic> body,
     required String bearerToken,

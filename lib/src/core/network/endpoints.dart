@@ -6,17 +6,13 @@
 /// - `POST /api/Patient` — create patient
 /// - `PUT /api/Patient` — update patient
 /// - `GET /api/Patient/complete-history/{patientId}` — bundled history
-/// - `PUT /api/Patient/medicalhistory` — update medical row (**needs `id`**)
-/// - `PUT /api/Patient/surgicalhistory` — update surgical row (**needs `id`**)
-/// - `PUT /api/Patient/drughistory` — update drug row (**needs `id`**)
-/// - `PUT /api/Patient/baselinelifestyle` — update baseline lifestyle
+/// - `POST` / `PUT /api/Patient/medicalhistory` — create / update row (`PUT` needs `id`)
+/// - `POST` / `PUT /api/Patient/surgicalhistory` — create / update (`PUT` needs `id`)
+/// - `POST` / `PUT /api/Patient/drughistory` — create / update (`PUT` needs `id`)
+/// - `POST` / `PUT /api/Patient/baselinelifestyle` — create / update baseline
 /// - `GET /api/Patient/visits/{patientId}/` — visit list
 /// - `POST /api/Patient/visit` — create visit
 /// - `PUT /api/Patient/visit` — update visit
-///
-/// **Not** exposed on that controller right now (commented in API): POST for
-/// medical/surgical/drug/baseline single-resource creates, GET per-resource history,
-/// POST baseline create. Do not call those from the client until the backend restores them.
 class Endpoints {
   const Endpoints._();
 
