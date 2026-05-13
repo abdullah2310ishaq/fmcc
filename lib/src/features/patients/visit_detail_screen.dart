@@ -33,6 +33,9 @@ class VisitDetailScreen extends StatelessWidget {
     final bpPairColor = (sys != null && dia != null)
         ? BpReadingColor.forPair(sys, dia)
         : AppColors.textPrimary;
+    final pulseColor = visit.pulse != null
+        ? BpReadingColor.forPulse(visit.pulse!)
+        : AppColors.textPrimary;
 
     return Scaffold(
       backgroundColor: AppColors.registrationScreenBg,
@@ -118,6 +121,7 @@ class VisitDetailScreen extends StatelessWidget {
                     label: 'Pulse',
                     unit: 'bpm',
                     valueText: visit.pulse != null ? '${visit.pulse}' : '—',
+                    valueColor: pulseColor,
                   ),
                 ),
               ],

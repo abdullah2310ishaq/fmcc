@@ -15,12 +15,11 @@ import 'package:doctor_app/src/core/theme/app_colors.dart';
 import 'package:doctor_app/src/features/home/home_dashboard_controller.dart';
 import 'package:doctor_app/src/features/patients/patient_api.dart';
 
-/// Shell index **2** — visit workflow (`POST /api/Patient/visit` + optional history `PUT` on `PatientController`).
+/// Shell index **2** — visit workflow: **`POST /api/Patient/visit`** only for submit.
 ///
-/// **Visit history** (list of past visits for a patient) is `GET /api/Patient/visits/{patientId}`
-/// and matches [`PatientVisitResponseModel`](MedicalApi/Models/Patient/PatientResponses/PatientVisitResponseModel.cs).
-///
-/// Optional **medical / surgical / drug** rows use `PUT /api/Patient/medicalhistory` (and siblings), same as patient detail.
+/// Optional medical / surgical / drug **POST** hooks after visit are **disabled** until
+/// `PatientController` exposes `POST …/medicalhistory` (and siblings) again — see
+/// `Endpoints` library doc for routes that exist today.
 class VisitTabPage extends StatefulWidget {
   const VisitTabPage({
     super.key,
@@ -444,6 +443,7 @@ class _VisitAssessmentViewState extends State<_VisitAssessmentView> {
     _isFollowUpVisit = widget.patient.openedFromFollowUpList;
     _systolicController.addListener(_onBpControllersChanged);
     _diastolicController.addListener(_onBpControllersChanged);
+    _pulseController.addListener(_onBpControllersChanged);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       unawaited(_loadReferencePayload());
     });
@@ -461,6 +461,7 @@ class _VisitAssessmentViewState extends State<_VisitAssessmentView> {
   void dispose() {
     _systolicController.removeListener(_onBpControllersChanged);
     _diastolicController.removeListener(_onBpControllersChanged);
+    _pulseController.removeListener(_onBpControllersChanged);
     _systolicController.dispose();
     _diastolicController.dispose();
     _pulseController.dispose();
@@ -570,6 +571,12 @@ class _VisitAssessmentViewState extends State<_VisitAssessmentView> {
     return BpReadingColor.forPair(sys, dia);
   }
 
+  Color _pulseInputColor() {
+    final p = _parseIntCtl(_pulseController);
+    if (p == null) return AppColors.textPrimary;
+    return BpReadingColor.forPulse(p);
+  }
+
   Map<String, dynamic> _buildVisitBody({
     required String patientId,
     required String healthWorkerId,
@@ -667,74 +674,12 @@ class _VisitAssessmentViewState extends State<_VisitAssessmentView> {
       final body = _buildVisitBody(patientId: pid, healthWorkerId: hwId);
       await api.createVisit(body: body, bearerToken: token);
 
-      var historyFailures = 0;
-      String? historyFirstError;
-      Future<void> tryHistory(Future<void> Function() run) async {
-        try {
-          await run();
-        } on Object catch (e) {
-          historyFailures++;
-          historyFirstError ??= session.apiClient.mapError(e).message;
-        }
-      }
-
-      await tryHistory(() async {
-        final medId = _medicalConditionId;
-        if (medId != null && medId > 0) {
-          final label = _labelForId(_medicalConditions, medId);
-          if (!_isNoneName(label)) {
-            await api.postMedicalHistory(
-              bearerToken: token,
-              body: {
-                'patientId': pid,
-                'conditionId': medId,
-                'isOnMedication': false,
-              },
-            );
-          }
-        }
-      });
-
-      await tryHistory(() async {
-        final surgId = _surgicalProcedureId;
-        if (surgId != null && surgId > 0) {
-          final label = _labelForId(_surgicalProcedures, surgId);
-          if (!_isNoneName(label)) {
-            await api.postSurgicalHistory(
-              bearerToken: token,
-              body: {
-                'patientId': pid,
-                'procedureId': surgId,
-              },
-            );
-          }
-        }
-      });
-
-      await tryHistory(() async {
-        for (final catId in _medicineCategoryIds) {
-          if (catId <= 0) continue;
-          await api.postDrugHistory(
-            bearerToken: token,
-            body: {
-              'patientId': pid,
-              'medicineCategoryId': catId,
-            },
-          );
-        }
-      });
+      // Optional history POSTs after visit are disabled: `PatientController` currently
+      // has only PUT for medical/surgical/drug (create POST actions commented in API).
+      // Re-enable when POST /api/Patient/medicalhistory|surgicalhistory|drughistory exists.
 
       if (!mounted) return;
-      if (historyFailures > 0) {
-        final hint = historyFirstError?.trim();
-        _toast(
-          'Visit saved for ${widget.patient.name}. '
-          'Some history rows could not be saved'
-          '${hint != null && hint.isNotEmpty ? ': $hint' : '.'}',
-        );
-      } else {
-        _toast('Visit saved for ${widget.patient.name}.');
-      }
+      _toast('Visit saved for ${widget.patient.name}.');
       try {
         await context.read<HomeDashboardController>().refreshFromSession(
               session.state,
@@ -1181,6 +1126,7 @@ class _VisitAssessmentViewState extends State<_VisitAssessmentView> {
                               label: 'Pulse',
                               unit: 'bpm',
                               controller: _pulseController,
+                              valueColor: _pulseInputColor(),
                             ),
                           ),
                         ],

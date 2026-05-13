@@ -1,3 +1,22 @@
+/// HTTP paths used by the app.
+///
+/// **PatientController** (`/api/Patient/…`) — currently wired on the API (see
+/// `MedicalApi/Controllers/PatientController.cs`):
+/// - `GET /api/Patient/{patientId}` — profile
+/// - `POST /api/Patient` — create patient
+/// - `PUT /api/Patient` — update patient
+/// - `GET /api/Patient/complete-history/{patientId}` — bundled history
+/// - `PUT /api/Patient/medicalhistory` — update medical row (**needs `id`**)
+/// - `PUT /api/Patient/surgicalhistory` — update surgical row (**needs `id`**)
+/// - `PUT /api/Patient/drughistory` — update drug row (**needs `id`**)
+/// - `PUT /api/Patient/baselinelifestyle` — update baseline lifestyle
+/// - `GET /api/Patient/visits/{patientId}/` — visit list
+/// - `POST /api/Patient/visit` — create visit
+/// - `PUT /api/Patient/visit` — update visit
+///
+/// **Not** exposed on that controller right now (commented in API): POST for
+/// medical/surgical/drug/baseline single-resource creates, GET per-resource history,
+/// POST baseline create. Do not call those from the client until the backend restores them.
 class Endpoints {
   const Endpoints._();
 

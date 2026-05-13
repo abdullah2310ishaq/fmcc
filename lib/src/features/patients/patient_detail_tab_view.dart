@@ -635,9 +635,8 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
         if (row.id > 0) {
           body['id'] = row.id;
           await api.putMedicalHistory(body: body, bearerToken: token);
-        } else {
-          await api.postMedicalHistory(body: body, bearerToken: token);
         }
+        // New-row POST /api/Patient/medicalhistory not on PatientController — skipped.
       }
 
       for (final s in _surgical) {
@@ -663,9 +662,8 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
         if (s.id > 0) {
           body['id'] = s.id;
           await api.putSurgicalHistory(body: body, bearerToken: token);
-        } else {
-          await api.postSurgicalHistory(body: body, bearerToken: token);
         }
+        // POST /api/Patient/surgicalhistory not on PatientController — skipped.
       }
 
       for (final d in _drugs) {
@@ -682,9 +680,8 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
         if (d.id > 0) {
           body['id'] = d.id;
           await api.putDrugHistory(body: body, bearerToken: token);
-        } else {
-          await api.postDrugHistory(body: body, bearerToken: token);
         }
+        // POST /api/Patient/drughistory not on PatientController — skipped.
       }
 
       final baselineBody = <String, dynamic>{
@@ -697,13 +694,9 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
           body: baselineBody,
           bearerToken: token,
         );
-      } else {
-        await api.postBaselineLifestyle(
-          body: baselineBody,
-          bearerToken: token,
-        );
       }
-      if (mounted) setState(() => _baselineLoaded = true);
+      // POST /api/Patient/baselinelifestyle not on PatientController — first-time
+      // baseline create skipped until API exposes POST again.
 
       if (!mounted) return;
       _toast('Medical data saved.');
@@ -1482,16 +1475,24 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
         v.avgSystolicBp!,
         v.avgDiastolicBp!,
       );
+      spans.add(TextSpan(text: 'BP ', style: base));
       spans.add(
         TextSpan(
-          text: 'BP ${v.avgSystolicBp}/${v.avgDiastolicBp}',
+          text: '${v.avgSystolicBp}/${v.avgDiastolicBp}',
           style: base.copyWith(color: c, fontWeight: FontWeight.w800),
         ),
       );
     }
     if (v.pulse != null) {
       appendSep();
-      spans.add(TextSpan(text: 'Pulse ${v.pulse}', style: base));
+      final pc = BpReadingColor.forPulse(v.pulse!);
+      spans.add(TextSpan(text: 'Pulse ', style: base));
+      spans.add(
+        TextSpan(
+          text: '${v.pulse}',
+          style: base.copyWith(color: pc, fontWeight: FontWeight.w800),
+        ),
+      );
     }
     final reason = v.reasonForVisit.trim();
     if (reason.isNotEmpty) {

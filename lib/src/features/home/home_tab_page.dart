@@ -3,6 +3,7 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'package:doctor_app/src/core/format/name_initials.dart';
+import 'package:doctor_app/src/core/presentation/bp_reading_color.dart';
 import 'package:doctor_app/src/core/session/app_session.dart';
 import 'package:doctor_app/src/core/session/session_controller.dart';
 import 'package:doctor_app/src/core/theme/app_colors.dart';
@@ -1035,20 +1036,33 @@ class _FollowUpCardApi extends StatelessWidget {
     );
   }
 
-  String _lastVisitLine() {
+  Widget _lastVisitRichText() {
+    final secondary = TextStyle(
+      fontSize: 11.sp,
+      fontWeight: FontWeight.w500,
+      color: AppColors.textSecondary,
+      height: 1.35,
+    );
+    final bold = secondary.copyWith(fontWeight: FontWeight.w800);
     final buf = StringBuffer(
       'Last visit: ${HomeTabPage._shortDate(data.lastVisitDate)} — ',
     );
     final reason = (data.lastVisitReason ?? '').trim();
-    if (reason.isNotEmpty) {
-      buf.write(reason);
-    } else {
-      buf.write('follow-up');
-    }
+    buf.write(reason.isNotEmpty ? reason : 'follow-up');
+    final children = <InlineSpan>[
+      TextSpan(text: buf.toString(), style: secondary),
+    ];
     if (data.systolicBP1 != null && data.diastolicBP1 != null) {
-      buf.write(', BP ${data.systolicBP1}/${data.diastolicBP1}');
+      final c = BpReadingColor.forPair(data.systolicBP1!, data.diastolicBP1!);
+      children.add(TextSpan(text: ', BP ', style: secondary));
+      children.add(
+        TextSpan(
+          text: '${data.systolicBP1}/${data.diastolicBP1}',
+          style: bold.copyWith(color: c),
+        ),
+      );
     }
-    return buf.toString();
+    return Text.rich(TextSpan(children: children));
   }
 
   @override
@@ -1321,15 +1335,7 @@ class _FollowUpCardApi extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Expanded(
-                child: Text(
-                  _lastVisitLine(),
-                  style: TextStyle(
-                    fontSize: 11.sp,
-                    fontWeight: FontWeight.w500,
-                    color: AppColors.textSecondary,
-                    height: 1.35,
-                  ),
-                ),
+                child: _lastVisitRichText(),
               ),
               const UrduHelpSuffix(urduText: 'پچھلا وزٹ (سرور ڈیٹا)۔'),
             ],
