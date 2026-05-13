@@ -166,16 +166,26 @@ class PatientMedicalHistoryRow {
   final int? complianceLevelId;
   final String complianceLevelName;
 
-  PatientMedicalHistoryRow copyWith({bool? isOnMedication}) {
+  PatientMedicalHistoryRow copyWith({
+    bool? isOnMedication,
+    int? durationInMonths,
+    int? complianceLevelId,
+    String? complianceLevelName,
+    bool clearComplianceLevel = false,
+  }) {
     return PatientMedicalHistoryRow(
       id: id,
       patientId: patientId,
       conditionId: conditionId,
       conditionName: conditionName,
-      durationInMonths: durationInMonths,
+      durationInMonths: durationInMonths ?? this.durationInMonths,
       isOnMedication: isOnMedication ?? this.isOnMedication,
-      complianceLevelId: complianceLevelId,
-      complianceLevelName: complianceLevelName,
+      complianceLevelId: clearComplianceLevel
+          ? null
+          : (complianceLevelId ?? this.complianceLevelId),
+      complianceLevelName: clearComplianceLevel
+          ? ''
+          : (complianceLevelName ?? this.complianceLevelName),
     );
   }
 
@@ -218,6 +228,22 @@ class PatientSurgicalHistoryRow {
   final int? approxYear;
   final String notes;
 
+  PatientSurgicalHistoryRow copyWith({
+    int? approxMonth,
+    int? approxYear,
+    String? notes,
+  }) {
+    return PatientSurgicalHistoryRow(
+      id: id,
+      patientId: patientId,
+      procedureId: procedureId,
+      procedureName: procedureName,
+      approxMonth: approxMonth ?? this.approxMonth,
+      approxYear: approxYear ?? this.approxYear,
+      notes: notes ?? this.notes,
+    );
+  }
+
   static PatientSurgicalHistoryRow? tryFromJson(dynamic json) {
     if (json is! Map) return null;
     final m = Map<String, dynamic>.from(json);
@@ -253,6 +279,27 @@ class PatientDrugHistoryRow {
   final int? adherenceLevelId;
   final String adherenceLevelName;
   final String sideEffects;
+
+  PatientDrugHistoryRow copyWith({
+    int? adherenceLevelId,
+    String? adherenceLevelName,
+    String? sideEffects,
+    bool clearAdherenceLevel = false,
+  }) {
+    return PatientDrugHistoryRow(
+      id: id,
+      patientId: patientId,
+      medicineCategoryId: medicineCategoryId,
+      categoryName: categoryName,
+      adherenceLevelId: clearAdherenceLevel
+          ? null
+          : (adherenceLevelId ?? this.adherenceLevelId),
+      adherenceLevelName: clearAdherenceLevel
+          ? ''
+          : (adherenceLevelName ?? this.adherenceLevelName),
+      sideEffects: sideEffects ?? this.sideEffects,
+    );
+  }
 
   static PatientDrugHistoryRow? tryFromJson(dynamic json) {
     if (json is! Map) return null;

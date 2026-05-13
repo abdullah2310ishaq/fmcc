@@ -197,12 +197,24 @@ class PatientApi {
     return id;
   }
 
-  /// `PUT /api/Patient/medicalhistory` — upsert [PatientMedicalHistoryModel].
+  /// `PUT /api/Patient/medicalhistory` — update [PatientMedicalHistoryModel] (requires `id`).
   Future<void> putMedicalHistory({
     required Map<String, dynamic> body,
     required String bearerToken,
   }) async {
     await _client.put(
+      Endpoints.patientMedicalHistoryUpsert,
+      body: body,
+      bearerToken: bearerToken,
+    );
+  }
+
+  /// `POST /api/Patient/medicalhistory` — create row (`id` omitted).
+  Future<void> postMedicalHistory({
+    required Map<String, dynamic> body,
+    required String bearerToken,
+  }) async {
+    await _client.post(
       Endpoints.patientMedicalHistoryUpsert,
       body: body,
       bearerToken: bearerToken,
@@ -221,6 +233,18 @@ class PatientApi {
     );
   }
 
+  /// `POST /api/Patient/surgicalhistory` — create row.
+  Future<void> postSurgicalHistory({
+    required Map<String, dynamic> body,
+    required String bearerToken,
+  }) async {
+    await _client.post(
+      Endpoints.patientSurgicalHistoryUpsert,
+      body: body,
+      bearerToken: bearerToken,
+    );
+  }
+
   /// `PUT /api/Patient/drughistory` — upsert [PatientDrugHistoryModel].
   Future<void> putDrugHistory({
     required Map<String, dynamic> body,
@@ -233,12 +257,36 @@ class PatientApi {
     );
   }
 
+  /// `POST /api/Patient/drughistory` — create row.
+  Future<void> postDrugHistory({
+    required Map<String, dynamic> body,
+    required String bearerToken,
+  }) async {
+    await _client.post(
+      Endpoints.patientDrugHistoryUpsert,
+      body: body,
+      bearerToken: bearerToken,
+    );
+  }
+
   /// `PUT /api/Patient/baselinelifestyle` — [PatientBaselineLifestyleModel].
   Future<void> putBaselineLifestyle({
     required Map<String, dynamic> body,
     required String bearerToken,
   }) async {
     await _client.put(
+      Endpoints.patientBaselineLifestyleUpsert,
+      body: body,
+      bearerToken: bearerToken,
+    );
+  }
+
+  /// `POST /api/Patient/baselinelifestyle` — first baseline row.
+  Future<void> postBaselineLifestyle({
+    required Map<String, dynamic> body,
+    required String bearerToken,
+  }) async {
+    await _client.post(
       Endpoints.patientBaselineLifestyleUpsert,
       body: body,
       bearerToken: bearerToken,

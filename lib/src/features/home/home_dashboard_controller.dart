@@ -28,6 +28,20 @@ class HomeDashboardController extends ChangeNotifier {
   bool get loading => _loading;
   String? get error => _error;
 
+  /// Removes [patientId] from the in-memory follow-up queue (e.g. after saving a
+  /// follow-up visit with a terminal status). The next [refreshFromSession] may
+  /// repopulate from the API if the backend still returns this row.
+  void removeFollowUpForPatient(String patientId) {
+    final key = patientId.trim().toLowerCase();
+    if (key.isEmpty) return;
+    final filtered = _followUps
+        .where((f) => f.patientId.trim().toLowerCase() != key)
+        .toList();
+    if (filtered.length == _followUps.length) return;
+    _followUps = filtered;
+    notifyListeners();
+  }
+
   /// Last successful load had usable dashboard payloads.
   bool get hasData =>
       _stats != null || _followUps.isNotEmpty || _patients.isNotEmpty;

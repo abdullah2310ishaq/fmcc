@@ -714,6 +714,13 @@ class _VisitAssessmentViewState extends State<_VisitAssessmentView> {
               session.state,
             );
       } catch (_) {}
+      if (!mounted) return;
+      if (_visitWasFollowUpContext() &&
+          _selectedVisitStatusIndicatesFollowUpDone()) {
+        context.read<HomeDashboardController>().removeFollowUpForPatient(
+              widget.patient.apiPatientId,
+            );
+      }
       widget.onBack();
     } on Object catch (e) {
       if (!mounted || e is SessionEndedFailure) return;
@@ -728,6 +735,23 @@ class _VisitAssessmentViewState extends State<_VisitAssessmentView> {
       if (e.id == id) return e.name;
     }
     return '';
+  }
+
+  /// Visit status label suggests the follow-up work is finished (home queue).
+  bool _selectedVisitStatusIndicatesFollowUpDone() {
+    final id = _visitStatusId;
+    if (id == null || id <= 0) return false;
+    final n = _labelForId(_visitStatuses, id).trim().toLowerCase();
+    if (n.isEmpty) return false;
+    return n.contains('complete') ||
+        n.contains('closed') ||
+        n.contains('resolved') ||
+        n == 'done' ||
+        n == 'attended';
+  }
+
+  bool _visitWasFollowUpContext() {
+    return widget.patient.openedFromFollowUpList || _isFollowUpVisit;
   }
 
   void _toast(String msg) {

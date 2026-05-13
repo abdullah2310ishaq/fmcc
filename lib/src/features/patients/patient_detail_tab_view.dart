@@ -8,6 +8,8 @@ import 'package:doctor_app/src/core/format/name_initials.dart';
 import 'package:doctor_app/src/core/input_format/cnic_input_formatter.dart';
 import 'package:doctor_app/src/core/input_format/pakistan_phone_input_formatter.dart';
 import 'package:doctor_app/src/core/network/api_failure.dart';
+import 'package:doctor_app/src/core/reference/reference_api.dart';
+import 'package:doctor_app/src/core/reference/reference_models.dart';
 import 'package:doctor_app/src/core/presentation/bp_reading_color.dart';
 import 'package:doctor_app/src/core/session/session_controller.dart';
 import 'package:doctor_app/src/core/theme/app_colors.dart';
@@ -110,6 +112,15 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
   final _streetController = TextEditingController();
 
   PatientApi? _patientApi;
+  ReferenceApi? _referenceApi;
+
+  List<NamedReferenceItem> _complianceLevels = const [];
+  List<NamedReferenceItem> _adherenceLevels = const [];
+  final Map<int, TextEditingController> _medicalDurationCtl = {};
+  final Map<int, TextEditingController> _surgicalNotesCtl = {};
+  final Map<int, TextEditingController> _surgicalMonthCtl = {};
+  final Map<int, TextEditingController> _surgicalYearCtl = {};
+  final Map<int, TextEditingController> _drugSideEffectsCtl = {};
 
   PatientDetailSection _section = PatientDetailSection.personalInfo;
   _PatientDetailGender _gender = _PatientDetailGender.female;
@@ -161,7 +172,9 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    _patientApi ??= PatientApi(context.read<SessionController>().apiClient);
+    final client = context.read<SessionController>().apiClient;
+    _patientApi ??= PatientApi(client);
+    _referenceApi ??= ReferenceApi(client);
   }
 
   _PatientDetailGender _genderFromApi(String raw) {
@@ -190,6 +203,7 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
 
     try {
       await _loadReference(session, token);
+      await _loadClinicalDropdownRefs(session, token);
       await _loadProfileAndCascadeLocation(session, token);
       await _loadClinical(session, token);
     } on Object catch (e) {
@@ -281,8 +295,86 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
     setState(() {
       _provinces = provinces.map((e) => (id: e.id, name: e.name)).toList();
       _maritalStatuses = marital.map((e) => (id: e.id, name: e.name)).toList();
-      _maritalStatuses = marital.map((e) => (id: e.id, name: e.name)).toList();
     });
+  }
+
+  Future<void> _loadClinicalDropdownRefs(
+    SessionController session,
+    String token,
+  ) async {
+    final ref = _referenceApi;
+    if (ref == null) return;
+    try {
+      final results = await Future.wait([
+        ref.getComplianceLevels(bearerToken: token),
+        ref.getAdherenceLevels(bearerToken: token),
+      ]);
+      if (!mounted) return;
+      setState(() {
+        _complianceLevels = results[0];
+        _adherenceLevels = results[1];
+      });
+    } on Object catch (e) {
+      if (!mounted || e is SessionEndedFailure) return;
+      _toast(session.apiClient.mapError(e).message);
+    }
+  }
+
+  void _rebuildClinicalTextControllers() {
+    void syncMap<T>(
+      Iterable<T> rows,
+      int Function(T row) idOf,
+      Map<int, TextEditingController> map,
+      String Function(T row) textOf,
+    ) {
+      final keep = rows.map(idOf).toSet();
+      for (final k in map.keys.toList()) {
+        if (!keep.contains(k)) {
+          map.remove(k)?.dispose();
+        }
+      }
+      for (final row in rows) {
+        final id = idOf(row);
+        final want = textOf(row);
+        final ex = map[id];
+        if (ex == null) {
+          map[id] = TextEditingController(text: want);
+        } else if (ex.text != want) {
+          ex.text = want;
+        }
+      }
+    }
+
+    syncMap<PatientMedicalHistoryRow>(
+      _medical,
+      (m) => m.id,
+      _medicalDurationCtl,
+      (m) => m.durationInMonths?.toString() ?? '',
+    );
+    syncMap<PatientSurgicalHistoryRow>(
+      _surgical,
+      (s) => s.id,
+      _surgicalNotesCtl,
+      (s) => s.notes,
+    );
+    syncMap<PatientSurgicalHistoryRow>(
+      _surgical,
+      (s) => s.id,
+      _surgicalMonthCtl,
+      (s) => s.approxMonth?.toString() ?? '',
+    );
+    syncMap<PatientSurgicalHistoryRow>(
+      _surgical,
+      (s) => s.id,
+      _surgicalYearCtl,
+      (s) => s.approxYear?.toString() ?? '',
+    );
+    syncMap<PatientDrugHistoryRow>(
+      _drugs,
+      (d) => d.id,
+      _drugSideEffectsCtl,
+      (d) => d.sideEffects,
+    );
   }
 
   Future<void> _loadClinical(SessionController session, String token) async {
@@ -337,6 +429,7 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
       _visits = List<PatientVisitRow>.from(visits)
         ..sort((a, b) => b.visitDate.compareTo(a.visitDate));
     });
+    _rebuildClinicalTextControllers();
   }
 
   Future<void> _onProvinceChanged(int? id) async {
@@ -390,6 +483,26 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
 
   @override
   void dispose() {
+    for (final c in _medicalDurationCtl.values) {
+      c.dispose();
+    }
+    for (final c in _surgicalNotesCtl.values) {
+      c.dispose();
+    }
+    for (final c in _surgicalMonthCtl.values) {
+      c.dispose();
+    }
+    for (final c in _surgicalYearCtl.values) {
+      c.dispose();
+    }
+    for (final c in _drugSideEffectsCtl.values) {
+      c.dispose();
+    }
+    _medicalDurationCtl.clear();
+    _surgicalNotesCtl.clear();
+    _surgicalMonthCtl.clear();
+    _surgicalYearCtl.clear();
+    _drugSideEffectsCtl.clear();
     _firstNameController.dispose();
     _lastNameController.dispose();
     _dobController.dispose();
@@ -501,37 +614,96 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
       return;
     }
     final pid = widget.summary.patientId;
+    final api = _patientApi!;
 
     setState(() => _savingMedical = true);
     try {
       for (final row in _medical) {
+        final durRaw = _medicalDurationCtl[row.id]?.text.trim() ?? '';
         final body = <String, dynamic>{
-          'id': row.id,
           'patientId': pid,
           'conditionId': row.conditionId,
           'isOnMedication': row.isOnMedication,
         };
-        if (row.durationInMonths != null) {
-          body['durationInMonths'] = row.durationInMonths;
+        if (durRaw.isNotEmpty) {
+          final d = int.tryParse(durRaw);
+          if (d != null && d > 0) body['durationInMonths'] = d;
         }
-        if (row.complianceLevelId != null) {
+        if (row.complianceLevelId != null && row.complianceLevelId! > 0) {
           body['complianceLevelId'] = row.complianceLevelId;
         }
-        await _patientApi!.putMedicalHistory(
-          body: body,
+        if (row.id > 0) {
+          body['id'] = row.id;
+          await api.putMedicalHistory(body: body, bearerToken: token);
+        } else {
+          await api.postMedicalHistory(body: body, bearerToken: token);
+        }
+      }
+
+      for (final s in _surgical) {
+        final body = <String, dynamic>{
+          'patientId': pid,
+          'procedureId': s.procedureId,
+        };
+        final notes = _surgicalNotesCtl[s.id]?.text ?? s.notes;
+        final notesTrim = notes.trim();
+        if (notesTrim.isNotEmpty) body['notes'] = notesTrim;
+
+        final moRaw = _surgicalMonthCtl[s.id]?.text.trim() ?? '';
+        if (moRaw.isNotEmpty) {
+          final mo = int.tryParse(moRaw);
+          if (mo != null && mo >= 1 && mo <= 12) body['approxMonth'] = mo;
+        }
+        final yrRaw = _surgicalYearCtl[s.id]?.text.trim() ?? '';
+        if (yrRaw.isNotEmpty) {
+          final yr = int.tryParse(yrRaw);
+          if (yr != null && yr >= 1900 && yr <= 2200) body['approxYear'] = yr;
+        }
+
+        if (s.id > 0) {
+          body['id'] = s.id;
+          await api.putSurgicalHistory(body: body, bearerToken: token);
+        } else {
+          await api.postSurgicalHistory(body: body, bearerToken: token);
+        }
+      }
+
+      for (final d in _drugs) {
+        final body = <String, dynamic>{
+          'patientId': pid,
+          'medicineCategoryId': d.medicineCategoryId,
+        };
+        if (d.adherenceLevelId != null && d.adherenceLevelId! > 0) {
+          body['adherenceLevelId'] = d.adherenceLevelId;
+        }
+        final fx = _drugSideEffectsCtl[d.id]?.text.trim() ?? '';
+        if (fx.isNotEmpty) body['sideEffects'] = fx;
+
+        if (d.id > 0) {
+          body['id'] = d.id;
+          await api.putDrugHistory(body: body, bearerToken: token);
+        } else {
+          await api.postDrugHistory(body: body, bearerToken: token);
+        }
+      }
+
+      final baselineBody = <String, dynamic>{
+        'patientId': pid,
+        'familyHistoryOfHTNOrStroke': _familyHtn,
+        'tobaccoUse': _tobacco,
+      };
+      if (_baselineLoaded) {
+        await api.putBaselineLifestyle(
+          body: baselineBody,
+          bearerToken: token,
+        );
+      } else {
+        await api.postBaselineLifestyle(
+          body: baselineBody,
           bearerToken: token,
         );
       }
-
-      await _patientApi!.putBaselineLifestyle(
-        bearerToken: token,
-        body: <String, dynamic>{
-          'patientId': pid,
-          'familyHistoryOfHTNOrStroke': _familyHtn,
-          'tobaccoUse': _tobacco,
-        },
-      );
-      _baselineLoaded = true;
+      if (mounted) setState(() => _baselineLoaded = true);
 
       if (!mounted) return;
       _toast('Medical data saved.');
@@ -916,6 +1088,21 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
     );
   }
 
+  String _namedRefLabel(List<NamedReferenceItem> items, int id) {
+    for (final e in items) {
+      if (e.id == id) return e.name;
+    }
+    return '';
+  }
+
+  int? _clinicalRefDropdownValue(
+    int? raw,
+    List<NamedReferenceItem> items,
+  ) {
+    if (raw == null || raw <= 0) return null;
+    return items.any((e) => e.id == raw) ? raw : null;
+  }
+
   Widget _medicalBody() {
     if (_loadingDetail && _medical.isEmpty && _surgical.isEmpty) {
       return Center(
@@ -941,6 +1128,8 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
         else
           ...List.generate(_medical.length, (i) {
             final row = _medical[i];
+            final durCtl = _medicalDurationCtl[row.id];
+            if (durCtl == null) return const SizedBox.shrink();
             return Container(
               margin: EdgeInsets.only(bottom: 10.h),
               padding: EdgeInsets.all(12.r),
@@ -977,6 +1166,70 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
                       });
                     },
                   ),
+                  SizedBox(height: 6.h),
+                  TextFormField(
+                    controller: durCtl,
+                    keyboardType: TextInputType.number,
+                    style: TextStyle(
+                      fontSize: 14.sp,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textPrimary,
+                    ),
+                    decoration: _fieldDecoration(
+                      hint: 'Duration on treatment (months), optional',
+                    ),
+                  ),
+                  if (_complianceLevels.isNotEmpty) ...[
+                    SizedBox(height: 10.h),
+                    DropdownButtonFormField<int?>(
+                      value: _clinicalRefDropdownValue(
+                        row.complianceLevelId,
+                        _complianceLevels,
+                      ),
+                      decoration: _fieldDecoration(hint: 'Compliance level'),
+                      items: [
+                        DropdownMenuItem<int?>(
+                          value: null,
+                          child: Text(
+                            '—',
+                            style: TextStyle(
+                              fontSize: 14.sp,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                        ..._complianceLevels
+                            .where((e) => e.id > 0)
+                            .map(
+                              (e) => DropdownMenuItem<int?>(
+                                value: e.id,
+                                child: Text(
+                                  e.name,
+                                  style: TextStyle(
+                                    fontSize: 14.sp,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                            ),
+                      ],
+                      onChanged: (v) {
+                        setState(() {
+                          if (v == null) {
+                            _medical[i] = _medical[i].copyWith(
+                              clearComplianceLevel: true,
+                            );
+                          } else {
+                            _medical[i] = _medical[i].copyWith(
+                              complianceLevelId: v,
+                              complianceLevelName:
+                                  _namedRefLabel(_complianceLevels, v),
+                            );
+                          }
+                        });
+                      },
+                    ),
+                  ],
                 ],
               ),
             );
@@ -993,13 +1246,82 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
             ),
           )
         else
-          ..._surgical.map(
-            (s) => _infoCard(
-              title: s.procedureName,
-              subtitle:
-                  '${s.approxMonth?.toString() ?? '—'}/${s.approxYear?.toString() ?? '—'}  ${s.notes}',
-            ),
-          ),
+          ...List.generate(_surgical.length, (i) {
+            final s = _surgical[i];
+            final notesCtl = _surgicalNotesCtl[s.id];
+            final moCtl = _surgicalMonthCtl[s.id];
+            final yrCtl = _surgicalYearCtl[s.id];
+            if (notesCtl == null || moCtl == null || yrCtl == null) {
+              return const SizedBox.shrink();
+            }
+            return Container(
+              margin: EdgeInsets.only(bottom: 10.h),
+              padding: EdgeInsets.all(12.r),
+              decoration: BoxDecoration(
+                color: AppColors.surface,
+                borderRadius: BorderRadius.circular(12.r),
+                border: Border.all(color: AppColors.registrationFieldBorder),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    s.procedureName,
+                    style: TextStyle(
+                      fontSize: 14.sp,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                  SizedBox(height: 8.h),
+                  TextFormField(
+                    controller: notesCtl,
+                    maxLines: 3,
+                    style: TextStyle(
+                      fontSize: 14.sp,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textPrimary,
+                    ),
+                    decoration: _fieldDecoration(hint: 'Notes (optional)'),
+                  ),
+                  SizedBox(height: 8.h),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextFormField(
+                          controller: moCtl,
+                          keyboardType: TextInputType.number,
+                          style: TextStyle(
+                            fontSize: 14.sp,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.textPrimary,
+                          ),
+                          decoration: _fieldDecoration(
+                            hint: 'Month (1–12)',
+                          ),
+                        ),
+                      ),
+                      SizedBox(width: 10.w),
+                      Expanded(
+                        child: TextFormField(
+                          controller: yrCtl,
+                          keyboardType: TextInputType.number,
+                          style: TextStyle(
+                            fontSize: 14.sp,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.textPrimary,
+                          ),
+                          decoration: _fieldDecoration(
+                            hint: 'Year (approx.)',
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            );
+          }),
         SizedBox(height: 18.h),
         _sectionTitle('DRUG HISTORY'),
         if (_drugs.isEmpty)
@@ -1012,19 +1334,104 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
             ),
           )
         else
-          ..._drugs.map(
-            (d) => _infoCard(
-              title: d.categoryName,
-              subtitle: '${d.adherenceLevelName}  ${d.sideEffects}'.trim(),
-            ),
-          ),
+          ...List.generate(_drugs.length, (i) {
+            final d = _drugs[i];
+            final fxCtl = _drugSideEffectsCtl[d.id];
+            if (fxCtl == null) return const SizedBox.shrink();
+            return Container(
+              margin: EdgeInsets.only(bottom: 10.h),
+              padding: EdgeInsets.all(12.r),
+              decoration: BoxDecoration(
+                color: AppColors.surface,
+                borderRadius: BorderRadius.circular(12.r),
+                border: Border.all(color: AppColors.registrationFieldBorder),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    d.categoryName,
+                    style: TextStyle(
+                      fontSize: 14.sp,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                  if (_adherenceLevels.isNotEmpty) ...[
+                    SizedBox(height: 10.h),
+                    DropdownButtonFormField<int?>(
+                      value: _clinicalRefDropdownValue(
+                        d.adherenceLevelId,
+                        _adherenceLevels,
+                      ),
+                      decoration: _fieldDecoration(hint: 'Adherence level'),
+                      items: [
+                        DropdownMenuItem<int?>(
+                          value: null,
+                          child: Text(
+                            '—',
+                            style: TextStyle(
+                              fontSize: 14.sp,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                        ..._adherenceLevels
+                            .where((e) => e.id > 0)
+                            .map(
+                              (e) => DropdownMenuItem<int?>(
+                                value: e.id,
+                                child: Text(
+                                  e.name,
+                                  style: TextStyle(
+                                    fontSize: 14.sp,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                            ),
+                      ],
+                      onChanged: (v) {
+                        setState(() {
+                          if (v == null) {
+                            _drugs[i] = _drugs[i].copyWith(
+                              clearAdherenceLevel: true,
+                            );
+                          } else {
+                            _drugs[i] = _drugs[i].copyWith(
+                              adherenceLevelId: v,
+                              adherenceLevelName:
+                                  _namedRefLabel(_adherenceLevels, v),
+                            );
+                          }
+                        });
+                      },
+                    ),
+                  ],
+                  SizedBox(height: 8.h),
+                  TextFormField(
+                    controller: fxCtl,
+                    maxLines: 2,
+                    style: TextStyle(
+                      fontSize: 14.sp,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textPrimary,
+                    ),
+                    decoration: _fieldDecoration(
+                      hint: 'Side effects / notes (optional)',
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }),
         SizedBox(height: 18.h),
         _sectionTitle('BASELINE LIFESTYLE'),
         if (!_baselineLoaded)
           Padding(
             padding: EdgeInsets.only(bottom: 8.h),
             child: Text(
-              'No baseline lifestyle on record yet — save to send it to the server.',
+              'No baseline lifestyle on record yet — first save uses POST; later saves use PUT.',
               style: TextStyle(
                 fontSize: 12.sp,
                 fontWeight: FontWeight.w600,
@@ -1051,43 +1458,6 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
           onChanged: (v) => setState(() => _tobacco = v),
         ),
       ],
-    );
-  }
-
-  Widget _infoCard({required String title, required String subtitle}) {
-    return Container(
-      margin: EdgeInsets.only(bottom: 10.h),
-      padding: EdgeInsets.all(12.r),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(12.r),
-        border: Border.all(color: AppColors.registrationFieldBorder),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            title,
-            style: TextStyle(
-              fontSize: 14.sp,
-              fontWeight: FontWeight.w800,
-              color: AppColors.textPrimary,
-            ),
-          ),
-          if (subtitle.trim().isNotEmpty) ...[
-            SizedBox(height: 6.h),
-            Text(
-              subtitle,
-              style: TextStyle(
-                fontSize: 12.sp,
-                fontWeight: FontWeight.w600,
-                color: AppColors.textSecondary,
-                height: 1.3,
-              ),
-            ),
-          ],
-        ],
-      ),
     );
   }
 
