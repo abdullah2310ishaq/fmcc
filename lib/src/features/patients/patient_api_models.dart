@@ -395,9 +395,13 @@ class PatientVisitRow {
       reasonForVisit:
           _readString(m, 'reasonForVisit', 'ReasonForVisit') ?? '',
       avgSystolicBp: _readInt(m, 'avgSystolicBP', 'AvgSystolicBP') ??
-          _readInt(m, 'avgSystolicBp', 'AvgSystolicBp'),
+          _readInt(m, 'avgSystolicBp', 'AvgSystolicBp') ??
+          _readInt(m, 'systolicBP1', 'SystolicBP1') ??
+          _readInt(m, 'systolicBp1', 'SystolicBp1'),
       avgDiastolicBp: _readInt(m, 'avgDiastolicBP', 'AvgDiastolicBP') ??
-          _readInt(m, 'avgDiastolicBp', 'AvgDiastolicBp'),
+          _readInt(m, 'avgDiastolicBp', 'AvgDiastolicBp') ??
+          _readInt(m, 'diastolicBP1', 'DiastolicBP1') ??
+          _readInt(m, 'diastolicBp1', 'DiastolicBp1'),
       pulse: _readInt(m, 'pulse', 'Pulse'),
       visitStatusName:
           _readString(m, 'visitStatusName', 'VisitStatusName') ?? '',

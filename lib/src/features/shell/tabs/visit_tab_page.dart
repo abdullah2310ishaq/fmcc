@@ -591,8 +591,14 @@ class _VisitAssessmentViewState extends State<_VisitAssessmentView> {
     final reason = _reasonController.text.trim();
     if (reason.isNotEmpty) map['reasonForVisit'] = reason;
 
-    if (sys != null) map['systolicBP1'] = sys;
-    if (dia != null) map['diastolicBP1'] = dia;
+    if (sys != null) {
+      map['systolicBP1'] = sys;
+      map['avgSystolicBP'] = sys;
+    }
+    if (dia != null) {
+      map['diastolicBP1'] = dia;
+      map['avgDiastolicBP'] = dia;
+    }
     if (pulse != null) map['pulse'] = pulse;
 
     if (_visitActionId != null && _visitActionId! > 0) {
