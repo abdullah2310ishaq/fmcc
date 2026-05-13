@@ -413,20 +413,14 @@ class _VisitAssessmentViewState extends State<_VisitAssessmentView> {
   List<NamedReferenceItem> _visitStatuses = const [];
   List<NamedReferenceItem> _visitActions = const [];
   List<NamedReferenceItem> _symptoms = const [];
-  List<NamedReferenceItem> _medicalConditions = const [];
-  List<NamedReferenceItem> _surgicalProcedures = const [];
-  List<NamedReferenceItem> _medicineCategories = const [];
   List<NamedReferenceItem> _physicalLevels = const [];
 
   int? _visitTypeId;
   int? _visitStatusId;
   int? _visitActionId;
   int? _physicalActivityLevelId;
-  int? _medicalConditionId;
-  int? _surgicalProcedureId;
 
   final Set<int> _symptomIds = {};
-  final Set<int> _medicineCategoryIds = {};
 
   bool _highSaltDiet = false;
   bool _alcoholUse = false;
@@ -528,9 +522,6 @@ class _VisitAssessmentViewState extends State<_VisitAssessmentView> {
         ref.getVisitStatuses(bearerToken: token),
         ref.getVisitActions(bearerToken: token),
         ref.getSymptoms(bearerToken: token),
-        ref.getMedicalConditions(bearerToken: token),
-        ref.getSurgicalProcedures(bearerToken: token),
-        ref.getMedicineCategories(bearerToken: token),
         ref.getPhysicalActivityLevels(bearerToken: token),
       ]);
 
@@ -540,19 +531,12 @@ class _VisitAssessmentViewState extends State<_VisitAssessmentView> {
         _visitStatuses = results[1];
         _visitActions = results[2];
         _symptoms = results[3];
-        _medicalConditions = results[4];
-        _surgicalProcedures = results[5];
-        _medicineCategories = results[6];
-        _physicalLevels = results[7];
+        _physicalLevels = results[4];
 
         _visitTypeId = _firstPositiveId(_visitTypes);
         _visitStatusId = _firstPositiveId(_visitStatuses);
         _visitActionId = _firstPositiveId(_visitActions);
         _physicalActivityLevelId = _firstPositiveId(_physicalLevels);
-        _medicalConditionId = _firstNonNoneId(_medicalConditions) ??
-            _firstPositiveId(_medicalConditions);
-        _surgicalProcedureId = _firstIdNamedNone(_surgicalProcedures) ??
-            _firstPositiveId(_surgicalProcedures);
       });
     } on Object catch (e) {
       if (!mounted || e is SessionEndedFailure) return;
@@ -570,25 +554,6 @@ class _VisitAssessmentViewState extends State<_VisitAssessmentView> {
       if (e.id > 0) return e.id;
     }
     return null;
-  }
-
-  static int? _firstNonNoneId(List<NamedReferenceItem> items) {
-    for (final e in items) {
-      if (e.id > 0 && !_isNoneName(e.name)) return e.id;
-    }
-    return null;
-  }
-
-  static int? _firstIdNamedNone(List<NamedReferenceItem> items) {
-    for (final e in items) {
-      if (_isNoneName(e.name)) return e.id;
-    }
-    return null;
-  }
-
-  static bool _isNoneName(String name) {
-    final n = name.trim().toLowerCase();
-    return n == 'none' || n == 'no' || n == 'n/a';
   }
 
   int? _parseIntCtl(TextEditingController c) {
@@ -1351,52 +1316,6 @@ class _VisitAssessmentViewState extends State<_VisitAssessmentView> {
                             );
                           }).toList(),
                         ),
-                      SizedBox(height: 22.h),
-                      _sectionTitle(
-                          'MEDICAL / SURGICAL / DRUG (optional, Patient API)'),
-                      if (!_refsLoading) ...[
-                        _dropdownInt(
-                          label: 'Medical condition (optional row)',
-                          value: _medicalConditionId,
-                          items: _medicalConditions,
-                          onChanged: (v) =>
-                              setState(() => _medicalConditionId = v),
-                        ),
-                        SizedBox(height: 12.h),
-                        _dropdownInt(
-                          label: 'Surgical procedure (optional row)',
-                          value: _surgicalProcedureId,
-                          items: _surgicalProcedures,
-                          onChanged: (v) =>
-                              setState(() => _surgicalProcedureId = v),
-                        ),
-                        SizedBox(height: 12.h),
-                        _label('Medicine categories (drug history rows)'),
-                        if (_medicineCategories.isEmpty)
-                          Text(
-                            'No categories from API.',
-                            style: TextStyle(
-                              fontSize: 12.sp,
-                              color: AppColors.textSecondary,
-                            ),
-                          )
-                        else
-                          Wrap(
-                            spacing: 9.w,
-                            runSpacing: 9.h,
-                            children: _medicineCategories.map((c) {
-                              return _chip(
-                                label: c.name,
-                                selected: _medicineCategoryIds.contains(c.id),
-                                onTap: () => setState(() {
-                                  if (!_medicineCategoryIds.add(c.id)) {
-                                    _medicineCategoryIds.remove(c.id);
-                                  }
-                                }),
-                              );
-                            }).toList(),
-                          ),
-                      ],
                       SizedBox(height: 22.h),
                       _sectionTitle('LIFESTYLE (VISITUpsert)'),
                       if (!_refsLoading)
