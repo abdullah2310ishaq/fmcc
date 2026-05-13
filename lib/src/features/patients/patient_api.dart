@@ -66,6 +66,7 @@ String? _parseVisitId(dynamic root) {
   }
 
   return _visitIdFromMap(m);
+
 }
 
 class PatientApi {

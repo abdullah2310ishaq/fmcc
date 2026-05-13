@@ -9,13 +9,11 @@ import 'package:doctor_app/src/core/input_format/cnic_input_formatter.dart';
 import 'package:doctor_app/src/core/input_format/pakistan_phone_input_formatter.dart';
 import 'package:doctor_app/src/core/network/api_failure.dart';
 import 'package:doctor_app/src/core/presentation/bp_reading_color.dart';
-import 'package:doctor_app/src/core/presentation/bp_reading_color.dart';
 import 'package:doctor_app/src/core/session/session_controller.dart';
 import 'package:doctor_app/src/core/theme/app_colors.dart';
 import 'package:doctor_app/src/features/home/health_worker_dashboard_models.dart';
 import 'package:doctor_app/src/features/patients/patient_api.dart';
 import 'package:doctor_app/src/features/patients/patient_api_models.dart';
-import 'package:doctor_app/src/features/patients/patient_directory_coordinator.dart';
 import 'package:doctor_app/src/features/patients/patient_directory_coordinator.dart';
 import 'package:doctor_app/src/features/patients/visit_detail_screen.dart';
 import 'package:doctor_app/src/features/shell/tabs/visit_tab_page.dart';
@@ -23,18 +21,6 @@ import 'package:doctor_app/src/features/shell/tabs/visit_tab_page.dart';
 String patientDetailShortVisit(DateTime? d) {
   if (d == null) return '—';
   const months = [
-    'Jan',
-    'Feb',
-    'Mar',
-    'Apr',
-    'May',
-    'Jun',
-    'Jul',
-    'Aug',
-    'Sep',
-    'Oct',
-    'Nov',
-    'Dec',
     'Jan',
     'Feb',
     'Mar',
@@ -160,16 +146,9 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
     final name = widget.summary.fullName.trim();
     final parts =
         name.split(RegExp(r'\s+')).where((s) => s.isNotEmpty).toList();
-    final parts =
-        name.split(RegExp(r'\s+')).where((s) => s.isNotEmpty).toList();
     _firstNameController.text = parts.isNotEmpty ? parts.first : '';
     _lastNameController.text = parts.length > 1 ? parts.skip(1).join(' ') : '';
-    _lastNameController.text = parts.length > 1 ? parts.skip(1).join(' ') : '';
     _gender = _genderFromApi(widget.summary.gender);
-    final cnicFromList = widget.summary.cnic?.trim();
-    if (cnicFromList != null && cnicFromList.isNotEmpty) {
-      _cnicController.text = CnicInputFormatter.formatFromRaw(cnicFromList);
-    }
     final cnicFromList = widget.summary.cnic?.trim();
     if (cnicFromList != null && cnicFromList.isNotEmpty) {
       _cnicController.text = CnicInputFormatter.formatFromRaw(cnicFromList);
@@ -473,12 +452,6 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
       return;
     }
 
-    final hwKey = session.state.healthWorkerIdForPatientApis?.trim();
-    if (hwKey == null || hwKey.isEmpty) {
-      _toast('Missing health worker id. Sign in again or complete profile.');
-      return;
-    }
-
     final cnicMasked = CnicInputFormatter.forApi(_cnicController.text);
     final body = <String, dynamic>{
       'id': widget.summary.patientId,
@@ -487,7 +460,6 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
       'gender': _genderApiValue(),
       'contactNumber': _phoneController.text.trim(),
       'address': _streetController.text.trim(),
-      'assignedHealthWorkerId': hwKey,
       'assignedHealthWorkerId': hwKey,
     };
     if (cnicMasked.length == 15) body['cnic'] = cnicMasked;
@@ -512,7 +484,6 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
       await _patientApi!.updatePatient(body: body, bearerToken: token);
       if (!mounted) return;
       _toast('Patient updated successfully.');
-      context.read<PatientDirectoryCoordinator>().requestDashboardReload();
       context.read<PatientDirectoryCoordinator>().requestDashboardReload();
     } on Object catch (e) {
       if (!mounted || e is SessionEndedFailure) return;
@@ -731,7 +702,6 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
             ),
             decoration: _fieldDecoration(),
             validator: (v) => v == null || v.trim().isEmpty ? 'Required' : null,
-            validator: (v) => v == null || v.trim().isEmpty ? 'Required' : null,
           ),
           SizedBox(height: 16.h),
           _label('Last Name'),
@@ -743,7 +713,6 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
               color: AppColors.textPrimary,
             ),
             decoration: _fieldDecoration(),
-            validator: (v) => v == null || v.trim().isEmpty ? 'Required' : null,
             validator: (v) => v == null || v.trim().isEmpty ? 'Required' : null,
           ),
           SizedBox(height: 16.h),
@@ -941,7 +910,6 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
             ),
             decoration: _fieldDecoration(),
             validator: (v) => v == null || v.trim().isEmpty ? 'Required' : null,
-            validator: (v) => v == null || v.trim().isEmpty ? 'Required' : null,
           ),
         ],
       ),
@@ -1047,7 +1015,6 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
           ..._drugs.map(
             (d) => _infoCard(
               title: d.categoryName,
-              subtitle: '${d.adherenceLevelName}  ${d.sideEffects}'.trim(),
               subtitle: '${d.adherenceLevelName}  ${d.sideEffects}'.trim(),
             ),
           ),
@@ -1393,104 +1360,6 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
               ),
             ),
           ),
-            (v) => Padding(
-              padding: EdgeInsets.only(bottom: 10.h),
-              child: Material(
-                color: AppColors.surface,
-                elevation: 0,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14.r),
-                  side: const BorderSide(
-                      color: AppColors.registrationFieldBorder),
-                ),
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(14.r),
-                  onTap: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute<void>(
-                        builder: (ctx) => VisitDetailScreen(
-                          patientName: widget.summary.fullName,
-                          visit: v,
-                        ),
-                      ),
-                    );
-                  },
-                  child: Padding(
-                    padding: EdgeInsets.all(14.r),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Expanded(
-                              child: Text(
-                                patientDetailShortVisit(v.visitDate),
-                                style: TextStyle(
-                                  fontSize: 13.sp,
-                                  fontWeight: FontWeight.w900,
-                                  color: AppColors.dashboardPrimaryDark,
-                                ),
-                              ),
-                            ),
-                            Container(
-                              padding: EdgeInsets.symmetric(
-                                horizontal: 9.w,
-                                vertical: 4.h,
-                              ),
-                              decoration: BoxDecoration(
-                                color: AppColors.followUpcomingBg,
-                                borderRadius: BorderRadius.circular(999),
-                              ),
-                              child: Text(
-                                v.visitStatusName.isNotEmpty
-                                    ? v.visitStatusName
-                                    : '—',
-                                style: TextStyle(
-                                  fontSize: 10.sp,
-                                  fontWeight: FontWeight.w800,
-                                  color: AppColors.followAccentGreen,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        SizedBox(height: 8.h),
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Expanded(
-                              child: Text(
-                                v.visitTypeName,
-                                style: TextStyle(
-                                  fontSize: 13.sp,
-                                  fontWeight: FontWeight.w800,
-                                  color: AppColors.textPrimary,
-                                ),
-                              ),
-                            ),
-                            if (v.isFollowUpVisit)
-                              Padding(
-                                padding: EdgeInsets.only(left: 6.w),
-                                child: Text(
-                                  'فالو اپ',
-                                  style: TextStyle(
-                                    fontSize: 10.sp,
-                                    fontWeight: FontWeight.w800,
-                                    color: AppColors.dashboardWarning,
-                                  ),
-                                ),
-                              ),
-                          ],
-                        ),
-                        SizedBox(height: 6.h),
-                        _visitHistoryMetaLine(v),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
         SizedBox(height: 8.h),
         FilledButton.icon(
           onPressed: _openVisitAssessment,
@@ -1561,9 +1430,7 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
     final initials = s.initials.trim().isNotEmpty
         ? s.initials
         : NameInitials.fromFullName(s.fullName);
-    final initials = s.initials.trim().isNotEmpty
-        ? s.initials
-        : NameInitials.fromFullName(s.fullName);
+
     final avatarBg = _avatarForCondition(s.primaryCondition);
 
     return ColoredBox(
@@ -1725,10 +1592,8 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
                               style: TextStyle(
                                 fontSize: 11.sp,
                                 fontWeight: FontWeight.w700,
-                                color:
-                                    AppColors.surface.withValues(alpha: 0.85),
-                                color:
-                                    AppColors.surface.withValues(alpha: 0.85),
+                                color: AppColors.surface
+                                    .withValues(alpha: 0.85),
                               ),
                             ),
                           ),
@@ -1745,7 +1610,6 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
             child: SingleChildScrollView(
               scrollDirection: Axis.horizontal,
               child: Row(
-                children: PatientDetailSection.values.map(_tab).toList(),
                 children: PatientDetailSection.values.map(_tab).toList(),
               ),
             ),
