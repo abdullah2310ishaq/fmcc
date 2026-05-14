@@ -741,26 +741,32 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
     );
   }
 
-  bool get _showsBottomSaveButton =>
-      _section == PatientDetailSection.personalInfo ||
-      _section == PatientDetailSection.medicalHistory ||
-      _section == PatientDetailSection.visitHistory;
-
-  VoidCallback? get _bottomAction => switch (_section) {
-        PatientDetailSection.personalInfo =>
-          _savingPersonal ? null : _savePersonal,
-        PatientDetailSection.medicalHistory =>
-          _savingMedical ? null : _saveMedicalAndLifestyle,
-        PatientDetailSection.visitHistory => _openVisitAssessment,
-      };
-
-  String get _bottomLabel => switch (_section) {
-        PatientDetailSection.personalInfo =>
-          _savingPersonal ? 'Saving…' : 'Save Changes',
-        PatientDetailSection.medicalHistory =>
-          _savingMedical ? 'Saving…' : 'Save Medical History',
-        PatientDetailSection.visitHistory => 'Log New Visit',
-      };
+  Widget _primaryCtaButton({
+    required VoidCallback? onPressed,
+    required String label,
+  }) {
+    return Padding(
+      padding: EdgeInsets.only(top: 20.h),
+      child: FilledButton(
+        onPressed: onPressed,
+        style: FilledButton.styleFrom(
+          backgroundColor: AppColors.registrationSaveBlue,
+          foregroundColor: AppColors.surface,
+          minimumSize: Size(double.infinity, 52.h),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14.r),
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 15.sp,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+      ),
+    );
+  }
 
   InputDecoration _fieldDecoration({Widget? suffix, String? hint}) {
     final radius = BorderRadius.circular(12.r);
@@ -868,233 +874,246 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
   }
 
   Widget _personalForm() {
-    return Form(
-      key: _formKey,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          _sectionTitle('BASIC INFORMATION'),
-          _label('First Name'),
-          TextFormField(
-            controller: _firstNameController,
-            style: TextStyle(
-              fontSize: 14.sp,
-              fontWeight: FontWeight.w600,
-              color: AppColors.textPrimary,
-            ),
-            decoration: _fieldDecoration(),
-            validator: (v) => v == null || v.trim().isEmpty ? 'Required' : null,
-          ),
-          SizedBox(height: 16.h),
-          _label('Last Name'),
-          TextFormField(
-            controller: _lastNameController,
-            style: TextStyle(
-              fontSize: 14.sp,
-              fontWeight: FontWeight.w600,
-              color: AppColors.textPrimary,
-            ),
-            decoration: _fieldDecoration(),
-            validator: (v) => v == null || v.trim().isEmpty ? 'Required' : null,
-          ),
-          SizedBox(height: 16.h),
-          _label('Age (from records)'),
-          Container(
-            width: double.infinity,
-            padding: EdgeInsets.symmetric(horizontal: 14.w, vertical: 14.h),
-            decoration: BoxDecoration(
-              color: AppColors.registrationFieldFill,
-              borderRadius: BorderRadius.circular(12.r),
-              border: Border.all(color: AppColors.registrationFieldBorder),
-            ),
-            child: Text(
-              '${widget.summary.age}',
-              style: TextStyle(
-                fontSize: 14.sp,
-                fontWeight: FontWeight.w700,
-                color: AppColors.textSecondary,
-              ),
-            ),
-          ),
-          SizedBox(height: 16.h),
-          _label('Date of Birth (update)'),
-          TextFormField(
-            controller: _dobController,
-            readOnly: true,
-            onTap: _pickDob,
-            style: TextStyle(
-              fontSize: 14.sp,
-              fontWeight: FontWeight.w600,
-              color: AppColors.textPrimary,
-            ),
-            decoration: _fieldDecoration(
-              suffix: IconButton(
-                icon: Icon(
-                  Icons.calendar_today_rounded,
-                  size: 18.sp,
-                  color: AppColors.dashboardPrimary,
-                ),
-                onPressed: _pickDob,
-              ),
-            ),
-          ),
-          SizedBox(height: 16.h),
-          _label('Gender'),
-          Row(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Form(
+          key: _formKey,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              _genderChip('Female', _PatientDetailGender.female),
-              _genderChip('Male', _PatientDetailGender.male),
-              _genderChip('Other', _PatientDetailGender.other),
-            ],
-          ),
-          SizedBox(height: 16.h),
-          _label('CNIC'),
-          TextFormField(
-            controller: _cnicController,
-            keyboardType: TextInputType.number,
-            inputFormatters: [CnicInputFormatter()],
-            style: TextStyle(
-              fontSize: 14.sp,
-              fontWeight: FontWeight.w600,
-              color: AppColors.textPrimary,
-            ),
-            decoration: _fieldDecoration(hint: '35202-1234567-1'),
-            validator: (v) {
-              final masked = CnicInputFormatter.forApi(v ?? '');
-              if (masked.isEmpty) return null;
-              if (masked.length != 15) return 'Enter complete CNIC';
-              return null;
-            },
-          ),
-          SizedBox(height: 16.h),
-          if (_maritalStatuses.isNotEmpty) ...[
-            _label('Marital status'),
-            DropdownButtonFormField<int>(
-              value: _maritalStatusId,
-              decoration: _fieldDecoration(),
-              hint: Text('Select', style: TextStyle(fontSize: 13.sp)),
-              items: _maritalStatuses
-                  .map(
-                    (e) => DropdownMenuItem(
-                      value: e.id,
-                      child: Text(
-                        e.name,
-                        style: TextStyle(
-                          fontSize: 14.sp,
-                          fontWeight: FontWeight.w600,
+              _sectionTitle('BASIC INFORMATION'),
+              _label('First Name'),
+              TextFormField(
+                controller: _firstNameController,
+                style: TextStyle(
+                  fontSize: 14.sp,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.textPrimary,
+                ),
+                decoration: _fieldDecoration(),
+                validator: (v) =>
+                    v == null || v.trim().isEmpty ? 'Required' : null,
+              ),
+              SizedBox(height: 16.h),
+              _label('Last Name'),
+              TextFormField(
+                controller: _lastNameController,
+                style: TextStyle(
+                  fontSize: 14.sp,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.textPrimary,
+                ),
+                decoration: _fieldDecoration(),
+                validator: (v) =>
+                    v == null || v.trim().isEmpty ? 'Required' : null,
+              ),
+              SizedBox(height: 16.h),
+              _label('Age (from records)'),
+              Container(
+                width: double.infinity,
+                padding: EdgeInsets.symmetric(horizontal: 14.w, vertical: 14.h),
+                decoration: BoxDecoration(
+                  color: AppColors.registrationFieldFill,
+                  borderRadius: BorderRadius.circular(12.r),
+                  border: Border.all(color: AppColors.registrationFieldBorder),
+                ),
+                child: Text(
+                  '${widget.summary.age}',
+                  style: TextStyle(
+                    fontSize: 14.sp,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ),
+              SizedBox(height: 16.h),
+              _label('Date of Birth (update)'),
+              TextFormField(
+                controller: _dobController,
+                readOnly: true,
+                onTap: _pickDob,
+                style: TextStyle(
+                  fontSize: 14.sp,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.textPrimary,
+                ),
+                decoration: _fieldDecoration(
+                  suffix: IconButton(
+                    icon: Icon(
+                      Icons.calendar_today_rounded,
+                      size: 18.sp,
+                      color: AppColors.dashboardPrimary,
+                    ),
+                    onPressed: _pickDob,
+                  ),
+                ),
+              ),
+              SizedBox(height: 16.h),
+              _label('Gender'),
+              Row(
+                children: [
+                  _genderChip('Female', _PatientDetailGender.female),
+                  _genderChip('Male', _PatientDetailGender.male),
+                  _genderChip('Other', _PatientDetailGender.other),
+                ],
+              ),
+              SizedBox(height: 16.h),
+              _label('CNIC'),
+              TextFormField(
+                controller: _cnicController,
+                keyboardType: TextInputType.number,
+                inputFormatters: [CnicInputFormatter()],
+                style: TextStyle(
+                  fontSize: 14.sp,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.textPrimary,
+                ),
+                decoration: _fieldDecoration(hint: '35202-1234567-1'),
+                validator: (v) {
+                  final masked = CnicInputFormatter.forApi(v ?? '');
+                  if (masked.isEmpty) return null;
+                  if (masked.length != 15) return 'Enter complete CNIC';
+                  return null;
+                },
+              ),
+              SizedBox(height: 16.h),
+              if (_maritalStatuses.isNotEmpty) ...[
+                _label('Marital status'),
+                DropdownButtonFormField<int>(
+                  value: _maritalStatusId,
+                  decoration: _fieldDecoration(),
+                  hint: Text('Select', style: TextStyle(fontSize: 13.sp)),
+                  items: _maritalStatuses
+                      .map(
+                        (e) => DropdownMenuItem(
+                          value: e.id,
+                          child: Text(
+                            e.name,
+                            style: TextStyle(
+                              fontSize: 14.sp,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (v) => setState(() => _maritalStatusId = v),
+                ),
+                SizedBox(height: 16.h),
+              ],
+              _sectionTitle('CONTACT & LOCATION'),
+              _label('Phone Number'),
+              TextFormField(
+                controller: _phoneController,
+                keyboardType: TextInputType.phone,
+                inputFormatters: [PakistanPhoneInputFormatter()],
+                style: TextStyle(
+                  fontSize: 14.sp,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.textPrimary,
+                ),
+                decoration: _fieldDecoration(),
+                validator: (v) {
+                  if (v == null || v.trim().isEmpty) return 'Required';
+                  if (!PakistanPhoneInputFormatter.isValidPakistaniMobile(v)) {
+                    return 'Enter valid Pakistani mobile';
+                  }
+                  return null;
+                },
+              ),
+              SizedBox(height: 16.h),
+              _label('Province'),
+              DropdownButtonFormField<int>(
+                value: _provinceId,
+                decoration: _fieldDecoration(),
+                hint: Text(
+                  _loadingRefs ? 'Loading…' : 'Select province',
+                  style: TextStyle(fontSize: 13.sp),
+                ),
+                items: _provinces
+                    .map(
+                      (e) => DropdownMenuItem(
+                        value: e.id,
+                        child: Text(
+                          e.name,
+                          style: TextStyle(
+                            fontSize: 14.sp,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
                       ),
-                    ),
-                  )
-                  .toList(),
-              onChanged: (v) => setState(() => _maritalStatusId = v),
-            ),
-            SizedBox(height: 16.h),
-          ],
-          _sectionTitle('CONTACT & LOCATION'),
-          _label('Phone Number'),
-          TextFormField(
-            controller: _phoneController,
-            keyboardType: TextInputType.phone,
-            inputFormatters: [PakistanPhoneInputFormatter()],
-            style: TextStyle(
-              fontSize: 14.sp,
-              fontWeight: FontWeight.w600,
-              color: AppColors.textPrimary,
-            ),
-            decoration: _fieldDecoration(),
-            validator: (v) {
-              if (v == null || v.trim().isEmpty) return 'Required';
-              if (!PakistanPhoneInputFormatter.isValidPakistaniMobile(v)) {
-                return 'Enter valid Pakistani mobile';
-              }
-              return null;
-            },
-          ),
-          SizedBox(height: 16.h),
-          _label('Province'),
-          DropdownButtonFormField<int>(
-            value: _provinceId,
-            decoration: _fieldDecoration(),
-            hint: Text(
-              _loadingRefs ? 'Loading…' : 'Select province',
-              style: TextStyle(fontSize: 13.sp),
-            ),
-            items: _provinces
-                .map(
-                  (e) => DropdownMenuItem(
-                    value: e.id,
-                    child: Text(
-                      e.name,
-                      style: TextStyle(
-                        fontSize: 14.sp,
-                        fontWeight: FontWeight.w600,
+                    )
+                    .toList(),
+                onChanged: _onProvinceChanged,
+              ),
+              SizedBox(height: 16.h),
+              _label('District'),
+              DropdownButtonFormField<int>(
+                value: _districtId,
+                decoration: _fieldDecoration(),
+                hint: const Text('Select district'),
+                items: _districts
+                    .map(
+                      (e) => DropdownMenuItem(
+                        value: e.id,
+                        child: Text(
+                          e.name,
+                          style: TextStyle(
+                            fontSize: 14.sp,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
                       ),
-                    ),
-                  ),
-                )
-                .toList(),
-            onChanged: _onProvinceChanged,
-          ),
-          SizedBox(height: 16.h),
-          _label('District'),
-          DropdownButtonFormField<int>(
-            value: _districtId,
-            decoration: _fieldDecoration(),
-            hint: const Text('Select district'),
-            items: _districts
-                .map(
-                  (e) => DropdownMenuItem(
-                    value: e.id,
-                    child: Text(
-                      e.name,
-                      style: TextStyle(
-                        fontSize: 14.sp,
-                        fontWeight: FontWeight.w600,
+                    )
+                    .toList(),
+                onChanged: (v) => _onDistrictChanged(v),
+              ),
+              SizedBox(height: 16.h),
+              _label('Tehsil'),
+              DropdownButtonFormField<int>(
+                value: _tehsilId,
+                decoration: _fieldDecoration(),
+                hint: const Text('Select tehsil'),
+                items: _tehsils
+                    .map(
+                      (e) => DropdownMenuItem(
+                        value: e.id,
+                        child: Text(
+                          e.name,
+                          style: TextStyle(
+                            fontSize: 14.sp,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
                       ),
-                    ),
-                  ),
-                )
-                .toList(),
-            onChanged: (v) => _onDistrictChanged(v),
+                    )
+                    .toList(),
+                onChanged: (v) => setState(() => _tehsilId = v),
+              ),
+              SizedBox(height: 16.h),
+              _label('Street Address'),
+              TextFormField(
+                controller: _streetController,
+                maxLines: 2,
+                style: TextStyle(
+                  fontSize: 14.sp,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.textPrimary,
+                ),
+                decoration: _fieldDecoration(),
+                validator: (v) =>
+                    v == null || v.trim().isEmpty ? 'Required' : null,
+              ),
+            ],
           ),
-          SizedBox(height: 16.h),
-          _label('Tehsil'),
-          DropdownButtonFormField<int>(
-            value: _tehsilId,
-            decoration: _fieldDecoration(),
-            hint: const Text('Select tehsil'),
-            items: _tehsils
-                .map(
-                  (e) => DropdownMenuItem(
-                    value: e.id,
-                    child: Text(
-                      e.name,
-                      style: TextStyle(
-                        fontSize: 14.sp,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                )
-                .toList(),
-            onChanged: (v) => setState(() => _tehsilId = v),
-          ),
-          SizedBox(height: 16.h),
-          _label('Street Address'),
-          TextFormField(
-            controller: _streetController,
-            maxLines: 2,
-            style: TextStyle(
-              fontSize: 14.sp,
-              fontWeight: FontWeight.w600,
-              color: AppColors.textPrimary,
-            ),
-            decoration: _fieldDecoration(),
-            validator: (v) => v == null || v.trim().isEmpty ? 'Required' : null,
-          ),
-        ],
-      ),
+        ),
+        _primaryCtaButton(
+          onPressed: _savingPersonal ? null : _savePersonal,
+          label: _savingPersonal ? 'Saving…' : 'Save Changes',
+        ),
+        SizedBox(height: MediaQuery.paddingOf(context).bottom + 12.h),
+      ],
     );
   }
 
@@ -1394,11 +1413,23 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
         _medical.isEmpty &&
         _surgical.isEmpty &&
         _drugs.isEmpty) {
-      return Center(
-        child: Padding(
-          padding: EdgeInsets.all(24.r),
-          child: CircularProgressIndicator(color: AppColors.dashboardPrimary),
-        ),
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: EdgeInsets.all(24.r),
+            child: Center(
+              child: CircularProgressIndicator(
+                color: AppColors.dashboardPrimary,
+              ),
+            ),
+          ),
+          _primaryCtaButton(
+            onPressed: _savingMedical ? null : _saveMedicalAndLifestyle,
+            label: _savingMedical ? 'Saving…' : 'Save Medical History',
+          ),
+          SizedBox(height: MediaQuery.paddingOf(context).bottom + 12.h),
+        ],
       );
     }
     return Column(
@@ -2104,6 +2135,11 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
             ],
           ),
         ),
+        _primaryCtaButton(
+          onPressed: _savingMedical ? null : _saveMedicalAndLifestyle,
+          label: _savingMedical ? 'Saving…' : 'Save Medical History',
+        ),
+        SizedBox(height: MediaQuery.paddingOf(context).bottom + 12.h),
       ],
     );
   }
@@ -2183,19 +2219,46 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
   }
 
   Widget _visitsBody() {
+    final bottomInset = SizedBox(
+      height: MediaQuery.paddingOf(context).bottom + 12.h,
+    );
+    final logVisitCta = _primaryCtaButton(
+      onPressed: _openVisitAssessment,
+      label: 'Log New Visit',
+    );
+
     if (_loadingDetail && _visits.isEmpty) {
-      return Center(
-        child: CircularProgressIndicator(color: AppColors.dashboardPrimary),
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: EdgeInsets.symmetric(vertical: 24.h),
+            child: Center(
+              child: CircularProgressIndicator(
+                color: AppColors.dashboardPrimary,
+              ),
+            ),
+          ),
+          logVisitCta,
+          bottomInset,
+        ],
       );
     }
     if (_visits.isEmpty) {
-      return Text(
-        'No visits found.',
-        style: TextStyle(
-          fontSize: 13.sp,
-          fontWeight: FontWeight.w600,
-          color: AppColors.textSecondary,
-        ),
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            'No visits found.',
+            style: TextStyle(
+              fontSize: 13.sp,
+              fontWeight: FontWeight.w600,
+              color: AppColors.textSecondary,
+            ),
+          ),
+          logVisitCta,
+          bottomInset,
+        ],
       );
     }
     final shown = _visitsForCurrentSegment();
@@ -2385,6 +2448,8 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
               ),
             ),
           ),
+        logVisitCta,
+        bottomInset,
       ],
     );
   }
@@ -2429,213 +2494,203 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final s = widget.summary;
+  Widget _patientDetailHeroBanner(HwPatientSummary s) {
     final initials = s.initials.trim().isNotEmpty
         ? s.initials
         : NameInitials.fromFullName(s.fullName);
-
     final avatarBg = _avatarForCondition(s.primaryCondition);
-
-    return ColoredBox(
-      color: AppColors.registrationScreenBg,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+    return Container(
+      padding: EdgeInsets.fromLTRB(18.w, 20.h, 18.w, 24.h),
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            AppColors.dashboardPrimary,
+            AppColors.followAccentGreen,
+          ],
+        ),
+      ),
+      child: Row(
         children: [
-          if (_detailLoadError != null)
-            Material(
-              color: AppColors.dashboardPeach,
-              child: Padding(
-                padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 8.h),
-                child: Text(
-                  _detailLoadError!,
-                  style: TextStyle(
-                    fontSize: 12.sp,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.dashboardWarning,
-                  ),
-                ),
+          Container(
+            width: 58.r,
+            height: 58.r,
+            decoration: BoxDecoration(
+              color: avatarBg.withValues(alpha: 0.28),
+              borderRadius: BorderRadius.circular(18.r),
+              border: Border.all(
+                color: AppColors.surface.withValues(alpha: 0.5),
+                width: 1.5,
               ),
             ),
-          Container(
-            color: AppColors.surface,
-            padding: EdgeInsets.fromLTRB(18.w, 8.h, 18.w, 12.h),
-            child: Row(
-              children: [
-                SizedBox(
-                  width: 36.r,
-                  height: 36.r,
-                  child: Material(
-                    color: AppColors.dashboardChipBlueBg,
-                    borderRadius: BorderRadius.circular(10.r),
-                    child: InkWell(
-                      borderRadius: BorderRadius.circular(10.r),
-                      onTap: widget.onBack,
-                      child: Icon(
-                        Icons.arrow_back_ios_new_rounded,
-                        size: 17.sp,
-                        color: AppColors.dashboardPrimary,
-                      ),
-                    ),
-                  ),
-                ),
-                Expanded(
-                  child: Text(
-                    s.fullName,
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 16.sp,
-                      fontWeight: FontWeight.w800,
-                      color: AppColors.textPrimary,
-                    ),
-                  ),
-                ),
-                SizedBox(width: 36.r, height: 36.r),
-              ],
+            alignment: Alignment.center,
+            child: Text(
+              initials,
+              style: TextStyle(
+                fontSize: 18.sp,
+                fontWeight: FontWeight.w900,
+                color: AppColors.surface,
+              ),
             ),
           ),
-          Container(
-            padding: EdgeInsets.fromLTRB(18.w, 20.h, 18.w, 24.h),
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  AppColors.dashboardPrimary,
-                  AppColors.followAccentGreen,
-                ],
-              ),
-            ),
-            child: Row(
+          SizedBox(width: 14.w),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Container(
-                  width: 58.r,
-                  height: 58.r,
-                  decoration: BoxDecoration(
-                    color: avatarBg.withValues(alpha: 0.28),
-                    borderRadius: BorderRadius.circular(18.r),
-                    border: Border.all(
-                      color: AppColors.surface.withValues(alpha: 0.5),
-                      width: 1.5,
-                    ),
-                  ),
-                  alignment: Alignment.center,
-                  child: Text(
-                    initials,
-                    style: TextStyle(
-                      fontSize: 18.sp,
-                      fontWeight: FontWeight.w900,
-                      color: AppColors.surface,
-                    ),
+                Text(
+                  s.fullName,
+                  style: TextStyle(
+                    fontSize: 17.sp,
+                    fontWeight: FontWeight.w900,
+                    color: AppColors.surface,
                   ),
                 ),
-                SizedBox(width: 14.w),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        s.fullName,
+                SizedBox(height: 4.h),
+                Text(
+                  'Age ${s.age} • ${s.gender} • ${s.displayId}',
+                  style: TextStyle(
+                    fontSize: 12.sp,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.surface.withValues(alpha: 0.9),
+                  ),
+                ),
+                SizedBox(height: 8.h),
+                Row(
+                  children: [
+                    Container(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: 10.w,
+                        vertical: 4.h,
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppColors.surface.withValues(alpha: 0.18),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Text(
+                        s.primaryCondition.isNotEmpty
+                            ? s.primaryCondition
+                            : '—',
                         style: TextStyle(
-                          fontSize: 17.sp,
-                          fontWeight: FontWeight.w900,
+                          fontSize: 10.sp,
+                          fontWeight: FontWeight.w800,
                           color: AppColors.surface,
                         ),
                       ),
-                      SizedBox(height: 4.h),
-                      Text(
-                        'Age ${s.age} • ${s.gender} • ${s.displayId}',
+                    ),
+                    SizedBox(width: 10.w),
+                    Expanded(
+                      child: Text(
+                        'Last: ${patientDetailShortVisit(s.lastVisitDate)}',
+                        overflow: TextOverflow.ellipsis,
                         style: TextStyle(
-                          fontSize: 12.sp,
-                          fontWeight: FontWeight.w600,
-                          color: AppColors.surface.withValues(alpha: 0.9),
+                          fontSize: 11.sp,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.surface.withValues(alpha: 0.85),
                         ),
                       ),
-                      SizedBox(height: 8.h),
-                      Row(
-                        children: [
-                          Container(
-                            padding: EdgeInsets.symmetric(
-                              horizontal: 10.w,
-                              vertical: 4.h,
-                            ),
-                            decoration: BoxDecoration(
-                              color: AppColors.surface.withValues(alpha: 0.18),
-                              borderRadius: BorderRadius.circular(999),
-                            ),
-                            child: Text(
-                              s.primaryCondition.isNotEmpty
-                                  ? s.primaryCondition
-                                  : '—',
-                              style: TextStyle(
-                                fontSize: 10.sp,
-                                fontWeight: FontWeight.w800,
-                                color: AppColors.surface,
-                              ),
-                            ),
-                          ),
-                          SizedBox(width: 10.w),
-                          Expanded(
-                            child: Text(
-                              'Last: ${patientDetailShortVisit(s.lastVisitDate)}',
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                fontSize: 11.sp,
-                                fontWeight: FontWeight.w700,
-                                color:
-                                    AppColors.surface.withValues(alpha: 0.85),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
               ],
             ),
           ),
-          Container(
-            color: AppColors.surface,
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                children: PatientDetailSection.values.map(_tab).toList(),
-              ),
-            ),
-          ),
-          Expanded(
-            child: SingleChildScrollView(
-              padding: EdgeInsets.fromLTRB(18.w, 22.h, 18.w, 110.h),
-              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-              child: _sectionBody(),
-            ),
-          ),
-          if (_showsBottomSaveButton)
-            SafeArea(
-              top: false,
-              child: Padding(
-                padding: EdgeInsets.fromLTRB(18.w, 8.h, 18.w, 12.h),
-                child: FilledButton(
-                  onPressed: _bottomAction,
-                  style: FilledButton.styleFrom(
-                    backgroundColor: AppColors.registrationSaveBlue,
-                    foregroundColor: AppColors.surface,
-                    minimumSize: Size(double.infinity, 52.h),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14.r),
-                    ),
-                  ),
-                  child: Text(
-                    _bottomLabel,
-                    style: TextStyle(
-                      fontSize: 15.sp,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final s = widget.summary;
+    final slivers = <Widget>[
+      SliverAppBar(
+        primary: false,
+        pinned: true,
+        elevation: 0,
+        scrolledUnderElevation: 0.5,
+        shadowColor: AppColors.dashboardPrimaryDark.withValues(alpha: 0.08),
+        backgroundColor: AppColors.surface,
+        surfaceTintColor: Colors.transparent,
+        toolbarHeight: 52.h,
+        leading: Padding(
+          padding: EdgeInsets.only(left: 6.w),
+          child: SizedBox(
+            width: 40.r,
+            height: 40.r,
+            child: Material(
+              color: AppColors.dashboardChipBlueBg,
+              borderRadius: BorderRadius.circular(10.r),
+              child: InkWell(
+                borderRadius: BorderRadius.circular(10.r),
+                onTap: widget.onBack,
+                child: Icon(
+                  Icons.arrow_back_ios_new_rounded,
+                  size: 17.sp,
+                  color: AppColors.dashboardPrimary,
                 ),
               ),
             ),
+          ),
+        ),
+        leadingWidth: 46.w,
+        title: Text(
+          s.fullName,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontSize: 16.sp,
+            fontWeight: FontWeight.w800,
+            color: AppColors.textPrimary,
+          ),
+        ),
+        centerTitle: true,
+        actions: [
+          SizedBox(width: 46.w),
         ],
+      ),
+      if (_detailLoadError != null)
+        SliverToBoxAdapter(
+          child: Material(
+            color: AppColors.dashboardPeach,
+            child: Padding(
+              padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 8.h),
+              child: Text(
+                _detailLoadError!,
+                style: TextStyle(
+                  fontSize: 12.sp,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.dashboardWarning,
+                ),
+              ),
+            ),
+          ),
+        ),
+      SliverToBoxAdapter(child: _patientDetailHeroBanner(s)),
+      SliverToBoxAdapter(
+        child: ColoredBox(
+          color: AppColors.surface,
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: PatientDetailSection.values.map(_tab).toList(),
+            ),
+          ),
+        ),
+      ),
+      SliverPadding(
+        padding: EdgeInsets.fromLTRB(18.w, 22.h, 18.w, 24.h),
+        sliver: SliverToBoxAdapter(
+          child: _sectionBody(),
+        ),
+      ),
+    ];
+
+    return ColoredBox(
+      color: AppColors.registrationScreenBg,
+      child: CustomScrollView(
+        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+        slivers: slivers,
       ),
     );
   }
