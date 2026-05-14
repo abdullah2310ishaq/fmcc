@@ -55,6 +55,8 @@ flutter:
 
   assets:
     - assets/
+    - assets/delete.png
+
     - assets/images/
     - assets/icons/
 

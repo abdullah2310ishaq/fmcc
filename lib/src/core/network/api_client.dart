@@ -233,6 +233,24 @@ class ApiClient {
     );
   }
 
+  Future<Response<dynamic>> delete(
+    String path, {
+    Map<String, dynamic>? query,
+    String? bearerToken,
+    bool skipAuthRetry = false,
+  }) {
+    return _dio.delete<dynamic>(
+      path,
+      queryParameters: query,
+      options: Options(
+        headers: bearerToken == null
+            ? null
+            : {'Authorization': 'Bearer $bearerToken'},
+        extra: skipAuthRetry ? {kSkipAuthRetryExtra: true} : null,
+      ),
+    );
+  }
+
   ApiFailure mapError(Object error) {
     if (error is DioException) {
       if (error.type == DioExceptionType.cancel &&

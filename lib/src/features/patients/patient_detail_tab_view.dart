@@ -1228,15 +1228,6 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
     _rebuildClinicalTextControllers();
   }
 
-  void _removeMedicalDraftAt(int index) {
-    if (index < 0 || index >= _medical.length) return;
-    if (_medical[index].id > 0) return;
-    setState(() {
-      _medical = [..._medical]..removeAt(index);
-    });
-    _rebuildClinicalTextControllers();
-  }
-
   void _addSurgicalDraft() {
     final used =
         _surgical.map((e) => e.procedureId).where((id) => id > 0).toSet();
@@ -1262,15 +1253,6 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
           notes: '',
         ),
       ];
-    });
-    _rebuildClinicalTextControllers();
-  }
-
-  void _removeSurgicalDraftAt(int index) {
-    if (index < 0 || index >= _surgical.length) return;
-    if (_surgical[index].id > 0) return;
-    setState(() {
-      _surgical = [..._surgical]..removeAt(index);
     });
     _rebuildClinicalTextControllers();
   }
@@ -1304,13 +1286,299 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
     _rebuildClinicalTextControllers();
   }
 
-  void _removeDrugDraftAt(int index) {
+  Future<bool> _confirmDeleteHistoryEntry({
+    required String title,
+    required String message,
+  }) async {
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (ctx) {
+        return Dialog(
+          insetPadding: EdgeInsets.symmetric(horizontal: 28.w, vertical: 24.h),
+          backgroundColor: AppColors.surface,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(18.r),
+          ),
+          child: Padding(
+            padding: EdgeInsets.fromLTRB(20.w, 22.h, 20.w, 18.h),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: 48.r,
+                      height: 48.r,
+                      decoration: BoxDecoration(
+                        color: AppColors.dashboardPeach.withValues(alpha: 0.45),
+                        borderRadius: BorderRadius.circular(14.r),
+                      ),
+                      alignment: Alignment.center,
+                      child: Image.asset(
+                        'assets/delete.png',
+                        width: 28.r,
+                        height: 28.r,
+                        fit: BoxFit.contain,
+                        errorBuilder: (context, error, stackTrace) {
+                          return Icon(
+                            Icons.delete_outline_rounded,
+                            size: 28.sp,
+                            color: AppColors.dashboardPrimaryDark,
+                          );
+                        },
+                      ),
+                    ),
+                    SizedBox(width: 14.w),
+                    Expanded(
+                      child: Text(
+                        title,
+                        style: TextStyle(
+                          fontSize: 17.sp,
+                          fontWeight: FontWeight.w800,
+                          color: AppColors.dashboardPrimaryDark,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                SizedBox(height: 14.h),
+                Text(
+                  message,
+                  style: TextStyle(
+                    fontSize: 13.sp,
+                    fontWeight: FontWeight.w600,
+                    height: 1.4,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+                SizedBox(height: 22.h),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () => Navigator.pop(ctx, false),
+                        style: OutlinedButton.styleFrom(
+                          padding: EdgeInsets.symmetric(vertical: 14.h),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12.r),
+                          ),
+                          side: const BorderSide(color: AppColors.border),
+                        ),
+                        child: Text(
+                          'Cancel',
+                          style: TextStyle(
+                            fontSize: 14.sp,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.dashboardPrimaryDark,
+                          ),
+                        ),
+                      ),
+                    ),
+                    SizedBox(width: 12.w),
+                    Expanded(
+                      child: FilledButton(
+                        onPressed: () => Navigator.pop(ctx, true),
+                        style: FilledButton.styleFrom(
+                          backgroundColor: AppColors.danger,
+                          foregroundColor: Colors.white,
+                          padding: EdgeInsets.symmetric(vertical: 14.h),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12.r),
+                          ),
+                        ),
+                        child: Text(
+                          'Delete',
+                          style: TextStyle(
+                            fontSize: 14.sp,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+    return result ?? false;
+  }
+
+  Widget _historyEntryDeleteButton({required VoidCallback onPressed}) {
+    return Tooltip(
+      message: 'Delete',
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onPressed,
+          borderRadius: BorderRadius.circular(10.r),
+          child: Padding(
+            padding: EdgeInsets.all(6.r),
+            child: Image.asset(
+              'assets/delete.png',
+              width: 24.r,
+              height: 24.r,
+              fit: BoxFit.contain,
+              errorBuilder: (context, error, stackTrace) {
+                return Icon(
+                  Icons.delete_outline_rounded,
+                  size: 24.sp,
+                  color: AppColors.dashboardPrimaryDark,
+                );
+              },
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _removeMedicalEntryAt(int index) {
+    if (index < 0 || index >= _medical.length) return;
+    setState(() {
+      _medical = [..._medical]..removeAt(index);
+    });
+    _rebuildClinicalTextControllers();
+  }
+
+  void _removeSurgicalEntryAt(int index) {
+    if (index < 0 || index >= _surgical.length) return;
+    setState(() {
+      _surgical = [..._surgical]..removeAt(index);
+    });
+    _rebuildClinicalTextControllers();
+  }
+
+  void _removeDrugEntryAt(int index) {
     if (index < 0 || index >= _drugs.length) return;
-    if (_drugs[index].id > 0) return;
     setState(() {
       _drugs = [..._drugs]..removeAt(index);
     });
     _rebuildClinicalTextControllers();
+  }
+
+  Future<void> _offerDeleteMedicalRow(int index) async {
+    if (index < 0 || index >= _medical.length) return;
+    final row = _medical[index];
+    final isDraft = row.id <= 0;
+    final name = row.conditionName.trim().isNotEmpty
+        ? row.conditionName.trim()
+        : 'This entry';
+    final ok = await _confirmDeleteHistoryEntry(
+      title: isDraft ? 'Discard new condition?' : 'Delete chronic condition?',
+      message: isDraft
+          ? '“$name” will be removed. You can add another with “Add condition”.'
+          : '“$name” will be permanently deleted on the server when you confirm.',
+    );
+    if (!mounted || !ok) return;
+
+    if (isDraft) {
+      _removeMedicalEntryAt(index);
+      _toast('Draft removed.');
+      return;
+    }
+
+    final session = context.read<SessionController>();
+    final token = session.state.accessToken?.trim();
+    if (token == null || token.isEmpty) {
+      _toast('Please sign in again.');
+      return;
+    }
+
+    try {
+      await _patientApi!.deleteMedicalHistory(id: row.id, bearerToken: token);
+      if (!mounted) return;
+      final idx = _medical.indexWhere((e) => e.id == row.id);
+      if (idx >= 0) _removeMedicalEntryAt(idx);
+      _toast('Chronic condition deleted.');
+    } on Object catch (e) {
+      if (!mounted || e is SessionEndedFailure) return;
+      _toast(session.apiClient.mapError(e).message);
+    }
+  }
+
+  Future<void> _offerDeleteSurgicalRow(int index) async {
+    if (index < 0 || index >= _surgical.length) return;
+    final row = _surgical[index];
+    final isDraft = row.id <= 0;
+    final name = row.procedureName.trim().isNotEmpty
+        ? row.procedureName.trim()
+        : 'This entry';
+    final ok = await _confirmDeleteHistoryEntry(
+      title: isDraft ? 'Discard new procedure?' : 'Delete procedure?',
+      message: isDraft
+          ? '“$name” will be removed. You can add another with “Add procedure”.'
+          : '“$name” will be permanently deleted on the server when you confirm.',
+    );
+    if (!mounted || !ok) return;
+
+    if (isDraft) {
+      _removeSurgicalEntryAt(index);
+      _toast('Draft removed.');
+      return;
+    }
+
+    final session = context.read<SessionController>();
+    final token = session.state.accessToken?.trim();
+    if (token == null || token.isEmpty) {
+      _toast('Please sign in again.');
+      return;
+    }
+
+    try {
+      await _patientApi!.deleteSurgicalHistory(id: row.id, bearerToken: token);
+      if (!mounted) return;
+      final idx = _surgical.indexWhere((e) => e.id == row.id);
+      if (idx >= 0) _removeSurgicalEntryAt(idx);
+      _toast('Surgical history deleted.');
+    } on Object catch (e) {
+      if (!mounted || e is SessionEndedFailure) return;
+      _toast(session.apiClient.mapError(e).message);
+    }
+  }
+
+  Future<void> _offerDeleteDrugRow(int index) async {
+    if (index < 0 || index >= _drugs.length) return;
+    final row = _drugs[index];
+    final isDraft = row.id <= 0;
+    final name = row.categoryName.trim().isNotEmpty
+        ? row.categoryName.trim()
+        : 'This entry';
+    final ok = await _confirmDeleteHistoryEntry(
+      title: isDraft ? 'Discard new drug row?' : 'Delete drug history row?',
+      message: isDraft
+          ? '“$name” will be removed. You can add another with “Add category”.'
+          : '“$name” will be permanently deleted on the server when you confirm.',
+    );
+    if (!mounted || !ok) return;
+
+    if (isDraft) {
+      _removeDrugEntryAt(index);
+      _toast('Draft removed.');
+      return;
+    }
+
+    final session = context.read<SessionController>();
+    final token = session.state.accessToken?.trim();
+    if (token == null || token.isEmpty) {
+      _toast('Please sign in again.');
+      return;
+    }
+
+    try {
+      await _patientApi!.deleteDrugHistory(id: row.id, bearerToken: token);
+      if (!mounted) return;
+      final idx = _drugs.indexWhere((e) => e.id == row.id);
+      if (idx >= 0) _removeDrugEntryAt(idx);
+      _toast('Drug history deleted.');
+    } on Object catch (e) {
+      if (!mounted || e is SessionEndedFailure) return;
+      _toast(session.apiClient.mapError(e).message);
+    }
   }
 
   Widget _historySectionCard({
@@ -1496,25 +1764,31 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
                                 ),
                               ),
                               const Spacer(),
-                              IconButton(
-                                tooltip: 'Remove draft',
-                                onPressed: () => _removeMedicalDraftAt(i),
-                                icon: Icon(
-                                  Icons.close_rounded,
-                                  size: 20.sp,
-                                  color: AppColors.textSecondary,
-                                ),
+                              _historyEntryDeleteButton(
+                                onPressed: () =>
+                                    unawaited(_offerDeleteMedicalRow(i)),
                               ),
                             ],
                           )
                         else
-                          Text(
-                            row.conditionName,
-                            style: TextStyle(
-                              fontSize: 14.sp,
-                              fontWeight: FontWeight.w800,
-                              color: AppColors.textPrimary,
-                            ),
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  row.conditionName,
+                                  style: TextStyle(
+                                    fontSize: 14.sp,
+                                    fontWeight: FontWeight.w800,
+                                    color: AppColors.textPrimary,
+                                  ),
+                                ),
+                              ),
+                              _historyEntryDeleteButton(
+                                onPressed: () =>
+                                    unawaited(_offerDeleteMedicalRow(i)),
+                              ),
+                            ],
                           ),
                         if (isDraft) ...[
                           SizedBox(height: 8.h),
@@ -1739,25 +2013,31 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
                                 ),
                               ),
                               const Spacer(),
-                              IconButton(
-                                tooltip: 'Remove draft',
-                                onPressed: () => _removeSurgicalDraftAt(i),
-                                icon: Icon(
-                                  Icons.close_rounded,
-                                  size: 20.sp,
-                                  color: AppColors.textSecondary,
-                                ),
+                              _historyEntryDeleteButton(
+                                onPressed: () =>
+                                    unawaited(_offerDeleteSurgicalRow(i)),
                               ),
                             ],
                           )
                         else
-                          Text(
-                            s.procedureName,
-                            style: TextStyle(
-                              fontSize: 14.sp,
-                              fontWeight: FontWeight.w800,
-                              color: AppColors.textPrimary,
-                            ),
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  s.procedureName,
+                                  style: TextStyle(
+                                    fontSize: 14.sp,
+                                    fontWeight: FontWeight.w800,
+                                    color: AppColors.textPrimary,
+                                  ),
+                                ),
+                              ),
+                              _historyEntryDeleteButton(
+                                onPressed: () =>
+                                    unawaited(_offerDeleteSurgicalRow(i)),
+                              ),
+                            ],
                           ),
                         if (isDraft) ...[
                           SizedBox(height: 8.h),
@@ -1941,25 +2221,31 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
                                 ),
                               ),
                               const Spacer(),
-                              IconButton(
-                                tooltip: 'Remove draft',
-                                onPressed: () => _removeDrugDraftAt(i),
-                                icon: Icon(
-                                  Icons.close_rounded,
-                                  size: 20.sp,
-                                  color: AppColors.textSecondary,
-                                ),
+                              _historyEntryDeleteButton(
+                                onPressed: () =>
+                                    unawaited(_offerDeleteDrugRow(i)),
                               ),
                             ],
                           )
                         else
-                          Text(
-                            d.categoryName,
-                            style: TextStyle(
-                              fontSize: 14.sp,
-                              fontWeight: FontWeight.w800,
-                              color: AppColors.textPrimary,
-                            ),
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  d.categoryName,
+                                  style: TextStyle(
+                                    fontSize: 14.sp,
+                                    fontWeight: FontWeight.w800,
+                                    color: AppColors.textPrimary,
+                                  ),
+                                ),
+                              ),
+                              _historyEntryDeleteButton(
+                                onPressed: () =>
+                                    unawaited(_offerDeleteDrugRow(i)),
+                              ),
+                            ],
                           ),
                         if (isDraft) ...[
                           SizedBox(height: 8.h),

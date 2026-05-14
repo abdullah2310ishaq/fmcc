@@ -13,6 +13,9 @@
 /// - `GET /api/Patient/visits/{patientId}/` — visit list
 /// - `POST /api/Patient/visit` — create visit
 /// - `PUT /api/Patient/visit` — update visit
+/// - `DELETE /api/Patient/medicalhistory/{id}` — delete medical history row
+/// - `DELETE /api/Patient/surgicalhistory/{id}` — delete surgical history row
+/// - `DELETE /api/Patient/drughistory/{id}` — delete drug history row
 class Endpoints {
   const Endpoints._();
 
@@ -20,14 +23,16 @@ class Endpoints {
   static const String refreshToken = '/api/Auth/refresh-token';
 
   // LHW profile endpoints from Postman
-  static const String healthWorkerProfilePut = '/api/Profile/healthworker-profile';
+  static const String healthWorkerProfilePut =
+      '/api/Profile/healthworker-profile';
   static String healthWorkerProfileGet(String userId) =>
       '/api/Profile/health-worker-profile/$userId';
 
   // Reference (dropdown) endpoints
   static const String educationLevels = '/api/Reference/education-levels';
   static const String provinces = '/api/Reference/provinces';
-  static String districts(int provinceId) => '/api/Reference/districts/$provinceId';
+  static String districts(int provinceId) =>
+      '/api/Reference/districts/$provinceId';
   static String tehsils(int provinceId, int districtId) =>
       '/api/Reference/tehsils/$provinceId/$districtId';
 
@@ -50,13 +55,25 @@ class Endpoints {
   static String patientCompleteHistory(String patientId) =>
       '/api/Patient/complete-history/${Uri.encodeComponent(patientId)}';
 
-  static const String patientMedicalHistoryUpsert = '/api/Patient/medicalhistory';
+  static const String patientMedicalHistoryUpsert =
+      '/api/Patient/medicalhistory';
 
-  static const String patientSurgicalHistoryUpsert = '/api/Patient/surgicalhistory';
+  static String patientMedicalHistoryDelete(int id) =>
+      '/api/Patient/medicalhistory/$id';
+
+  static const String patientSurgicalHistoryUpsert =
+      '/api/Patient/surgicalhistory';
+
+  static String patientSurgicalHistoryDelete(int id) =>
+      '/api/Patient/surgicalhistory/$id';
 
   static const String patientDrugHistoryUpsert = '/api/Patient/drughistory';
 
-  static const String patientBaselineLifestyleUpsert = '/api/Patient/baselinelifestyle';
+  static String patientDrugHistoryDelete(int id) =>
+      '/api/Patient/drughistory/$id';
+
+  static const String patientBaselineLifestyleUpsert =
+      '/api/Patient/baselinelifestyle';
 
   static String patientVisits(String patientId) =>
       '/api/Patient/visits/${Uri.encodeComponent(patientId)}/';
@@ -69,11 +86,11 @@ class Endpoints {
   static const String symptoms = '/api/Reference/symptoms';
   static const String surgicalProcedures = '/api/Reference/surgical-procedures';
   static const String medicineCategories = '/api/Reference/medicine-categories';
-  static const String physicalActivityLevels = '/api/Reference/physical-activity-levels';
+  static const String physicalActivityLevels =
+      '/api/Reference/physical-activity-levels';
   static const String adherenceLevels = '/api/Reference/adherence-levels';
   static const String complianceLevels = '/api/Reference/compliance-levels';
 
   static const String patientVisitCreate = '/api/Patient/visit';
   static const String patientVisitUpdate = '/api/Patient/visit';
 }
-

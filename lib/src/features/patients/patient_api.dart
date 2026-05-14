@@ -66,7 +66,6 @@ String? _parseVisitId(dynamic root) {
   }
 
   return _visitIdFromMap(m);
-
 }
 
 /// Patient HTTP API — mirrors `MedicalApi/Controllers/PatientController.cs`.
@@ -79,6 +78,9 @@ String? _parseVisitId(dynamic root) {
 /// - `POST …/medicalhistory` — body **without** row `id` (create).
 /// - `PUT …/medicalhistory` — body **with** row `id` (update).
 /// Same pattern for `surgicalhistory`, `drughistory`, and `baselinelifestyle`.
+///
+/// **Deletes:** `DELETE …/medicalhistory/{id}`, `DELETE …/surgicalhistory/{id}`,
+/// `DELETE …/drughistory/{id}`.
 class PatientApi {
   PatientApi(this._client);
 
@@ -278,6 +280,39 @@ class PatientApi {
     await _client.post(
       Endpoints.patientDrugHistoryUpsert,
       body: body,
+      bearerToken: bearerToken,
+    );
+  }
+
+  /// `DELETE /api/Patient/medicalhistory/{id}`.
+  Future<void> deleteMedicalHistory({
+    required int id,
+    required String bearerToken,
+  }) async {
+    await _client.delete(
+      Endpoints.patientMedicalHistoryDelete(id),
+      bearerToken: bearerToken,
+    );
+  }
+
+  /// `DELETE /api/Patient/surgicalhistory/{id}`.
+  Future<void> deleteSurgicalHistory({
+    required int id,
+    required String bearerToken,
+  }) async {
+    await _client.delete(
+      Endpoints.patientSurgicalHistoryDelete(id),
+      bearerToken: bearerToken,
+    );
+  }
+
+  /// `DELETE /api/Patient/drughistory/{id}`.
+  Future<void> deleteDrugHistory({
+    required int id,
+    required String bearerToken,
+  }) async {
+    await _client.delete(
+      Endpoints.patientDrugHistoryDelete(id),
       bearerToken: bearerToken,
     );
   }
