@@ -448,16 +448,20 @@ class _VisitAssessmentViewState extends State<_VisitAssessmentView> {
     final dbp = avg.dbp;
     final bpHigh = sbp >= 140 || dbp >= 90;
 
+    // Match against the action names returned from the reference API.
+    // Keywords are picked so each tier maps to exactly one DB row:
+    //   1 Normal · 2 Advised · 3 Referral · 4 Emergency Transfer ·
+    //   5 Continue monitoring · 6 Refer and Follow-up · 7 Urgent referral
     if (_dangerSigns && bpHigh) {
-      return _findVisitActionId(const ['immediate', 'emergency']);
+      return _findVisitActionId(const ['emergency', 'transfer']);
     }
     if (sbp >= 180 || dbp >= 120) {
-      return _findVisitActionId(const ['urgent', 'severe']);
+      return _findVisitActionId(const ['urgent']);
     }
     if (bpHigh) {
-      return _findVisitActionId(const ['refer', 'follow']);
+      return _findVisitActionId(const ['follow']);
     }
-    return _findVisitActionId(const ['continue', 'monitor', 'counsel']);
+    return _findVisitActionId(const ['continue', 'monitor']);
   }
 
   int? _findVisitActionId(List<String> keywords) {

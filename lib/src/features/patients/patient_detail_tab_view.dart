@@ -1409,8 +1409,7 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
                       _historyModalFooter(
                         onCancel: () => Navigator.of(dialogCtx).pop(),
                         onSubmit: () {
-                          final dur =
-                              int.tryParse(durationCtl.text.trim());
+                          final dur = int.tryParse(durationCtl.text.trim());
                           Navigator.of(dialogCtx).pop(
                             PatientMedicalHistoryRow(
                               id: _allocTempClinicalId(),
@@ -1490,8 +1489,7 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
                             DropdownButtonFormField<int>(
                               value: procedureId,
                               isExpanded: true,
-                              decoration:
-                                  _fieldDecoration(hint: 'Procedure'),
+                              decoration: _fieldDecoration(hint: 'Procedure'),
                               items: available
                                   .map(
                                     (e) => DropdownMenuItem<int>(
@@ -1859,8 +1857,7 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
             onPressed: onCancel,
             style: TextButton.styleFrom(
               foregroundColor: AppColors.textSecondary,
-              padding:
-                  EdgeInsets.symmetric(horizontal: 16.w, vertical: 10.h),
+              padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 10.h),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(8.r),
               ),
@@ -1880,8 +1877,7 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
               backgroundColor: AppColors.dashboardPrimary,
               foregroundColor: AppColors.surface,
               elevation: 0,
-              padding:
-                  EdgeInsets.symmetric(horizontal: 18.w, vertical: 10.h),
+              padding: EdgeInsets.symmetric(horizontal: 18.w, vertical: 10.h),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(8.r),
               ),
