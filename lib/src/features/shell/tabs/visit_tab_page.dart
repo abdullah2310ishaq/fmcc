@@ -15,6 +15,9 @@ import 'package:doctor_app/src/core/theme/app_colors.dart';
 import 'package:doctor_app/src/features/home/home_dashboard_controller.dart';
 import 'package:doctor_app/src/features/patients/patient_api.dart';
 
+/// Visual severity tier for the auto-recommended visit action.
+enum _RecommendedActionSeverity { controlled, uncontrolled, severe, emergency }
+
 /// Shell index **2** — visit workflow: visit submit uses **`POST /api/Patient/visit`**.
 ///
 /// Medical / surgical / drug history **create**/**update** live on separate
@@ -425,12 +428,60 @@ class _VisitAssessmentViewState extends State<_VisitAssessmentView> {
   bool _highSaltDiet = false;
   bool _alcoholUse = false;
   bool _isFollowUpVisit = false;
+  bool _dangerSigns = false;
   DateTime? _nextVisitDate;
 
   bool _submitting = false;
 
   void _onBpControllersChanged() {
-    if (mounted) setState(() {});
+    if (!mounted) return;
+    setState(() {
+      _visitActionId = _recommendedActionId() ?? _visitActionId;
+    });
+  }
+
+  int? _recommendedActionId() {
+    if (_visitActions.isEmpty) return null;
+    final avg = _averagedBpPair();
+    if (avg == null) return _visitActionId;
+    final sbp = avg.sbp;
+    final dbp = avg.dbp;
+    final bpHigh = sbp >= 140 || dbp >= 90;
+
+    if (_dangerSigns && bpHigh) {
+      return _findVisitActionId(const ['immediate', 'emergency']);
+    }
+    if (sbp >= 180 || dbp >= 120) {
+      return _findVisitActionId(const ['urgent', 'severe']);
+    }
+    if (bpHigh) {
+      return _findVisitActionId(const ['refer', 'follow']);
+    }
+    return _findVisitActionId(const ['continue', 'monitor', 'counsel']);
+  }
+
+  int? _findVisitActionId(List<String> keywords) {
+    for (final keyword in keywords) {
+      for (final a in _visitActions) {
+        if (a.id > 0 && a.name.toLowerCase().contains(keyword)) {
+          return a.id;
+        }
+      }
+    }
+    return _firstPositiveId(_visitActions);
+  }
+
+  /// Severity tier (used only for tinting the recommended-action tile).
+  _RecommendedActionSeverity _recommendedActionSeverity() {
+    final avg = _averagedBpPair();
+    if (avg == null) return _RecommendedActionSeverity.controlled;
+    final sbp = avg.sbp;
+    final dbp = avg.dbp;
+    final bpHigh = sbp >= 140 || dbp >= 90;
+    if (_dangerSigns && bpHigh) return _RecommendedActionSeverity.emergency;
+    if (sbp >= 180 || dbp >= 120) return _RecommendedActionSeverity.severe;
+    if (bpHigh) return _RecommendedActionSeverity.uncontrolled;
+    return _RecommendedActionSeverity.controlled;
   }
 
   static int _roundedMean(int a, int b) => ((a + b) / 2).round();
@@ -535,8 +586,9 @@ class _VisitAssessmentViewState extends State<_VisitAssessmentView> {
 
         _visitTypeId = _firstPositiveId(_visitTypes);
         _visitStatusId = _firstPositiveId(_visitStatuses);
-        _visitActionId = _firstPositiveId(_visitActions);
         _physicalActivityLevelId = _firstPositiveId(_physicalLevels);
+        _visitActionId =
+            _recommendedActionId() ?? _firstPositiveId(_visitActions);
       });
     } on Object catch (e) {
       if (!mounted || e is SessionEndedFailure) return;
@@ -584,7 +636,11 @@ class _VisitAssessmentViewState extends State<_VisitAssessmentView> {
       'isFollowUpVisit': _isFollowUpVisit,
       'highSaltDiet': _highSaltDiet,
       'alcoholUse': _alcoholUse,
+      'dangerSigns': _dangerSigns,
       'symptomIds': _symptomIds.toList(),
+      // Send local "now" without `.toUtc()` so the calendar date that the
+      // user sees on their phone is what the backend stores.
+      'visitDate': DateTime.now().toIso8601String(),
     };
 
     final reason = _reasonController.text.trim();
@@ -618,7 +674,11 @@ class _VisitAssessmentViewState extends State<_VisitAssessmentView> {
     if (ad.isNotEmpty) map['medicalAdherenceNote'] = ad;
 
     if (_nextVisitDate != null) {
-      map['nextVisitDate'] = _nextVisitDate!.toUtc().toIso8601String();
+      // Anchor at local noon so the calendar day never flips into the
+      // previous day when the backend converts to UTC.
+      final d = _nextVisitDate!;
+      map['nextVisitDate'] =
+          DateTime(d.year, d.month, d.day, 12).toIso8601String();
     }
 
     return map;
@@ -1090,6 +1150,200 @@ class _VisitAssessmentViewState extends State<_VisitAssessmentView> {
     );
   }
 
+  Color _severityColor(_RecommendedActionSeverity s) {
+    switch (s) {
+      case _RecommendedActionSeverity.controlled:
+        return AppColors.followAccentGreen;
+      case _RecommendedActionSeverity.uncontrolled:
+        return AppColors.dashboardWarning;
+      case _RecommendedActionSeverity.severe:
+        return AppColors.danger;
+      case _RecommendedActionSeverity.emergency:
+        return AppColors.danger;
+    }
+  }
+
+  String _severitySubtitle(_RecommendedActionSeverity s) {
+    switch (s) {
+      case _RecommendedActionSeverity.controlled:
+        return 'Controlled — SBP < 140 and DBP < 90';
+      case _RecommendedActionSeverity.uncontrolled:
+        return 'Uncontrolled — SBP ≥ 140 or DBP ≥ 90';
+      case _RecommendedActionSeverity.severe:
+        return 'Severe — SBP ≥ 180 or DBP ≥ 120';
+      case _RecommendedActionSeverity.emergency:
+        return 'Emergency — high BP + danger signs';
+    }
+  }
+
+  Widget _recommendedActionTile() {
+    final id = _visitActionId;
+    final label = (id != null && id > 0) ? _labelForId(_visitActions, id) : '';
+    final severity = _recommendedActionSeverity();
+    final color = _severityColor(severity);
+    final avg = _averagedBpPair();
+    return Container(
+      padding: EdgeInsets.fromLTRB(14.w, 12.h, 14.w, 12.h),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(12.r),
+        border: Border.all(color: color.withValues(alpha: 0.4)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: EdgeInsets.all(8.r),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.18),
+              borderRadius: BorderRadius.circular(10.r),
+            ),
+            child: Icon(
+              Icons.medical_information_outlined,
+              size: 18.sp,
+              color: color,
+            ),
+          ),
+          SizedBox(width: 12.w),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Recommended action (auto)',
+                  style: TextStyle(
+                    fontSize: 11.sp,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.3,
+                    color: AppColors.registrationSectionLabel,
+                  ),
+                ),
+                SizedBox(height: 4.h),
+                Text(
+                  label.isNotEmpty
+                      ? label
+                      : (avg == null
+                          ? 'Enter all BP readings to compute.'
+                          : 'No matching visit action in reference data.'),
+                  style: TextStyle(
+                    fontSize: 14.sp,
+                    fontWeight: FontWeight.w900,
+                    color: color,
+                    height: 1.2,
+                  ),
+                ),
+                SizedBox(height: 4.h),
+                Text(
+                  _severitySubtitle(severity),
+                  style: TextStyle(
+                    fontSize: 11.sp,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textSecondary,
+                    height: 1.3,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          SizedBox(width: 8.w),
+          Icon(
+            Icons.lock_outline_rounded,
+            size: 16.sp,
+            color: color.withValues(alpha: 0.8),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _dangerSignsToggle() {
+    return CheckboxListTile(
+      contentPadding: EdgeInsets.zero,
+      controlAffinity: ListTileControlAffinity.leading,
+      title: Text(
+        'Danger signs present',
+        style: TextStyle(fontSize: 13.sp, fontWeight: FontWeight.w700),
+      ),
+      subtitle: Text(
+        'Severe headache, chest pain, blurred vision, etc.',
+        style: TextStyle(
+          fontSize: 11.sp,
+          fontWeight: FontWeight.w600,
+          color: AppColors.textSecondary,
+        ),
+      ),
+      value: _dangerSigns,
+      onChanged: (v) {
+        setState(() {
+          _dangerSigns = v ?? false;
+          _visitActionId = _recommendedActionId() ?? _visitActionId;
+        });
+      },
+    );
+  }
+
+  Widget _nextVisitDateTile() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _label('Next visit date'),
+        Material(
+          color: AppColors.registrationFieldFill,
+          borderRadius: BorderRadius.circular(12.r),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(12.r),
+            onTap: _pickNextVisit,
+            child: Container(
+              padding: EdgeInsets.symmetric(horizontal: 14.w, vertical: 13.h),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(12.r),
+                border: const Border.fromBorderSide(
+                  BorderSide(color: AppColors.registrationFieldBorder),
+                ),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.calendar_today_rounded,
+                    size: 18.sp,
+                    color: AppColors.dashboardPrimary,
+                  ),
+                  SizedBox(width: 10.w),
+                  Expanded(
+                    child: Text(
+                      _nextVisitDate == null
+                          ? 'Tap to pick the next visit date'
+                          : '${_nextVisitDate!.year}-${_nextVisitDate!.month.toString().padLeft(2, '0')}-${_nextVisitDate!.day.toString().padLeft(2, '0')}',
+                      style: TextStyle(
+                        fontSize: 14.sp,
+                        fontWeight: _nextVisitDate == null
+                            ? FontWeight.w600
+                            : FontWeight.w800,
+                        color: _nextVisitDate == null
+                            ? AppColors.textSecondary
+                            : AppColors.textPrimary,
+                      ),
+                    ),
+                  ),
+                  if (_nextVisitDate != null)
+                    IconButton(
+                      onPressed: () => setState(() => _nextVisitDate = null),
+                      icon: Icon(
+                        Icons.close_rounded,
+                        size: 18.sp,
+                        color: AppColors.textSecondary,
+                      ),
+                      visualDensity: VisualDensity.compact,
+                    ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
   Future<void> _pickNextVisit() async {
     final now = DateTime.now();
     final picked = await showDatePicker(
@@ -1229,9 +1483,8 @@ class _VisitAssessmentViewState extends State<_VisitAssessmentView> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      _visitVitalsRecordCard(),
-                      SizedBox(height: 20.h),
-                      _sectionTitle('VISIT'),
+                      _nextVisitDateTile(),
+                      SizedBox(height: 18.h),
                       if (_refsLoading)
                         Padding(
                           padding: EdgeInsets.all(16.r),
@@ -1241,26 +1494,27 @@ class _VisitAssessmentViewState extends State<_VisitAssessmentView> {
                             ),
                           ),
                         )
-                      else ...[
-                        _dropdownInt(
-                          label: 'Visit type *',
-                          value: _visitTypeId,
-                          items: _visitTypes,
-                          onChanged: (v) => setState(() => _visitTypeId = v),
-                        ),
-                        SizedBox(height: 12.h),
+                      else
                         _dropdownInt(
                           label: 'Visit status',
                           value: _visitStatusId,
                           items: _visitStatuses,
                           onChanged: (v) => setState(() => _visitStatusId = v),
                         ),
-                        SizedBox(height: 12.h),
+                      SizedBox(height: 18.h),
+                      _visitVitalsRecordCard(),
+                      SizedBox(height: 12.h),
+                      _dangerSignsToggle(),
+                      SizedBox(height: 8.h),
+                      _recommendedActionTile(),
+                      SizedBox(height: 20.h),
+                      _sectionTitle('VISIT'),
+                      if (!_refsLoading) ...[
                         _dropdownInt(
-                          label: 'Visit action',
-                          value: _visitActionId,
-                          items: _visitActions,
-                          onChanged: (v) => setState(() => _visitActionId = v),
+                          label: 'Visit type *',
+                          value: _visitTypeId,
+                          items: _visitTypes,
+                          onChanged: (v) => setState(() => _visitTypeId = v),
                         ),
                         SizedBox(height: 12.h),
                         CheckboxListTile(
@@ -1374,30 +1628,6 @@ class _VisitAssessmentViewState extends State<_VisitAssessmentView> {
                           fontWeight: FontWeight.w600,
                         ),
                         decoration: _fieldDecoration(),
-                      ),
-                      SizedBox(height: 12.h),
-                      ListTile(
-                        contentPadding: EdgeInsets.zero,
-                        title: Text(
-                          'Next visit date',
-                          style: TextStyle(
-                            fontSize: 13.sp,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                        subtitle: Text(
-                          _nextVisitDate == null
-                              ? 'Not set'
-                              : '${_nextVisitDate!.year}-${_nextVisitDate!.month.toString().padLeft(2, '0')}-${_nextVisitDate!.day.toString().padLeft(2, '0')}',
-                          style: TextStyle(
-                            fontSize: 12.sp,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        trailing: IconButton(
-                          onPressed: _pickNextVisit,
-                          icon: Icon(Icons.calendar_today_rounded, size: 20.sp),
-                        ),
                       ),
                       SizedBox(height: 24.h),
                       FilledButton.icon(

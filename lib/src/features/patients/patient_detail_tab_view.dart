@@ -73,6 +73,7 @@ extension on _VisitHistorySegment {
 enum PatientDetailSection {
   personalInfo,
   medicalHistory,
+  baselineLifestyle,
   visitHistory,
 }
 
@@ -80,7 +81,18 @@ extension on PatientDetailSection {
   String get label => switch (this) {
         PatientDetailSection.personalInfo => 'Personal Info',
         PatientDetailSection.medicalHistory => 'Medical History',
+        PatientDetailSection.baselineLifestyle => 'Baseline Lifestyle',
         PatientDetailSection.visitHistory => 'Visit History',
+      };
+}
+
+enum _MedicalHistoryTab { chronic, surgical, drug }
+
+extension on _MedicalHistoryTab {
+  String get label => switch (this) {
+        _MedicalHistoryTab.chronic => 'Chronic History',
+        _MedicalHistoryTab.surgical => 'Surgical History',
+        _MedicalHistoryTab.drug => 'Drug History',
       };
 }
 
@@ -128,6 +140,7 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
   int _clinicalTempIdSeq = 0;
 
   PatientDetailSection _section = PatientDetailSection.personalInfo;
+  _MedicalHistoryTab _medicalTab = _MedicalHistoryTab.chronic;
   _PatientDetailGender _gender = _PatientDetailGender.female;
   DateTime? _dateOfBirth;
 
@@ -1134,16 +1147,6 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
 
   int _allocTempClinicalId() => --_clinicalTempIdSeq;
 
-  NamedReferenceItem? _firstUnusedReference(
-    List<NamedReferenceItem> catalog,
-    Set<int> usedPositiveIds,
-  ) {
-    for (final e in catalog) {
-      if (e.id > 0 && !usedPositiveIds.contains(e.id)) return e;
-    }
-    return null;
-  }
-
   Set<int> _usedConditionIdsExcludingIndex(int excludeIndex) {
     final o = <int>{};
     for (var j = 0; j < _medical.length; j++) {
@@ -1201,8 +1204,10 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
   void _addMedicalDraft() {
     final used =
         _medical.map((e) => e.conditionId).where((id) => id > 0).toSet();
-    final pick = _firstUnusedReference(_medicalConditions, used);
-    if (pick == null) {
+    final available = _medicalConditions
+        .where((e) => e.id > 0 && !used.contains(e.id))
+        .toList(growable: false);
+    if (available.isEmpty) {
       _toast(
         _medicalConditions.isEmpty
             ? 'Medical condition list is still loading or empty.'
@@ -1210,29 +1215,16 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
       );
       return;
     }
-    setState(() {
-      _medical = [
-        ..._medical,
-        PatientMedicalHistoryRow(
-          id: _allocTempClinicalId(),
-          patientId: widget.summary.patientId,
-          conditionId: pick.id,
-          conditionName: pick.name,
-          durationInMonths: null,
-          isOnMedication: false,
-          complianceLevelId: null,
-          complianceLevelName: '',
-        ),
-      ];
-    });
-    _rebuildClinicalTextControllers();
+    unawaited(_showAddChronicDialog(available));
   }
 
   void _addSurgicalDraft() {
     final used =
         _surgical.map((e) => e.procedureId).where((id) => id > 0).toSet();
-    final pick = _firstUnusedReference(_surgicalProcedures, used);
-    if (pick == null) {
+    final available = _surgicalProcedures
+        .where((e) => e.id > 0 && !used.contains(e.id))
+        .toList(growable: false);
+    if (available.isEmpty) {
       _toast(
         _surgicalProcedures.isEmpty
             ? 'Procedure list is still loading or empty.'
@@ -1240,28 +1232,16 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
       );
       return;
     }
-    setState(() {
-      _surgical = [
-        ..._surgical,
-        PatientSurgicalHistoryRow(
-          id: _allocTempClinicalId(),
-          patientId: widget.summary.patientId,
-          procedureId: pick.id,
-          procedureName: pick.name,
-          approxMonth: null,
-          approxYear: null,
-          notes: '',
-        ),
-      ];
-    });
-    _rebuildClinicalTextControllers();
+    unawaited(_showAddSurgicalDialog(available));
   }
 
   void _addDrugDraft() {
     final used =
         _drugs.map((e) => e.medicineCategoryId).where((id) => id > 0).toSet();
-    final pick = _firstUnusedReference(_medicineCategories, used);
-    if (pick == null) {
+    final available = _medicineCategories
+        .where((e) => e.id > 0 && !used.contains(e.id))
+        .toList(growable: false);
+    if (available.isEmpty) {
       _toast(
         _medicineCategories.isEmpty
             ? 'Medicine category list is still loading or empty.'
@@ -1269,21 +1249,654 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
       );
       return;
     }
+    unawaited(_showAddDrugDialog(available));
+  }
+
+  Future<void> _showAddChronicDialog(
+    List<NamedReferenceItem> available,
+  ) async {
+    int conditionId = available.first.id;
+    String conditionName = available.first.name;
+    final durationCtl = TextEditingController();
+    bool onMedication = false;
+    int? complianceLevelId;
+    String complianceLevelName = '';
+
+    final row = await showDialog<PatientMedicalHistoryRow>(
+      context: context,
+      barrierDismissible: true,
+      barrierColor: Colors.black.withValues(alpha: 0.5),
+      builder: (dialogCtx) {
+        return StatefulBuilder(
+          builder: (ctx, setLocal) {
+            return Dialog(
+              backgroundColor: AppColors.surface,
+              surfaceTintColor: Colors.transparent,
+              elevation: 6,
+              insetPadding:
+                  EdgeInsets.symmetric(horizontal: 20.w, vertical: 24.h),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8.r),
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: ConstrainedBox(
+                constraints: BoxConstraints(maxWidth: 480.w),
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      _historyModalHeader(
+                        icon: Icons.monitor_heart_outlined,
+                        title: 'Add chronic condition',
+                        subtitle: 'Saved when you tap Save Medical History.',
+                      ),
+                      Padding(
+                        padding: EdgeInsets.fromLTRB(16.w, 16.h, 16.w, 4.h),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            DropdownButtonFormField<int>(
+                              value: conditionId,
+                              isExpanded: true,
+                              decoration: _fieldDecoration(
+                                hint: 'Medical condition',
+                              ),
+                              items: available
+                                  .map(
+                                    (e) => DropdownMenuItem<int>(
+                                      value: e.id,
+                                      child: Text(
+                                        e.name,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(
+                                          fontSize: 14.sp,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ),
+                                  )
+                                  .toList(),
+                              onChanged: (v) {
+                                if (v == null) return;
+                                setLocal(() {
+                                  conditionId = v;
+                                  conditionName = available
+                                      .firstWhere((e) => e.id == v)
+                                      .name;
+                                });
+                              },
+                            ),
+                            SizedBox(height: 12.h),
+                            TextFormField(
+                              controller: durationCtl,
+                              keyboardType: TextInputType.number,
+                              style: TextStyle(
+                                fontSize: 14.sp,
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.textPrimary,
+                              ),
+                              decoration: _fieldDecoration(
+                                hint: 'Duration on treatment (months)',
+                              ),
+                            ),
+                            SizedBox(height: 4.h),
+                            SwitchListTile(
+                              contentPadding: EdgeInsets.zero,
+                              title: Text(
+                                'On medication',
+                                style: TextStyle(
+                                  fontSize: 13.sp,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              value: onMedication,
+                              onChanged: (v) =>
+                                  setLocal(() => onMedication = v),
+                            ),
+                            if (_complianceLevels.isNotEmpty)
+                              DropdownButtonFormField<int?>(
+                                value: complianceLevelId,
+                                isExpanded: true,
+                                decoration: _fieldDecoration(
+                                  hint: 'Compliance level (optional)',
+                                ),
+                                items: [
+                                  DropdownMenuItem<int?>(
+                                    value: null,
+                                    child: Text(
+                                      '—',
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        fontSize: 14.sp,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ),
+                                  ..._complianceLevels
+                                      .where((e) => e.id > 0)
+                                      .map(
+                                        (e) => DropdownMenuItem<int?>(
+                                          value: e.id,
+                                          child: Text(
+                                            e.name,
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: TextStyle(
+                                              fontSize: 14.sp,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                ],
+                                onChanged: (v) {
+                                  setLocal(() {
+                                    complianceLevelId = v;
+                                    complianceLevelName = v == null
+                                        ? ''
+                                        : _complianceLevels
+                                            .firstWhere((e) => e.id == v)
+                                            .name;
+                                  });
+                                },
+                              ),
+                          ],
+                        ),
+                      ),
+                      _historyModalFooter(
+                        onCancel: () => Navigator.of(dialogCtx).pop(),
+                        onSubmit: () {
+                          final dur =
+                              int.tryParse(durationCtl.text.trim());
+                          Navigator.of(dialogCtx).pop(
+                            PatientMedicalHistoryRow(
+                              id: _allocTempClinicalId(),
+                              patientId: widget.summary.patientId,
+                              conditionId: conditionId,
+                              conditionName: conditionName,
+                              durationInMonths: dur,
+                              isOnMedication: onMedication,
+                              complianceLevelId: complianceLevelId,
+                              complianceLevelName: complianceLevelName,
+                            ),
+                          );
+                        },
+                        submitLabel: 'Add condition',
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+
+    durationCtl.dispose();
+    if (row == null || !mounted) return;
     setState(() {
-      _drugs = [
-        ..._drugs,
-        PatientDrugHistoryRow(
-          id: _allocTempClinicalId(),
-          patientId: widget.summary.patientId,
-          medicineCategoryId: pick.id,
-          categoryName: pick.name,
-          adherenceLevelId: null,
-          adherenceLevelName: '',
-          sideEffects: '',
-        ),
-      ];
+      _medical = [..._medical, row];
     });
     _rebuildClinicalTextControllers();
+  }
+
+  Future<void> _showAddSurgicalDialog(
+    List<NamedReferenceItem> available,
+  ) async {
+    int procedureId = available.first.id;
+    String procedureName = available.first.name;
+    final notesCtl = TextEditingController();
+    final monthCtl = TextEditingController();
+    final yearCtl = TextEditingController();
+
+    final row = await showDialog<PatientSurgicalHistoryRow>(
+      context: context,
+      barrierDismissible: true,
+      barrierColor: Colors.black.withValues(alpha: 0.5),
+      builder: (dialogCtx) {
+        return StatefulBuilder(
+          builder: (ctx, setLocal) {
+            return Dialog(
+              backgroundColor: AppColors.surface,
+              surfaceTintColor: Colors.transparent,
+              elevation: 6,
+              insetPadding:
+                  EdgeInsets.symmetric(horizontal: 20.w, vertical: 24.h),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8.r),
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: ConstrainedBox(
+                constraints: BoxConstraints(maxWidth: 480.w),
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      _historyModalHeader(
+                        icon: Icons.local_hospital_outlined,
+                        title: 'Add surgical procedure',
+                        subtitle: 'Approximate date is optional.',
+                      ),
+                      Padding(
+                        padding: EdgeInsets.fromLTRB(16.w, 16.h, 16.w, 8.h),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            DropdownButtonFormField<int>(
+                              value: procedureId,
+                              isExpanded: true,
+                              decoration:
+                                  _fieldDecoration(hint: 'Procedure'),
+                              items: available
+                                  .map(
+                                    (e) => DropdownMenuItem<int>(
+                                      value: e.id,
+                                      child: Text(
+                                        e.name,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(
+                                          fontSize: 14.sp,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ),
+                                  )
+                                  .toList(),
+                              onChanged: (v) {
+                                if (v == null) return;
+                                setLocal(() {
+                                  procedureId = v;
+                                  procedureName = available
+                                      .firstWhere((e) => e.id == v)
+                                      .name;
+                                });
+                              },
+                            ),
+                            SizedBox(height: 12.h),
+                            TextFormField(
+                              controller: notesCtl,
+                              maxLines: 3,
+                              style: TextStyle(
+                                fontSize: 14.sp,
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.textPrimary,
+                              ),
+                              decoration:
+                                  _fieldDecoration(hint: 'Notes (optional)'),
+                            ),
+                            SizedBox(height: 12.h),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: TextFormField(
+                                    controller: monthCtl,
+                                    keyboardType: TextInputType.number,
+                                    style: TextStyle(
+                                      fontSize: 14.sp,
+                                      fontWeight: FontWeight.w600,
+                                      color: AppColors.textPrimary,
+                                    ),
+                                    decoration: _fieldDecoration(
+                                      hint: 'Month (1–12)',
+                                    ),
+                                  ),
+                                ),
+                                SizedBox(width: 10.w),
+                                Expanded(
+                                  child: TextFormField(
+                                    controller: yearCtl,
+                                    keyboardType: TextInputType.number,
+                                    style: TextStyle(
+                                      fontSize: 14.sp,
+                                      fontWeight: FontWeight.w600,
+                                      color: AppColors.textPrimary,
+                                    ),
+                                    decoration: _fieldDecoration(
+                                      hint: 'Year (approx.)',
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                      _historyModalFooter(
+                        onCancel: () => Navigator.of(dialogCtx).pop(),
+                        onSubmit: () {
+                          final mo = int.tryParse(monthCtl.text.trim());
+                          final yr = int.tryParse(yearCtl.text.trim());
+                          Navigator.of(dialogCtx).pop(
+                            PatientSurgicalHistoryRow(
+                              id: _allocTempClinicalId(),
+                              patientId: widget.summary.patientId,
+                              procedureId: procedureId,
+                              procedureName: procedureName,
+                              approxMonth: mo,
+                              approxYear: yr,
+                              notes: notesCtl.text.trim(),
+                            ),
+                          );
+                        },
+                        submitLabel: 'Add procedure',
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+
+    notesCtl.dispose();
+    monthCtl.dispose();
+    yearCtl.dispose();
+    if (row == null || !mounted) return;
+    setState(() {
+      _surgical = [..._surgical, row];
+    });
+    _rebuildClinicalTextControllers();
+  }
+
+  Future<void> _showAddDrugDialog(
+    List<NamedReferenceItem> available,
+  ) async {
+    int categoryId = available.first.id;
+    String categoryName = available.first.name;
+    int? adherenceLevelId;
+    String adherenceLevelName = '';
+    final sideEffectsCtl = TextEditingController();
+
+    final row = await showDialog<PatientDrugHistoryRow>(
+      context: context,
+      barrierDismissible: true,
+      barrierColor: Colors.black.withValues(alpha: 0.5),
+      builder: (dialogCtx) {
+        return StatefulBuilder(
+          builder: (ctx, setLocal) {
+            return Dialog(
+              backgroundColor: AppColors.surface,
+              surfaceTintColor: Colors.transparent,
+              elevation: 6,
+              insetPadding:
+                  EdgeInsets.symmetric(horizontal: 20.w, vertical: 24.h),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8.r),
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: ConstrainedBox(
+                constraints: BoxConstraints(maxWidth: 480.w),
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      _historyModalHeader(
+                        icon: Icons.medication_liquid_outlined,
+                        title: 'Add drug category',
+                        subtitle: 'Adherence and side effects are optional.',
+                      ),
+                      Padding(
+                        padding: EdgeInsets.fromLTRB(16.w, 16.h, 16.w, 8.h),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            DropdownButtonFormField<int>(
+                              value: categoryId,
+                              isExpanded: true,
+                              decoration: _fieldDecoration(
+                                hint: 'Medicine category',
+                              ),
+                              items: available
+                                  .map(
+                                    (e) => DropdownMenuItem<int>(
+                                      value: e.id,
+                                      child: Text(
+                                        e.name,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(
+                                          fontSize: 14.sp,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ),
+                                  )
+                                  .toList(),
+                              onChanged: (v) {
+                                if (v == null) return;
+                                setLocal(() {
+                                  categoryId = v;
+                                  categoryName = available
+                                      .firstWhere((e) => e.id == v)
+                                      .name;
+                                });
+                              },
+                            ),
+                            if (_adherenceLevels.isNotEmpty) ...[
+                              SizedBox(height: 12.h),
+                              DropdownButtonFormField<int?>(
+                                value: adherenceLevelId,
+                                isExpanded: true,
+                                decoration: _fieldDecoration(
+                                  hint: 'Adherence level (optional)',
+                                ),
+                                items: [
+                                  DropdownMenuItem<int?>(
+                                    value: null,
+                                    child: Text(
+                                      '—',
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        fontSize: 14.sp,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ),
+                                  ..._adherenceLevels
+                                      .where((e) => e.id > 0)
+                                      .map(
+                                        (e) => DropdownMenuItem<int?>(
+                                          value: e.id,
+                                          child: Text(
+                                            e.name,
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: TextStyle(
+                                              fontSize: 14.sp,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                ],
+                                onChanged: (v) {
+                                  setLocal(() {
+                                    adherenceLevelId = v;
+                                    adherenceLevelName = v == null
+                                        ? ''
+                                        : _adherenceLevels
+                                            .firstWhere((e) => e.id == v)
+                                            .name;
+                                  });
+                                },
+                              ),
+                            ],
+                            SizedBox(height: 12.h),
+                            TextFormField(
+                              controller: sideEffectsCtl,
+                              maxLines: 2,
+                              style: TextStyle(
+                                fontSize: 14.sp,
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.textPrimary,
+                              ),
+                              decoration: _fieldDecoration(
+                                hint: 'Side effects / notes (optional)',
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      _historyModalFooter(
+                        onCancel: () => Navigator.of(dialogCtx).pop(),
+                        onSubmit: () {
+                          Navigator.of(dialogCtx).pop(
+                            PatientDrugHistoryRow(
+                              id: _allocTempClinicalId(),
+                              patientId: widget.summary.patientId,
+                              medicineCategoryId: categoryId,
+                              categoryName: categoryName,
+                              adherenceLevelId: adherenceLevelId,
+                              adherenceLevelName: adherenceLevelName,
+                              sideEffects: sideEffectsCtl.text.trim(),
+                            ),
+                          );
+                        },
+                        submitLabel: 'Add category',
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+
+    sideEffectsCtl.dispose();
+    if (row == null || !mounted) return;
+    setState(() {
+      _drugs = [..._drugs, row];
+    });
+    _rebuildClinicalTextControllers();
+  }
+
+  Widget _historyModalHeader({
+    required IconData icon,
+    required String title,
+    String? subtitle,
+  }) {
+    return Container(
+      padding: EdgeInsets.fromLTRB(16.w, 14.h, 16.w, 14.h),
+      decoration: BoxDecoration(
+        color: AppColors.registrationFieldFill.withValues(alpha: 0.65),
+        border: Border(
+          bottom: BorderSide(
+            color: AppColors.border.withValues(alpha: 0.85),
+          ),
+        ),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: EdgeInsets.all(8.r),
+            decoration: BoxDecoration(
+              color: AppColors.dashboardChipBlueBg,
+              borderRadius: BorderRadius.circular(8.r),
+            ),
+            child: Icon(
+              icon,
+              size: 18.sp,
+              color: AppColors.dashboardPrimary,
+            ),
+          ),
+          SizedBox(width: 12.w),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 14.sp,
+                    fontWeight: FontWeight.w900,
+                    color: AppColors.dashboardPrimaryDark,
+                  ),
+                ),
+                if (subtitle != null && subtitle.trim().isNotEmpty)
+                  Padding(
+                    padding: EdgeInsets.only(top: 2.h),
+                    child: Text(
+                      subtitle.trim(),
+                      style: TextStyle(
+                        fontSize: 11.sp,
+                        fontWeight: FontWeight.w600,
+                        height: 1.25,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _historyModalFooter({
+    required VoidCallback onCancel,
+    required VoidCallback? onSubmit,
+    required String submitLabel,
+  }) {
+    return Padding(
+      padding: EdgeInsets.fromLTRB(16.w, 8.h, 16.w, 16.h),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [
+          TextButton(
+            onPressed: onCancel,
+            style: TextButton.styleFrom(
+              foregroundColor: AppColors.textSecondary,
+              padding:
+                  EdgeInsets.symmetric(horizontal: 16.w, vertical: 10.h),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8.r),
+              ),
+            ),
+            child: Text(
+              'Cancel',
+              style: TextStyle(
+                fontSize: 13.sp,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+          SizedBox(width: 8.w),
+          ElevatedButton(
+            onPressed: onSubmit,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.dashboardPrimary,
+              foregroundColor: AppColors.surface,
+              elevation: 0,
+              padding:
+                  EdgeInsets.symmetric(horizontal: 18.w, vertical: 10.h),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8.r),
+              ),
+            ),
+            child: Text(
+              submitLabel,
+              style: TextStyle(
+                fontSize: 13.sp,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<bool> _confirmDeleteHistoryEntry({
@@ -1703,692 +2316,767 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _historySectionCard(
-          icon: Icons.monitor_heart_outlined,
-          title: 'Chronic conditions',
-          subtitle:
-              'Add from the reference list or edit saved rows. Changes apply when you save.',
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              if (_medical.isEmpty)
-                Text(
-                  'No chronic conditions on file yet. Use “Add condition” to create one.',
-                  style: TextStyle(
-                    fontSize: 13.sp,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.textSecondary,
-                    height: 1.35,
-                  ),
-                )
-              else
-                ...List.generate(_medical.length, (i) {
-                  final row = _medical[i];
-                  final durCtl = _medicalDurationCtl[row.id];
-                  if (durCtl == null) return const SizedBox.shrink();
-                  final isDraft = row.id <= 0;
-                  final choices = _conditionChoicesForRow(i);
-                  return Container(
-                    margin: EdgeInsets.only(bottom: 12.h),
-                    padding: EdgeInsets.all(12.r),
-                    decoration: BoxDecoration(
-                      color: AppColors.registrationFieldFill
-                          .withValues(alpha: 0.45),
-                      borderRadius: BorderRadius.circular(13.r),
-                      border:
-                          Border.all(color: AppColors.registrationFieldBorder),
+        _medicalSubTabBar(),
+        SizedBox(height: 14.h),
+        if (_medicalTab == _MedicalHistoryTab.chronic)
+          _historySectionCard(
+            icon: Icons.monitor_heart_outlined,
+            title: 'Chronic conditions',
+            subtitle:
+                'Add from the reference list or edit saved rows. Changes apply when you save.',
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: _medicalAddButton(),
+                ),
+                SizedBox(height: 12.h),
+                if (_medical.isEmpty)
+                  Text(
+                    'No chronic conditions on file yet. Use “Add condition” to create one.',
+                    style: TextStyle(
+                      fontSize: 13.sp,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textSecondary,
+                      height: 1.35,
                     ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        if (isDraft)
-                          Row(
-                            children: [
-                              Container(
-                                padding: EdgeInsets.symmetric(
-                                  horizontal: 8.w,
-                                  vertical: 3.h,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: AppColors.dashboardPeach
-                                      .withValues(alpha: 0.55),
-                                  borderRadius: BorderRadius.circular(8.r),
-                                ),
-                                child: Text(
-                                  'New',
-                                  style: TextStyle(
-                                    fontSize: 10.sp,
-                                    fontWeight: FontWeight.w900,
-                                    color: AppColors.dashboardWarning,
+                  )
+                else
+                  ...List.generate(_medical.length, (i) {
+                    final row = _medical[i];
+                    final durCtl = _medicalDurationCtl[row.id];
+                    if (durCtl == null) return const SizedBox.shrink();
+                    final isDraft = row.id <= 0;
+                    final choices = _conditionChoicesForRow(i);
+                    return Container(
+                      margin: EdgeInsets.only(bottom: 12.h),
+                      padding: EdgeInsets.all(12.r),
+                      decoration: BoxDecoration(
+                        color: AppColors.registrationFieldFill
+                            .withValues(alpha: 0.45),
+                        borderRadius: BorderRadius.circular(13.r),
+                        border: Border.all(
+                            color: AppColors.registrationFieldBorder),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          if (isDraft)
+                            Row(
+                              children: [
+                                Container(
+                                  padding: EdgeInsets.symmetric(
+                                    horizontal: 8.w,
+                                    vertical: 3.h,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.dashboardPeach
+                                        .withValues(alpha: 0.55),
+                                    borderRadius: BorderRadius.circular(8.r),
+                                  ),
+                                  child: Text(
+                                    'New',
+                                    style: TextStyle(
+                                      fontSize: 10.sp,
+                                      fontWeight: FontWeight.w900,
+                                      color: AppColors.dashboardWarning,
+                                    ),
                                   ),
                                 ),
-                              ),
-                              const Spacer(),
-                              _historyEntryDeleteButton(
-                                onPressed: () =>
-                                    unawaited(_offerDeleteMedicalRow(i)),
-                              ),
-                            ],
-                          )
-                        else
-                          Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  row.conditionName,
-                                  style: TextStyle(
-                                    fontSize: 14.sp,
-                                    fontWeight: FontWeight.w800,
-                                    color: AppColors.textPrimary,
-                                  ),
+                                const Spacer(),
+                                _historyEntryDeleteButton(
+                                  onPressed: () =>
+                                      unawaited(_offerDeleteMedicalRow(i)),
                                 ),
-                              ),
-                              _historyEntryDeleteButton(
-                                onPressed: () =>
-                                    unawaited(_offerDeleteMedicalRow(i)),
-                              ),
-                            ],
-                          ),
-                        if (isDraft) ...[
-                          SizedBox(height: 8.h),
-                          if (choices.isEmpty)
-                            Text(
-                              'No selectable conditions (lists loading or all already added).',
-                              style: TextStyle(
-                                fontSize: 12.sp,
-                                fontWeight: FontWeight.w600,
-                                color: AppColors.dashboardWarning,
-                              ),
+                              ],
                             )
                           else
-                            DropdownButtonFormField<int>(
-                              value:
-                                  row.conditionId > 0 ? row.conditionId : null,
-                              decoration:
-                                  _fieldDecoration(hint: 'Medical condition'),
-                              items: choices
-                                  .map(
-                                    (e) => DropdownMenuItem<int>(
-                                      value: e.id,
-                                      child: Text(
-                                        e.name,
-                                        style: TextStyle(
-                                          fontSize: 14.sp,
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                      ),
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    row.conditionName,
+                                    style: TextStyle(
+                                      fontSize: 14.sp,
+                                      fontWeight: FontWeight.w800,
+                                      color: AppColors.textPrimary,
                                     ),
-                                  )
-                                  .toList(),
-                              onChanged: (v) {
-                                if (v == null) return;
-                                final name = _namedRefLabel(choices, v);
-                                setState(() {
-                                  _medical[i] = _medical[i].copyWith(
-                                    conditionId: v,
-                                    conditionName: name,
-                                  );
-                                });
-                              },
-                            ),
-                        ],
-                        if (!isDraft) SizedBox(height: 8.h),
-                        SwitchListTile(
-                          contentPadding: EdgeInsets.zero,
-                          title: Text(
-                            'On medication',
-                            style: TextStyle(
-                              fontSize: 13.sp,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          value: row.isOnMedication,
-                          onChanged: (v) {
-                            setState(() {
-                              _medical[i] =
-                                  _medical[i].copyWith(isOnMedication: v);
-                            });
-                          },
-                        ),
-                        SizedBox(height: 6.h),
-                        TextFormField(
-                          controller: durCtl,
-                          keyboardType: TextInputType.number,
-                          style: TextStyle(
-                            fontSize: 14.sp,
-                            fontWeight: FontWeight.w600,
-                            color: AppColors.textPrimary,
-                          ),
-                          decoration: _fieldDecoration(
-                            hint: 'Duration on treatment (months), optional',
-                          ),
-                        ),
-                        if (_complianceLevels.isNotEmpty) ...[
-                          SizedBox(height: 10.h),
-                          DropdownButtonFormField<int?>(
-                            value: _clinicalRefDropdownValue(
-                              row.complianceLevelId,
-                              _complianceLevels,
-                            ),
-                            decoration:
-                                _fieldDecoration(hint: 'Compliance level'),
-                            items: [
-                              DropdownMenuItem<int?>(
-                                value: null,
-                                child: Text(
-                                  '—',
-                                  style: TextStyle(
-                                    fontSize: 14.sp,
-                                    fontWeight: FontWeight.w600,
                                   ),
                                 ),
-                              ),
-                              ..._complianceLevels.where((e) => e.id > 0).map(
-                                    (e) => DropdownMenuItem<int?>(
-                                      value: e.id,
-                                      child: Text(
-                                        e.name,
-                                        style: TextStyle(
-                                          fontSize: 14.sp,
-                                          fontWeight: FontWeight.w600,
+                                _historyEntryDeleteButton(
+                                  onPressed: () =>
+                                      unawaited(_offerDeleteMedicalRow(i)),
+                                ),
+                              ],
+                            ),
+                          if (isDraft) ...[
+                            SizedBox(height: 8.h),
+                            if (choices.isEmpty)
+                              Text(
+                                'No selectable conditions (lists loading or all already added).',
+                                style: TextStyle(
+                                  fontSize: 12.sp,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.dashboardWarning,
+                                ),
+                              )
+                            else
+                              DropdownButtonFormField<int>(
+                                value: row.conditionId > 0
+                                    ? row.conditionId
+                                    : null,
+                                isExpanded: true,
+                                decoration:
+                                    _fieldDecoration(hint: 'Medical condition'),
+                                items: choices
+                                    .map(
+                                      (e) => DropdownMenuItem<int>(
+                                        value: e.id,
+                                        child: Text(
+                                          e.name,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: TextStyle(
+                                            fontSize: 14.sp,
+                                            fontWeight: FontWeight.w600,
+                                          ),
                                         ),
                                       ),
-                                    ),
-                                  ),
-                            ],
+                                    )
+                                    .toList(),
+                                onChanged: (v) {
+                                  if (v == null) return;
+                                  final name = _namedRefLabel(choices, v);
+                                  setState(() {
+                                    _medical[i] = _medical[i].copyWith(
+                                      conditionId: v,
+                                      conditionName: name,
+                                    );
+                                  });
+                                },
+                              ),
+                          ],
+                          if (!isDraft) SizedBox(height: 8.h),
+                          SwitchListTile(
+                            contentPadding: EdgeInsets.zero,
+                            title: Text(
+                              'On medication',
+                              style: TextStyle(
+                                fontSize: 13.sp,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            value: row.isOnMedication,
                             onChanged: (v) {
                               setState(() {
-                                if (v == null) {
-                                  _medical[i] = _medical[i].copyWith(
-                                    clearComplianceLevel: true,
-                                  );
-                                } else {
-                                  _medical[i] = _medical[i].copyWith(
-                                    complianceLevelId: v,
-                                    complianceLevelName:
-                                        _namedRefLabel(_complianceLevels, v),
-                                  );
-                                }
+                                _medical[i] =
+                                    _medical[i].copyWith(isOnMedication: v);
                               });
                             },
                           ),
-                        ],
-                      ],
-                    ),
-                  );
-                }),
-            ],
-          ),
-          footer: Align(
-            alignment: Alignment.centerLeft,
-            child: OutlinedButton.icon(
-              onPressed: _addMedicalDraft,
-              icon: Icon(
-                Icons.add_rounded,
-                size: 20.sp,
-                color: AppColors.dashboardPrimary,
-              ),
-              label: Text(
-                'Add condition',
-                style: TextStyle(
-                  fontSize: 13.sp,
-                  fontWeight: FontWeight.w800,
-                  color: AppColors.dashboardPrimaryDark,
-                ),
-              ),
-              style: OutlinedButton.styleFrom(
-                side: BorderSide(
-                  color: AppColors.dashboardPrimary.withValues(alpha: 0.45),
-                ),
-                padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 12.h),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12.r),
-                ),
-              ),
-            ),
-          ),
-        ),
-        _historySectionCard(
-          icon: Icons.local_hospital_outlined,
-          title: 'Surgical history',
-          subtitle: 'Past procedures — approximate date optional.',
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              if (_surgical.isEmpty)
-                Text(
-                  'No surgical procedures on file yet. Use “Add procedure” to add one.',
-                  style: TextStyle(
-                    fontSize: 13.sp,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.textSecondary,
-                    height: 1.35,
-                  ),
-                )
-              else
-                ...List.generate(_surgical.length, (i) {
-                  final s = _surgical[i];
-                  final notesCtl = _surgicalNotesCtl[s.id];
-                  final moCtl = _surgicalMonthCtl[s.id];
-                  final yrCtl = _surgicalYearCtl[s.id];
-                  if (notesCtl == null || moCtl == null || yrCtl == null) {
-                    return const SizedBox.shrink();
-                  }
-                  final isDraft = s.id <= 0;
-                  final procChoices = _procedureChoicesForRow(i);
-                  return Container(
-                    margin: EdgeInsets.only(bottom: 12.h),
-                    padding: EdgeInsets.all(12.r),
-                    decoration: BoxDecoration(
-                      color: AppColors.registrationFieldFill
-                          .withValues(alpha: 0.45),
-                      borderRadius: BorderRadius.circular(13.r),
-                      border:
-                          Border.all(color: AppColors.registrationFieldBorder),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        if (isDraft)
-                          Row(
-                            children: [
-                              Container(
-                                padding: EdgeInsets.symmetric(
-                                  horizontal: 8.w,
-                                  vertical: 3.h,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: AppColors.dashboardPeach
-                                      .withValues(alpha: 0.55),
-                                  borderRadius: BorderRadius.circular(8.r),
-                                ),
-                                child: Text(
-                                  'New',
-                                  style: TextStyle(
-                                    fontSize: 10.sp,
-                                    fontWeight: FontWeight.w900,
-                                    color: AppColors.dashboardWarning,
-                                  ),
-                                ),
-                              ),
-                              const Spacer(),
-                              _historyEntryDeleteButton(
-                                onPressed: () =>
-                                    unawaited(_offerDeleteSurgicalRow(i)),
-                              ),
-                            ],
-                          )
-                        else
-                          Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  s.procedureName,
-                                  style: TextStyle(
-                                    fontSize: 14.sp,
-                                    fontWeight: FontWeight.w800,
-                                    color: AppColors.textPrimary,
-                                  ),
-                                ),
-                              ),
-                              _historyEntryDeleteButton(
-                                onPressed: () =>
-                                    unawaited(_offerDeleteSurgicalRow(i)),
-                              ),
-                            ],
+                          SizedBox(height: 6.h),
+                          TextFormField(
+                            controller: durCtl,
+                            keyboardType: TextInputType.number,
+                            style: TextStyle(
+                              fontSize: 14.sp,
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.textPrimary,
+                            ),
+                            decoration: _fieldDecoration(
+                              hint: 'Duration on treatment (months), optional',
+                            ),
                           ),
-                        if (isDraft) ...[
-                          SizedBox(height: 8.h),
-                          if (procChoices.isEmpty)
-                            Text(
-                              'No selectable procedures (lists loading or all already added).',
-                              style: TextStyle(
-                                fontSize: 12.sp,
-                                fontWeight: FontWeight.w600,
-                                color: AppColors.dashboardWarning,
+                          if (_complianceLevels.isNotEmpty) ...[
+                            SizedBox(height: 10.h),
+                            DropdownButtonFormField<int?>(
+                              value: _clinicalRefDropdownValue(
+                                row.complianceLevelId,
+                                _complianceLevels,
                               ),
-                            )
-                          else
-                            DropdownButtonFormField<int>(
-                              value: s.procedureId > 0 ? s.procedureId : null,
-                              decoration: _fieldDecoration(hint: 'Procedure'),
-                              items: procChoices
-                                  .map(
-                                    (e) => DropdownMenuItem<int>(
-                                      value: e.id,
-                                      child: Text(
-                                        e.name,
-                                        style: TextStyle(
-                                          fontSize: 14.sp,
-                                          fontWeight: FontWeight.w600,
+                              isExpanded: true,
+                              decoration:
+                                  _fieldDecoration(hint: 'Compliance level'),
+                              items: [
+                                DropdownMenuItem<int?>(
+                                  value: null,
+                                  child: Text(
+                                    '—',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      fontSize: 14.sp,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ),
+                                ..._complianceLevels.where((e) => e.id > 0).map(
+                                      (e) => DropdownMenuItem<int?>(
+                                        value: e.id,
+                                        child: Text(
+                                          e.name,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: TextStyle(
+                                            fontSize: 14.sp,
+                                            fontWeight: FontWeight.w600,
+                                          ),
                                         ),
                                       ),
                                     ),
-                                  )
-                                  .toList(),
+                              ],
                               onChanged: (v) {
-                                if (v == null) return;
-                                final name = _namedRefLabel(procChoices, v);
                                 setState(() {
-                                  _surgical[i] = _surgical[i].copyWith(
-                                    procedureId: v,
-                                    procedureName: name,
-                                  );
+                                  if (v == null) {
+                                    _medical[i] = _medical[i].copyWith(
+                                      clearComplianceLevel: true,
+                                    );
+                                  } else {
+                                    _medical[i] = _medical[i].copyWith(
+                                      complianceLevelId: v,
+                                      complianceLevelName:
+                                          _namedRefLabel(_complianceLevels, v),
+                                    );
+                                  }
                                 });
                               },
-                            ),
-                        ],
-                        if (!isDraft) SizedBox(height: 8.h),
-                        TextFormField(
-                          controller: notesCtl,
-                          maxLines: 3,
-                          style: TextStyle(
-                            fontSize: 14.sp,
-                            fontWeight: FontWeight.w600,
-                            color: AppColors.textPrimary,
-                          ),
-                          decoration:
-                              _fieldDecoration(hint: 'Notes (optional)'),
-                        ),
-                        SizedBox(height: 8.h),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: TextFormField(
-                                controller: moCtl,
-                                keyboardType: TextInputType.number,
-                                style: TextStyle(
-                                  fontSize: 14.sp,
-                                  fontWeight: FontWeight.w600,
-                                  color: AppColors.textPrimary,
-                                ),
-                                decoration: _fieldDecoration(
-                                  hint: 'Month (1–12)',
-                                ),
-                              ),
-                            ),
-                            SizedBox(width: 10.w),
-                            Expanded(
-                              child: TextFormField(
-                                controller: yrCtl,
-                                keyboardType: TextInputType.number,
-                                style: TextStyle(
-                                  fontSize: 14.sp,
-                                  fontWeight: FontWeight.w600,
-                                  color: AppColors.textPrimary,
-                                ),
-                                decoration: _fieldDecoration(
-                                  hint: 'Year (approx.)',
-                                ),
-                              ),
                             ),
                           ],
-                        ),
-                      ],
-                    ),
-                  );
-                }),
-            ],
-          ),
-          footer: Align(
-            alignment: Alignment.centerLeft,
-            child: OutlinedButton.icon(
-              onPressed: _addSurgicalDraft,
-              icon: Icon(
-                Icons.add_rounded,
-                size: 20.sp,
-                color: AppColors.dashboardPrimary,
-              ),
-              label: Text(
-                'Add procedure',
-                style: TextStyle(
-                  fontSize: 13.sp,
-                  fontWeight: FontWeight.w800,
-                  color: AppColors.dashboardPrimaryDark,
-                ),
-              ),
-              style: OutlinedButton.styleFrom(
-                side: BorderSide(
-                  color: AppColors.dashboardPrimary.withValues(alpha: 0.45),
-                ),
-                padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 12.h),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12.r),
-                ),
-              ),
+                        ],
+                      ),
+                    );
+                  }),
+              ],
             ),
           ),
-        ),
-        _historySectionCard(
-          icon: Icons.medication_liquid_outlined,
-          title: 'Drug history',
-          subtitle: 'Medicine categories and adherence — optional notes.',
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              if (_drugs.isEmpty)
-                Text(
-                  'No drug history rows yet. Use “Add category” to add one.',
-                  style: TextStyle(
-                    fontSize: 13.sp,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.textSecondary,
-                    height: 1.35,
-                  ),
-                )
-              else
-                ...List.generate(_drugs.length, (i) {
-                  final d = _drugs[i];
-                  final fxCtl = _drugSideEffectsCtl[d.id];
-                  if (fxCtl == null) return const SizedBox.shrink();
-                  final isDraft = d.id <= 0;
-                  final catChoices = _categoryChoicesForRow(i);
-                  return Container(
-                    margin: EdgeInsets.only(bottom: 12.h),
-                    padding: EdgeInsets.all(12.r),
-                    decoration: BoxDecoration(
-                      color: AppColors.registrationFieldFill
-                          .withValues(alpha: 0.45),
-                      borderRadius: BorderRadius.circular(13.r),
-                      border:
-                          Border.all(color: AppColors.registrationFieldBorder),
+        if (_medicalTab == _MedicalHistoryTab.surgical)
+          _historySectionCard(
+            icon: Icons.local_hospital_outlined,
+            title: 'Surgical history',
+            subtitle: 'Past procedures — approximate date optional.',
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: _medicalAddButton(),
+                ),
+                SizedBox(height: 12.h),
+                if (_surgical.isEmpty)
+                  Text(
+                    'No surgical procedures on file yet. Use “Add procedure” to add one.',
+                    style: TextStyle(
+                      fontSize: 13.sp,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textSecondary,
+                      height: 1.35,
                     ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        if (isDraft)
-                          Row(
-                            children: [
-                              Container(
-                                padding: EdgeInsets.symmetric(
-                                  horizontal: 8.w,
-                                  vertical: 3.h,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: AppColors.dashboardPeach
-                                      .withValues(alpha: 0.55),
-                                  borderRadius: BorderRadius.circular(8.r),
-                                ),
-                                child: Text(
-                                  'New',
-                                  style: TextStyle(
-                                    fontSize: 10.sp,
-                                    fontWeight: FontWeight.w900,
-                                    color: AppColors.dashboardWarning,
+                  )
+                else
+                  ...List.generate(_surgical.length, (i) {
+                    final s = _surgical[i];
+                    final notesCtl = _surgicalNotesCtl[s.id];
+                    final moCtl = _surgicalMonthCtl[s.id];
+                    final yrCtl = _surgicalYearCtl[s.id];
+                    if (notesCtl == null || moCtl == null || yrCtl == null) {
+                      return const SizedBox.shrink();
+                    }
+                    final isDraft = s.id <= 0;
+                    final procChoices = _procedureChoicesForRow(i);
+                    return Container(
+                      margin: EdgeInsets.only(bottom: 12.h),
+                      padding: EdgeInsets.all(12.r),
+                      decoration: BoxDecoration(
+                        color: AppColors.registrationFieldFill
+                            .withValues(alpha: 0.45),
+                        borderRadius: BorderRadius.circular(13.r),
+                        border: Border.all(
+                            color: AppColors.registrationFieldBorder),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          if (isDraft)
+                            Row(
+                              children: [
+                                Container(
+                                  padding: EdgeInsets.symmetric(
+                                    horizontal: 8.w,
+                                    vertical: 3.h,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.dashboardPeach
+                                        .withValues(alpha: 0.55),
+                                    borderRadius: BorderRadius.circular(8.r),
+                                  ),
+                                  child: Text(
+                                    'New',
+                                    style: TextStyle(
+                                      fontSize: 10.sp,
+                                      fontWeight: FontWeight.w900,
+                                      color: AppColors.dashboardWarning,
+                                    ),
                                   ),
                                 ),
-                              ),
-                              const Spacer(),
-                              _historyEntryDeleteButton(
-                                onPressed: () =>
-                                    unawaited(_offerDeleteDrugRow(i)),
-                              ),
-                            ],
-                          )
-                        else
-                          Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  d.categoryName,
-                                  style: TextStyle(
-                                    fontSize: 14.sp,
-                                    fontWeight: FontWeight.w800,
-                                    color: AppColors.textPrimary,
-                                  ),
+                                const Spacer(),
+                                _historyEntryDeleteButton(
+                                  onPressed: () =>
+                                      unawaited(_offerDeleteSurgicalRow(i)),
                                 ),
-                              ),
-                              _historyEntryDeleteButton(
-                                onPressed: () =>
-                                    unawaited(_offerDeleteDrugRow(i)),
-                              ),
-                            ],
-                          ),
-                        if (isDraft) ...[
-                          SizedBox(height: 8.h),
-                          if (catChoices.isEmpty)
-                            Text(
-                              'No selectable categories (lists loading or all already added).',
-                              style: TextStyle(
-                                fontSize: 12.sp,
-                                fontWeight: FontWeight.w600,
-                                color: AppColors.dashboardWarning,
-                              ),
+                              ],
                             )
                           else
-                            DropdownButtonFormField<int>(
-                              value: d.medicineCategoryId > 0
-                                  ? d.medicineCategoryId
-                                  : null,
-                              decoration:
-                                  _fieldDecoration(hint: 'Medicine category'),
-                              items: catChoices
-                                  .map(
-                                    (e) => DropdownMenuItem<int>(
-                                      value: e.id,
-                                      child: Text(
-                                        e.name,
-                                        style: TextStyle(
-                                          fontSize: 14.sp,
-                                          fontWeight: FontWeight.w600,
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    s.procedureName,
+                                    style: TextStyle(
+                                      fontSize: 14.sp,
+                                      fontWeight: FontWeight.w800,
+                                      color: AppColors.textPrimary,
+                                    ),
+                                  ),
+                                ),
+                                _historyEntryDeleteButton(
+                                  onPressed: () =>
+                                      unawaited(_offerDeleteSurgicalRow(i)),
+                                ),
+                              ],
+                            ),
+                          if (isDraft) ...[
+                            SizedBox(height: 8.h),
+                            if (procChoices.isEmpty)
+                              Text(
+                                'No selectable procedures (lists loading or all already added).',
+                                style: TextStyle(
+                                  fontSize: 12.sp,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.dashboardWarning,
+                                ),
+                              )
+                            else
+                              DropdownButtonFormField<int>(
+                                value: s.procedureId > 0 ? s.procedureId : null,
+                                isExpanded: true,
+                                decoration: _fieldDecoration(hint: 'Procedure'),
+                                items: procChoices
+                                    .map(
+                                      (e) => DropdownMenuItem<int>(
+                                        value: e.id,
+                                        child: Text(
+                                          e.name,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: TextStyle(
+                                            fontSize: 14.sp,
+                                            fontWeight: FontWeight.w600,
+                                          ),
                                         ),
                                       ),
-                                    ),
-                                  )
-                                  .toList(),
-                              onChanged: (v) {
-                                if (v == null) return;
-                                final name = _namedRefLabel(catChoices, v);
-                                setState(() {
-                                  _drugs[i] = _drugs[i].copyWith(
-                                    medicineCategoryId: v,
-                                    categoryName: name,
-                                  );
-                                });
-                              },
-                            ),
-                        ],
-                        if (_adherenceLevels.isNotEmpty) ...[
-                          SizedBox(height: 10.h),
-                          DropdownButtonFormField<int?>(
-                            value: _clinicalRefDropdownValue(
-                              d.adherenceLevelId,
-                              _adherenceLevels,
+                                    )
+                                    .toList(),
+                                onChanged: (v) {
+                                  if (v == null) return;
+                                  final name = _namedRefLabel(procChoices, v);
+                                  setState(() {
+                                    _surgical[i] = _surgical[i].copyWith(
+                                      procedureId: v,
+                                      procedureName: name,
+                                    );
+                                  });
+                                },
+                              ),
+                          ],
+                          if (!isDraft) SizedBox(height: 8.h),
+                          TextFormField(
+                            controller: notesCtl,
+                            maxLines: 3,
+                            style: TextStyle(
+                              fontSize: 14.sp,
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.textPrimary,
                             ),
                             decoration:
-                                _fieldDecoration(hint: 'Adherence level'),
-                            items: [
-                              DropdownMenuItem<int?>(
-                                value: null,
-                                child: Text(
-                                  '—',
+                                _fieldDecoration(hint: 'Notes (optional)'),
+                          ),
+                          SizedBox(height: 8.h),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: TextFormField(
+                                  controller: moCtl,
+                                  keyboardType: TextInputType.number,
                                   style: TextStyle(
                                     fontSize: 14.sp,
                                     fontWeight: FontWeight.w600,
+                                    color: AppColors.textPrimary,
+                                  ),
+                                  decoration: _fieldDecoration(
+                                    hint: 'Month (1–12)',
                                   ),
                                 ),
                               ),
-                              ..._adherenceLevels.where((e) => e.id > 0).map(
-                                    (e) => DropdownMenuItem<int?>(
-                                      value: e.id,
-                                      child: Text(
-                                        e.name,
-                                        style: TextStyle(
-                                          fontSize: 14.sp,
-                                          fontWeight: FontWeight.w600,
+                              SizedBox(width: 10.w),
+                              Expanded(
+                                child: TextFormField(
+                                  controller: yrCtl,
+                                  keyboardType: TextInputType.number,
+                                  style: TextStyle(
+                                    fontSize: 14.sp,
+                                    fontWeight: FontWeight.w600,
+                                    color: AppColors.textPrimary,
+                                  ),
+                                  decoration: _fieldDecoration(
+                                    hint: 'Year (approx.)',
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    );
+                  }),
+              ],
+            ),
+          ),
+        if (_medicalTab == _MedicalHistoryTab.drug)
+          _historySectionCard(
+            icon: Icons.medication_liquid_outlined,
+            title: 'Drug history',
+            subtitle: 'Medicine categories and adherence — optional notes.',
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: _medicalAddButton(),
+                ),
+                SizedBox(height: 12.h),
+                if (_drugs.isEmpty)
+                  Text(
+                    'No drug history rows yet. Use “Add category” to add one.',
+                    style: TextStyle(
+                      fontSize: 13.sp,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textSecondary,
+                      height: 1.35,
+                    ),
+                  )
+                else
+                  ...List.generate(_drugs.length, (i) {
+                    final d = _drugs[i];
+                    final fxCtl = _drugSideEffectsCtl[d.id];
+                    if (fxCtl == null) return const SizedBox.shrink();
+                    final isDraft = d.id <= 0;
+                    final catChoices = _categoryChoicesForRow(i);
+                    return Container(
+                      margin: EdgeInsets.only(bottom: 12.h),
+                      padding: EdgeInsets.all(12.r),
+                      decoration: BoxDecoration(
+                        color: AppColors.registrationFieldFill
+                            .withValues(alpha: 0.45),
+                        borderRadius: BorderRadius.circular(13.r),
+                        border: Border.all(
+                            color: AppColors.registrationFieldBorder),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          if (isDraft)
+                            Row(
+                              children: [
+                                Container(
+                                  padding: EdgeInsets.symmetric(
+                                    horizontal: 8.w,
+                                    vertical: 3.h,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.dashboardPeach
+                                        .withValues(alpha: 0.55),
+                                    borderRadius: BorderRadius.circular(8.r),
+                                  ),
+                                  child: Text(
+                                    'New',
+                                    style: TextStyle(
+                                      fontSize: 10.sp,
+                                      fontWeight: FontWeight.w900,
+                                      color: AppColors.dashboardWarning,
+                                    ),
+                                  ),
+                                ),
+                                const Spacer(),
+                                _historyEntryDeleteButton(
+                                  onPressed: () =>
+                                      unawaited(_offerDeleteDrugRow(i)),
+                                ),
+                              ],
+                            )
+                          else
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    d.categoryName,
+                                    style: TextStyle(
+                                      fontSize: 14.sp,
+                                      fontWeight: FontWeight.w800,
+                                      color: AppColors.textPrimary,
+                                    ),
+                                  ),
+                                ),
+                                _historyEntryDeleteButton(
+                                  onPressed: () =>
+                                      unawaited(_offerDeleteDrugRow(i)),
+                                ),
+                              ],
+                            ),
+                          if (isDraft) ...[
+                            SizedBox(height: 8.h),
+                            if (catChoices.isEmpty)
+                              Text(
+                                'No selectable categories (lists loading or all already added).',
+                                style: TextStyle(
+                                  fontSize: 12.sp,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.dashboardWarning,
+                                ),
+                              )
+                            else
+                              DropdownButtonFormField<int>(
+                                value: d.medicineCategoryId > 0
+                                    ? d.medicineCategoryId
+                                    : null,
+                                isExpanded: true,
+                                decoration:
+                                    _fieldDecoration(hint: 'Medicine category'),
+                                items: catChoices
+                                    .map(
+                                      (e) => DropdownMenuItem<int>(
+                                        value: e.id,
+                                        child: Text(
+                                          e.name,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: TextStyle(
+                                            fontSize: 14.sp,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                      ),
+                                    )
+                                    .toList(),
+                                onChanged: (v) {
+                                  if (v == null) return;
+                                  final name = _namedRefLabel(catChoices, v);
+                                  setState(() {
+                                    _drugs[i] = _drugs[i].copyWith(
+                                      medicineCategoryId: v,
+                                      categoryName: name,
+                                    );
+                                  });
+                                },
+                              ),
+                          ],
+                          if (_adherenceLevels.isNotEmpty) ...[
+                            SizedBox(height: 10.h),
+                            DropdownButtonFormField<int?>(
+                              value: _clinicalRefDropdownValue(
+                                d.adherenceLevelId,
+                                _adherenceLevels,
+                              ),
+                              isExpanded: true,
+                              decoration:
+                                  _fieldDecoration(hint: 'Adherence level'),
+                              items: [
+                                DropdownMenuItem<int?>(
+                                  value: null,
+                                  child: Text(
+                                    '—',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      fontSize: 14.sp,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ),
+                                ..._adherenceLevels.where((e) => e.id > 0).map(
+                                      (e) => DropdownMenuItem<int?>(
+                                        value: e.id,
+                                        child: Text(
+                                          e.name,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: TextStyle(
+                                            fontSize: 14.sp,
+                                            fontWeight: FontWeight.w600,
+                                          ),
                                         ),
                                       ),
                                     ),
-                                  ),
-                            ],
-                            onChanged: (v) {
-                              setState(() {
-                                if (v == null) {
-                                  _drugs[i] = _drugs[i].copyWith(
-                                    clearAdherenceLevel: true,
-                                  );
-                                } else {
-                                  _drugs[i] = _drugs[i].copyWith(
-                                    adherenceLevelId: v,
-                                    adherenceLevelName:
-                                        _namedRefLabel(_adherenceLevels, v),
-                                  );
-                                }
-                              });
-                            },
+                              ],
+                              onChanged: (v) {
+                                setState(() {
+                                  if (v == null) {
+                                    _drugs[i] = _drugs[i].copyWith(
+                                      clearAdherenceLevel: true,
+                                    );
+                                  } else {
+                                    _drugs[i] = _drugs[i].copyWith(
+                                      adherenceLevelId: v,
+                                      adherenceLevelName:
+                                          _namedRefLabel(_adherenceLevels, v),
+                                    );
+                                  }
+                                });
+                              },
+                            ),
+                          ],
+                          SizedBox(height: 8.h),
+                          TextFormField(
+                            controller: fxCtl,
+                            maxLines: 2,
+                            style: TextStyle(
+                              fontSize: 14.sp,
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.textPrimary,
+                            ),
+                            decoration: _fieldDecoration(
+                              hint: 'Side effects / notes (optional)',
+                            ),
                           ),
                         ],
-                        SizedBox(height: 8.h),
-                        TextFormField(
-                          controller: fxCtl,
-                          maxLines: 2,
-                          style: TextStyle(
-                            fontSize: 14.sp,
-                            fontWeight: FontWeight.w600,
-                            color: AppColors.textPrimary,
-                          ),
-                          decoration: _fieldDecoration(
-                            hint: 'Side effects / notes (optional)',
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                }),
-            ],
+                      ),
+                    );
+                  }),
+              ],
+            ),
           ),
-          footer: Align(
-            alignment: Alignment.centerLeft,
-            child: OutlinedButton.icon(
-              onPressed: _addDrugDraft,
-              icon: Icon(
-                Icons.add_rounded,
-                size: 20.sp,
-                color: AppColors.dashboardPrimary,
-              ),
-              label: Text(
-                'Add category',
-                style: TextStyle(
-                  fontSize: 13.sp,
-                  fontWeight: FontWeight.w800,
-                  color: AppColors.dashboardPrimaryDark,
-                ),
-              ),
-              style: OutlinedButton.styleFrom(
-                side: BorderSide(
-                  color: AppColors.dashboardPrimary.withValues(alpha: 0.45),
-                ),
-                padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 12.h),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12.r),
+        _primaryCtaButton(
+          onPressed: _savingMedical ? null : _saveMedicalAndLifestyle,
+          label: _savingMedical ? 'Saving…' : 'Save Medical History',
+        ),
+        SizedBox(height: MediaQuery.paddingOf(context).bottom + 12.h),
+      ],
+    );
+  }
+
+  Widget _medicalSubTabBar() {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: _MedicalHistoryTab.values.map((tab) {
+          final selected = _medicalTab == tab;
+          return Padding(
+            padding: EdgeInsets.only(right: 8.w),
+            child: Material(
+              color: selected
+                  ? AppColors.dashboardPrimary
+                  : AppColors.dashboardChipBlueBg,
+              borderRadius: BorderRadius.circular(999),
+              child: InkWell(
+                borderRadius: BorderRadius.circular(999),
+                onTap: () => setState(() => _medicalTab = tab),
+                child: Padding(
+                  padding:
+                      EdgeInsets.symmetric(horizontal: 14.w, vertical: 8.h),
+                  child: Text(
+                    tab.label,
+                    style: TextStyle(
+                      fontSize: 12.sp,
+                      fontWeight: FontWeight.w800,
+                      color: selected
+                          ? AppColors.surface
+                          : AppColors.dashboardPrimaryDark,
+                    ),
+                  ),
                 ),
               ),
             ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+
+  Widget _medicalAddButton() {
+    final ({VoidCallback onPressed, String label}) action =
+        switch (_medicalTab) {
+      _MedicalHistoryTab.chronic => (
+          onPressed: _addMedicalDraft,
+          label: 'Add condition'
+        ),
+      _MedicalHistoryTab.surgical => (
+          onPressed: _addSurgicalDraft,
+          label: 'Add procedure'
+        ),
+      _MedicalHistoryTab.drug => (
+          onPressed: _addDrugDraft,
+          label: 'Add category'
+        ),
+    };
+    return Material(
+      color: AppColors.dashboardPrimary,
+      borderRadius: BorderRadius.circular(999),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(999),
+        onTap: action.onPressed,
+        child: Padding(
+          padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 8.h),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.add_rounded,
+                size: 16.sp,
+                color: AppColors.surface,
+              ),
+              SizedBox(width: 4.w),
+              Text(
+                action.label,
+                style: TextStyle(
+                  fontSize: 12.sp,
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.surface,
+                ),
+              ),
+            ],
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _baselineBody() {
+    if (_loadingDetail && !_baselineLoaded) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: EdgeInsets.all(24.r),
+            child: Center(
+              child: CircularProgressIndicator(
+                color: AppColors.dashboardPrimary,
+              ),
+            ),
+          ),
+          _primaryCtaButton(
+            onPressed: _savingMedical ? null : _saveMedicalAndLifestyle,
+            label: _savingMedical ? 'Saving…' : 'Save Baseline Lifestyle',
+          ),
+          SizedBox(height: MediaQuery.paddingOf(context).bottom + 12.h),
+        ],
+      );
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
         _historySectionCard(
           icon: Icons.spa_outlined,
           title: 'Baseline lifestyle',
@@ -2423,7 +3111,7 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
         ),
         _primaryCtaButton(
           onPressed: _savingMedical ? null : _saveMedicalAndLifestyle,
-          label: _savingMedical ? 'Saving…' : 'Save Medical History',
+          label: _savingMedical ? 'Saving…' : 'Save Baseline Lifestyle',
         ),
         SizedBox(height: MediaQuery.paddingOf(context).bottom + 12.h),
       ],
@@ -2744,6 +3432,7 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
     return switch (_section) {
       PatientDetailSection.personalInfo => _personalForm(),
       PatientDetailSection.medicalHistory => _medicalBody(),
+      PatientDetailSection.baselineLifestyle => _baselineBody(),
       PatientDetailSection.visitHistory => _visitsBody(),
     };
   }
