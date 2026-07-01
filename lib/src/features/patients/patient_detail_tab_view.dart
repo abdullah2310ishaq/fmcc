@@ -181,6 +181,7 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
   DateTime? _tobaccoDurationStart;
   DateTime? _tobaccoDurationEnd;
   bool _baselineLoaded = false;
+  bool _clinicalBundleResolved = false;
 
   bool _savingPersonal = false;
   bool _savingMedical = false;
@@ -371,7 +372,21 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
     }
   }
 
+  void _deferDisposeControllers(Iterable<TextEditingController> controllers) {
+    final pending = controllers.toList(growable: false);
+    if (pending.isEmpty) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        for (final c in pending) {
+          c.dispose();
+        }
+      });
+    });
+  }
+
   void _rebuildClinicalTextControllers() {
+    final toDispose = <TextEditingController>[];
+
     void syncMap<T>(
       Iterable<T> rows,
       int Function(T row) idOf,
@@ -381,7 +396,8 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
       final keep = rows.map(idOf).toSet();
       for (final k in map.keys.toList()) {
         if (!keep.contains(k)) {
-          map.remove(k)?.dispose();
+          final removed = map.remove(k);
+          if (removed != null) toDispose.add(removed);
         }
       }
       for (final row in rows) {
@@ -444,6 +460,7 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
       _drugCustomNameCtl,
       (d) => d.customMedicineCategoryName,
     );
+    _deferDisposeControllers(toDispose);
   }
 
   Future<void> _loadClinical(SessionController session, String token) async {
@@ -481,6 +498,7 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
         _medical = List<PatientMedicalHistoryRow>.from(history.medical);
         _surgical = List<PatientSurgicalHistoryRow>.from(history.surgical);
         _drugs = List<PatientDrugHistoryRow>.from(history.drugs);
+        _clinicalBundleResolved = true;
         final baseline = history.baseline;
         if (baseline != null) {
           _familyHtn = baseline.familyHistoryOfHtnOrStroke;
@@ -500,7 +518,7 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
           _tobaccoDurationEnd = null;
           _baselineLoaded = false;
         }
-      } else {
+      } else if (!_clinicalBundleResolved) {
         _medical = const [];
         _surgical = const [];
         _drugs = const [];
@@ -511,6 +529,7 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
         _tobaccoDurationStart = null;
         _tobaccoDurationEnd = null;
         _baselineLoaded = false;
+        _clinicalBundleResolved = true;
       }
       _visits = List<PatientVisitRow>.from(visits)
         ..sort((a, b) => b.visitDate.compareTo(a.visitDate));
@@ -706,6 +725,153 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
     }
   }
 
+  Future<bool> _persistChronicRows({
+    required String patientId,
+    required PatientApi api,
+    required String token,
+  }) async {
+    for (final row in _medical) {
+      final durRaw = _medicalDurationCtl[row.id]?.text.trim() ?? '';
+      final customName = _medicalCustomNameCtl[row.id]?.text.trim() ??
+          row.customConditionName.trim();
+      final isCustom = _isClinicalOtherSelection(
+        refId: row.conditionId,
+        customName: customName,
+      );
+      if (isCustom && customName.isEmpty) {
+        _toast('Enter a custom condition name for each “Other” row.');
+        return false;
+      }
+      if (!isCustom && row.conditionId <= 0) {
+        _toast('Select a medical condition for each chronic row.');
+        return false;
+      }
+
+      final body = <String, dynamic>{
+        'patientId': patientId,
+        'isOnMedication': row.isOnMedication,
+      };
+      if (isCustom) {
+        body['customConditionName'] = customName;
+      } else {
+        body['conditionId'] = row.conditionId;
+      }
+      if (durRaw.isNotEmpty) {
+        final d = int.tryParse(durRaw);
+        if (d != null && d > 0) body['durationInMonths'] = d;
+      }
+      if (row.complianceLevelId != null && row.complianceLevelId! > 0) {
+        body['complianceLevelId'] = row.complianceLevelId;
+      }
+      if (row.id > 0) {
+        body['id'] = row.id;
+        await api.putMedicalHistory(body: body, bearerToken: token);
+      } else {
+        await api.postMedicalHistory(body: body, bearerToken: token);
+      }
+    }
+    return true;
+  }
+
+  Future<bool> _persistSurgicalRows({
+    required String patientId,
+    required PatientApi api,
+    required String token,
+  }) async {
+    for (final s in _surgical) {
+      final customName = _surgicalCustomNameCtl[s.id]?.text.trim() ??
+          s.customProcedureName.trim();
+      final isCustom = _isClinicalOtherSelection(
+        refId: s.procedureId,
+        customName: customName,
+      );
+      if (isCustom && customName.isEmpty) {
+        _toast('Enter a custom procedure name for each “Other” row.');
+        return false;
+      }
+      if (!isCustom && s.procedureId <= 0) {
+        _toast('Select a procedure for each surgical row.');
+        return false;
+      }
+
+      final body = <String, dynamic>{
+        'patientId': patientId,
+      };
+      if (isCustom) {
+        body['customProcedureName'] = customName;
+      } else {
+        body['procedureId'] = s.procedureId;
+      }
+      final notes = _surgicalNotesCtl[s.id]?.text ?? s.notes;
+      final notesTrim = notes.trim();
+      if (notesTrim.isNotEmpty) body['notes'] = notesTrim;
+
+      final moRaw = _surgicalMonthCtl[s.id]?.text.trim() ?? '';
+      if (moRaw.isNotEmpty) {
+        final mo = int.tryParse(moRaw);
+        if (mo != null && mo >= 1 && mo <= 12) body['approxMonth'] = mo;
+      }
+      final yrRaw = _surgicalYearCtl[s.id]?.text.trim() ?? '';
+      if (yrRaw.isNotEmpty) {
+        final yr = int.tryParse(yrRaw);
+        if (yr != null && yr >= 1900 && yr <= 2200) body['approxYear'] = yr;
+      }
+
+      if (s.id > 0) {
+        body['id'] = s.id;
+        await api.putSurgicalHistory(body: body, bearerToken: token);
+      } else {
+        await api.postSurgicalHistory(body: body, bearerToken: token);
+      }
+    }
+    return true;
+  }
+
+  Future<bool> _persistDrugRows({
+    required String patientId,
+    required PatientApi api,
+    required String token,
+  }) async {
+    for (final d in _drugs) {
+      final customName = _drugCustomNameCtl[d.id]?.text.trim() ??
+          d.customMedicineCategoryName.trim();
+      final isCustom = _isClinicalOtherSelection(
+        refId: d.medicineCategoryId,
+        customName: customName,
+      );
+      if (isCustom && customName.isEmpty) {
+        _toast('Enter a custom category name for each “Other” drug row.');
+        return false;
+      }
+      if (!isCustom && d.medicineCategoryId <= 0) {
+        _toast('Select a medicine category for each drug row.');
+        return false;
+      }
+
+      final body = <String, dynamic>{
+        'patientId': patientId,
+      };
+      if (isCustom) {
+        body['customMedicineCategoryName'] = customName;
+      } else {
+        body['medicineCategoryId'] = d.medicineCategoryId;
+      }
+      if (d.adherenceLevelId != null && d.adherenceLevelId! > 0) {
+        body['adherenceLevelId'] = d.adherenceLevelId;
+      }
+      final fx = _drugSideEffectsCtl[d.id]?.text.trim() ?? '';
+      if (fx.isNotEmpty) body['sideEffects'] = fx;
+
+      if (d.id > 0) {
+        body['id'] = d.id;
+        await api.putDrugHistory(body: body, bearerToken: token);
+      } else {
+        await api.postDrugHistory(body: body, bearerToken: token);
+      }
+    }
+    return true;
+  }
+
   Future<void> _saveMedicalAndLifestyle() async {
     final session = context.read<SessionController>();
     final token = session.state.accessToken?.trim();
@@ -713,138 +879,34 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
       _toast('Please sign in again.');
       return;
     }
+    if (_medicalTab == _MedicalHistoryTab.tobacco) {
+      return;
+    }
     final pid = widget.summary.patientId;
     final api = _patientApi!;
 
     setState(() => _savingMedical = true);
     try {
-      for (final row in _medical) {
-        final durRaw = _medicalDurationCtl[row.id]?.text.trim() ?? '';
-        final customName = _medicalCustomNameCtl[row.id]?.text.trim() ??
-            row.customConditionName.trim();
-        final isCustom = _isClinicalOtherSelection(
-          refId: row.conditionId,
-          customName: customName,
-        );
-        if (isCustom && customName.isEmpty) {
-          _toast('Enter a custom condition name for each “Other” row.');
-          return;
-        }
-        if (!isCustom && row.conditionId <= 0) {
-          _toast('Select a medical condition for each chronic row.');
-          return;
-        }
+      final saved = switch (_medicalTab) {
+        _MedicalHistoryTab.chronic => await _persistChronicRows(
+            patientId: pid,
+            api: api,
+            token: token,
+          ),
+        _MedicalHistoryTab.surgical => await _persistSurgicalRows(
+            patientId: pid,
+            api: api,
+            token: token,
+          ),
+        _MedicalHistoryTab.drug => await _persistDrugRows(
+            patientId: pid,
+            api: api,
+            token: token,
+          ),
+        _MedicalHistoryTab.tobacco => true,
+      };
+      if (!saved || !mounted) return;
 
-        final body = <String, dynamic>{
-          'patientId': pid,
-          'isOnMedication': row.isOnMedication,
-        };
-        if (isCustom) {
-          body['customConditionName'] = customName;
-        } else {
-          body['conditionId'] = row.conditionId;
-        }
-        if (durRaw.isNotEmpty) {
-          final d = int.tryParse(durRaw);
-          if (d != null && d > 0) body['durationInMonths'] = d;
-        }
-        if (row.complianceLevelId != null && row.complianceLevelId! > 0) {
-          body['complianceLevelId'] = row.complianceLevelId;
-        }
-        if (row.id > 0) {
-          body['id'] = row.id;
-          await api.putMedicalHistory(body: body, bearerToken: token);
-        } else {
-          await api.postMedicalHistory(body: body, bearerToken: token);
-        }
-      }
-
-      for (final s in _surgical) {
-        final customName = _surgicalCustomNameCtl[s.id]?.text.trim() ??
-            s.customProcedureName.trim();
-        final isCustom = _isClinicalOtherSelection(
-          refId: s.procedureId,
-          customName: customName,
-        );
-        if (isCustom && customName.isEmpty) {
-          _toast('Enter a custom procedure name for each “Other” row.');
-          return;
-        }
-        if (!isCustom && s.procedureId <= 0) {
-          _toast('Select a procedure for each surgical row.');
-          return;
-        }
-
-        final body = <String, dynamic>{
-          'patientId': pid,
-        };
-        if (isCustom) {
-          body['customProcedureName'] = customName;
-        } else {
-          body['procedureId'] = s.procedureId;
-        }
-        final notes = _surgicalNotesCtl[s.id]?.text ?? s.notes;
-        final notesTrim = notes.trim();
-        if (notesTrim.isNotEmpty) body['notes'] = notesTrim;
-
-        final moRaw = _surgicalMonthCtl[s.id]?.text.trim() ?? '';
-        if (moRaw.isNotEmpty) {
-          final mo = int.tryParse(moRaw);
-          if (mo != null && mo >= 1 && mo <= 12) body['approxMonth'] = mo;
-        }
-        final yrRaw = _surgicalYearCtl[s.id]?.text.trim() ?? '';
-        if (yrRaw.isNotEmpty) {
-          final yr = int.tryParse(yrRaw);
-          if (yr != null && yr >= 1900 && yr <= 2200) body['approxYear'] = yr;
-        }
-
-        if (s.id > 0) {
-          body['id'] = s.id;
-          await api.putSurgicalHistory(body: body, bearerToken: token);
-        } else {
-          await api.postSurgicalHistory(body: body, bearerToken: token);
-        }
-      }
-
-      for (final d in _drugs) {
-        final customName = _drugCustomNameCtl[d.id]?.text.trim() ??
-            d.customMedicineCategoryName.trim();
-        final isCustom = _isClinicalOtherSelection(
-          refId: d.medicineCategoryId,
-          customName: customName,
-        );
-        if (isCustom && customName.isEmpty) {
-          _toast('Enter a custom category name for each “Other” drug row.');
-          return;
-        }
-        if (!isCustom && d.medicineCategoryId <= 0) {
-          _toast('Select a medicine category for each drug row.');
-          return;
-        }
-
-        final body = <String, dynamic>{
-          'patientId': pid,
-        };
-        if (isCustom) {
-          body['customMedicineCategoryName'] = customName;
-        } else {
-          body['medicineCategoryId'] = d.medicineCategoryId;
-        }
-        if (d.adherenceLevelId != null && d.adherenceLevelId! > 0) {
-          body['adherenceLevelId'] = d.adherenceLevelId;
-        }
-        final fx = _drugSideEffectsCtl[d.id]?.text.trim() ?? '';
-        if (fx.isNotEmpty) body['sideEffects'] = fx;
-
-        if (d.id > 0) {
-          body['id'] = d.id;
-          await api.putDrugHistory(body: body, bearerToken: token);
-        } else {
-          await api.postDrugHistory(body: body, bearerToken: token);
-        }
-      }
-
-      if (!mounted) return;
       _toast('Medical history saved.');
       await _loadClinical(session, token);
     } on Object catch (e) {
@@ -1591,8 +1653,6 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
         useOtherFirst ? _kClinicalOtherChoiceId : available.first.id;
     String conditionName = useOtherFirst ? '' : available.first.name;
     String customConditionName = '';
-    final customNameCtl = TextEditingController();
-    final durationCtl = TextEditingController();
     bool onMedication = false;
     int? complianceLevelId;
     String complianceLevelName = '';
@@ -1602,194 +1662,200 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
       barrierDismissible: true,
       barrierColor: Colors.black.withValues(alpha: 0.5),
       builder: (dialogCtx) {
-        return StatefulBuilder(
-          builder: (ctx, setLocal) {
-            return Dialog(
-              backgroundColor: AppColors.surface,
-              surfaceTintColor: Colors.transparent,
-              elevation: 6,
-              insetPadding:
-                  EdgeInsets.symmetric(horizontal: 20.w, vertical: 24.h),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8.r),
-              ),
-              clipBehavior: Clip.antiAlias,
-              child: ConstrainedBox(
-                constraints: BoxConstraints(maxWidth: 480.w),
-                child: SingleChildScrollView(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      _historyModalHeader(
-                        icon: Icons.monitor_heart_outlined,
-                        title: 'Add chronic condition',
-                        subtitle: 'Saved when you tap Save Medical History.',
-                      ),
-                      Padding(
-                        padding: EdgeInsets.fromLTRB(16.w, 16.h, 16.w, 4.h),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            DropdownButtonFormField<int>(
-                              value: _clinicalRefDropdownSelectedValue(
-                                refId: conditionId,
-                                customName: customConditionName,
-                                choices: available,
-                              ),
-                              isExpanded: true,
-                              decoration: _fieldDecoration(
-                                hint: 'Medical condition',
-                              ),
-                              items: _clinicalRefDropdownItems(available),
-                              onChanged: (v) {
-                                if (v == null) return;
-                                setLocal(() {
-                                  if (v == _kClinicalOtherChoiceId) {
-                                    conditionId = _kClinicalOtherChoiceId;
-                                    conditionName = '';
-                                  } else {
-                                    conditionId = v;
-                                    conditionName =
-                                        _namedRefLabel(available, v);
-                                    customConditionName = '';
-                                    customNameCtl.clear();
-                                  }
-                                });
-                              },
-                            ),
-                            if (conditionId == _kClinicalOtherChoiceId) ...[
-                              SizedBox(height: 12.h),
-                              _clinicalCustomNameField(
-                                controller: customNameCtl,
-                                hint: 'Custom condition name',
-                                onChanged: (v) =>
-                                    customConditionName = v.trim(),
-                              ),
-                            ],
-                            SizedBox(height: 12.h),
-                            TextFormField(
-                              controller: durationCtl,
-                              keyboardType: TextInputType.number,
-                              style: TextStyle(
-                                fontSize: 14.sp,
-                                fontWeight: FontWeight.w600,
-                                color: AppColors.textPrimary,
-                              ),
-                              decoration: _fieldDecoration(
-                                hint: 'Duration on treatment (months)',
-                              ),
-                            ),
-                            SizedBox(height: 4.h),
-                            SwitchListTile(
-                              contentPadding: EdgeInsets.zero,
-                              title: Text(
-                                'On medication',
-                                style: TextStyle(
-                                  fontSize: 13.sp,
-                                  fontWeight: FontWeight.w600,
+        return _DialogControllerScope(
+          controllerCount: 2,
+          builder: (context, ctrls) {
+            final customNameCtl = ctrls[0];
+            final durationCtl = ctrls[1];
+            return StatefulBuilder(
+              builder: (ctx, setLocal) {
+                return Dialog(
+                  backgroundColor: AppColors.surface,
+                  surfaceTintColor: Colors.transparent,
+                  elevation: 6,
+                  insetPadding:
+                      EdgeInsets.symmetric(horizontal: 20.w, vertical: 24.h),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8.r),
+                  ),
+                  clipBehavior: Clip.antiAlias,
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(maxWidth: 480.w),
+                    child: SingleChildScrollView(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          _historyModalHeader(
+                            icon: Icons.monitor_heart_outlined,
+                            title: 'Add chronic condition',
+                            subtitle:
+                                'Saved when you tap Save Medical History.',
+                          ),
+                          Padding(
+                            padding: EdgeInsets.fromLTRB(16.w, 16.h, 16.w, 4.h),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                DropdownButtonFormField<int>(
+                                  value: _clinicalRefDropdownSelectedValue(
+                                    refId: conditionId,
+                                    customName: customConditionName,
+                                    choices: available,
+                                  ),
+                                  isExpanded: true,
+                                  decoration: _fieldDecoration(
+                                    hint: 'Medical condition',
+                                  ),
+                                  items: _clinicalRefDropdownItems(available),
+                                  onChanged: (v) {
+                                    if (v == null) return;
+                                    setLocal(() {
+                                      if (v == _kClinicalOtherChoiceId) {
+                                        conditionId = _kClinicalOtherChoiceId;
+                                        conditionName = '';
+                                      } else {
+                                        conditionId = v;
+                                        conditionName =
+                                            _namedRefLabel(available, v);
+                                        customConditionName = '';
+                                        customNameCtl.clear();
+                                      }
+                                    });
+                                  },
                                 ),
-                              ),
-                              value: onMedication,
-                              onChanged: (v) =>
-                                  setLocal(() => onMedication = v),
-                            ),
-                            if (_complianceLevels.isNotEmpty)
-                              DropdownButtonFormField<int?>(
-                                value: complianceLevelId,
-                                isExpanded: true,
-                                decoration: _fieldDecoration(
-                                  hint: 'Compliance level (optional)',
+                                if (conditionId == _kClinicalOtherChoiceId) ...[
+                                  SizedBox(height: 12.h),
+                                  _clinicalCustomNameField(
+                                    controller: customNameCtl,
+                                    hint: 'Custom condition name',
+                                    onChanged: (v) =>
+                                        customConditionName = v.trim(),
+                                  ),
+                                ],
+                                SizedBox(height: 12.h),
+                                TextFormField(
+                                  controller: durationCtl,
+                                  keyboardType: TextInputType.number,
+                                  style: TextStyle(
+                                    fontSize: 14.sp,
+                                    fontWeight: FontWeight.w600,
+                                    color: AppColors.textPrimary,
+                                  ),
+                                  decoration: _fieldDecoration(
+                                    hint: 'Duration on treatment (months)',
+                                  ),
                                 ),
-                                items: [
-                                  DropdownMenuItem<int?>(
-                                    value: null,
-                                    child: Text(
-                                      '—',
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: TextStyle(
-                                        fontSize: 14.sp,
-                                        fontWeight: FontWeight.w600,
-                                      ),
+                                SizedBox(height: 4.h),
+                                SwitchListTile(
+                                  contentPadding: EdgeInsets.zero,
+                                  title: Text(
+                                    'On medication',
+                                    style: TextStyle(
+                                      fontSize: 13.sp,
+                                      fontWeight: FontWeight.w600,
                                     ),
                                   ),
-                                  ..._complianceLevels
-                                      .where((e) => e.id > 0)
-                                      .map(
-                                        (e) => DropdownMenuItem<int?>(
-                                          value: e.id,
-                                          child: Text(
-                                            e.name,
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
-                                            style: TextStyle(
-                                              fontSize: 14.sp,
-                                              fontWeight: FontWeight.w600,
-                                            ),
+                                  value: onMedication,
+                                  onChanged: (v) =>
+                                      setLocal(() => onMedication = v),
+                                ),
+                                if (_complianceLevels.isNotEmpty)
+                                  DropdownButtonFormField<int?>(
+                                    value: complianceLevelId,
+                                    isExpanded: true,
+                                    decoration: _fieldDecoration(
+                                      hint: 'Compliance level (optional)',
+                                    ),
+                                    items: [
+                                      DropdownMenuItem<int?>(
+                                        value: null,
+                                        child: Text(
+                                          '—',
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: TextStyle(
+                                            fontSize: 14.sp,
+                                            fontWeight: FontWeight.w600,
                                           ),
                                         ),
                                       ),
-                                ],
-                                onChanged: (v) {
-                                  setLocal(() {
-                                    complianceLevelId = v;
-                                    complianceLevelName = v == null
-                                        ? ''
-                                        : _complianceLevels
-                                            .firstWhere((e) => e.id == v)
-                                            .name;
-                                  });
-                                },
-                              ),
-                          ],
-                        ),
-                      ),
-                      _historyModalFooter(
-                        onCancel: () => Navigator.of(dialogCtx).pop(),
-                        onSubmit: () {
-                          final isOther =
-                              conditionId == _kClinicalOtherChoiceId;
-                          final custom = customNameCtl.text.trim();
-                          if (isOther && custom.isEmpty) {
-                            _toast('Enter a custom condition name.');
-                            return;
-                          }
-                          if (!isOther && conditionId <= 0) {
-                            _toast('Select a medical condition.');
-                            return;
-                          }
-                          final dur = int.tryParse(durationCtl.text.trim());
-                          Navigator.of(dialogCtx).pop(
-                            PatientMedicalHistoryRow(
-                              id: _allocTempClinicalId(),
-                              patientId: widget.summary.patientId,
-                              conditionId: isOther
-                                  ? _kClinicalOtherChoiceId
-                                  : conditionId,
-                              conditionName: isOther ? '' : conditionName,
-                              customConditionName: isOther ? custom : '',
-                              durationInMonths: dur,
-                              isOnMedication: onMedication,
-                              complianceLevelId: complianceLevelId,
-                              complianceLevelName: complianceLevelName,
+                                      ..._complianceLevels
+                                          .where((e) => e.id > 0)
+                                          .map(
+                                            (e) => DropdownMenuItem<int?>(
+                                              value: e.id,
+                                              child: Text(
+                                                e.name,
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                                style: TextStyle(
+                                                  fontSize: 14.sp,
+                                                  fontWeight: FontWeight.w600,
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                    ],
+                                    onChanged: (v) {
+                                      setLocal(() {
+                                        complianceLevelId = v;
+                                        complianceLevelName = v == null
+                                            ? ''
+                                            : _complianceLevels
+                                                .firstWhere((e) => e.id == v)
+                                                .name;
+                                      });
+                                    },
+                                  ),
+                              ],
                             ),
-                          );
-                        },
-                        submitLabel: 'Add condition',
+                          ),
+                          _historyModalFooter(
+                            onCancel: () => Navigator.of(dialogCtx).pop(),
+                            onSubmit: () {
+                              final isOther =
+                                  conditionId == _kClinicalOtherChoiceId;
+                              final custom = customNameCtl.text.trim();
+                              if (isOther && custom.isEmpty) {
+                                _toast('Enter a custom condition name.');
+                                return;
+                              }
+                              if (!isOther && conditionId <= 0) {
+                                _toast('Select a medical condition.');
+                                return;
+                              }
+                              final dur = int.tryParse(durationCtl.text.trim());
+                              Navigator.of(dialogCtx).pop(
+                                PatientMedicalHistoryRow(
+                                  id: _allocTempClinicalId(),
+                                  patientId: widget.summary.patientId,
+                                  conditionId: isOther
+                                      ? _kClinicalOtherChoiceId
+                                      : conditionId,
+                                  conditionName: isOther ? '' : conditionName,
+                                  customConditionName: isOther ? custom : '',
+                                  durationInMonths: dur,
+                                  isOnMedication: onMedication,
+                                  complianceLevelId: complianceLevelId,
+                                  complianceLevelName: complianceLevelName,
+                                ),
+                              );
+                            },
+                            submitLabel: 'Add condition',
+                          ),
+                        ],
                       ),
-                    ],
+                    ),
                   ),
-                ),
-              ),
+                );
+              },
             );
           },
         );
       },
     );
 
-    durationCtl.dispose();
-    customNameCtl.dispose();
     if (row == null || !mounted) return;
     setState(() {
       _medical = [..._medical, row];
@@ -1805,175 +1871,177 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
         useOtherFirst ? _kClinicalOtherChoiceId : available.first.id;
     String procedureName = useOtherFirst ? '' : available.first.name;
     String customProcedureName = '';
-    final customNameCtl = TextEditingController();
-    final notesCtl = TextEditingController();
-    final monthCtl = TextEditingController();
-    final yearCtl = TextEditingController();
 
     final row = await showDialog<PatientSurgicalHistoryRow>(
       context: context,
       barrierDismissible: true,
       barrierColor: Colors.black.withValues(alpha: 0.5),
       builder: (dialogCtx) {
-        return StatefulBuilder(
-          builder: (ctx, setLocal) {
-            return Dialog(
-              backgroundColor: AppColors.surface,
-              surfaceTintColor: Colors.transparent,
-              elevation: 6,
-              insetPadding:
-                  EdgeInsets.symmetric(horizontal: 20.w, vertical: 24.h),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8.r),
-              ),
-              clipBehavior: Clip.antiAlias,
-              child: ConstrainedBox(
-                constraints: BoxConstraints(maxWidth: 480.w),
-                child: SingleChildScrollView(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      _historyModalHeader(
-                        icon: Icons.local_hospital_outlined,
-                        title: 'Add surgical procedure',
-                        subtitle: 'Approximate date is optional.',
-                      ),
-                      Padding(
-                        padding: EdgeInsets.fromLTRB(16.w, 16.h, 16.w, 8.h),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            DropdownButtonFormField<int>(
-                              value: _clinicalRefDropdownSelectedValue(
-                                refId: procedureId,
-                                customName: customProcedureName,
-                                choices: available,
-                              ),
-                              isExpanded: true,
-                              decoration: _fieldDecoration(hint: 'Procedure'),
-                              items: _clinicalRefDropdownItems(available),
-                              onChanged: (v) {
-                                if (v == null) return;
-                                setLocal(() {
-                                  if (v == _kClinicalOtherChoiceId) {
-                                    procedureId = _kClinicalOtherChoiceId;
-                                    procedureName = '';
-                                  } else {
-                                    procedureId = v;
-                                    procedureName =
-                                        _namedRefLabel(available, v);
-                                    customProcedureName = '';
-                                    customNameCtl.clear();
-                                  }
-                                });
-                              },
-                            ),
-                            if (procedureId == _kClinicalOtherChoiceId) ...[
-                              SizedBox(height: 12.h),
-                              _clinicalCustomNameField(
-                                controller: customNameCtl,
-                                hint: 'Custom procedure name',
-                                onChanged: (v) =>
-                                    customProcedureName = v.trim(),
-                              ),
-                            ],
-                            SizedBox(height: 12.h),
-                            TextFormField(
-                              controller: notesCtl,
-                              maxLines: 3,
-                              style: TextStyle(
-                                fontSize: 14.sp,
-                                fontWeight: FontWeight.w600,
-                                color: AppColors.textPrimary,
-                              ),
-                              decoration:
-                                  _fieldDecoration(hint: 'Notes (optional)'),
-                            ),
-                            SizedBox(height: 12.h),
-                            Row(
+        return _DialogControllerScope(
+          controllerCount: 4,
+          builder: (context, ctrls) {
+            final customNameCtl = ctrls[0];
+            final notesCtl = ctrls[1];
+            final monthCtl = ctrls[2];
+            final yearCtl = ctrls[3];
+            return StatefulBuilder(
+              builder: (ctx, setLocal) {
+                return Dialog(
+                  backgroundColor: AppColors.surface,
+                  surfaceTintColor: Colors.transparent,
+                  elevation: 6,
+                  insetPadding:
+                      EdgeInsets.symmetric(horizontal: 20.w, vertical: 24.h),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8.r),
+                  ),
+                  clipBehavior: Clip.antiAlias,
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(maxWidth: 480.w),
+                    child: SingleChildScrollView(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          _historyModalHeader(
+                            icon: Icons.local_hospital_outlined,
+                            title: 'Add surgical procedure',
+                            subtitle: 'Approximate date is optional.',
+                          ),
+                          Padding(
+                            padding: EdgeInsets.fromLTRB(16.w, 16.h, 16.w, 8.h),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
                               children: [
-                                Expanded(
-                                  child: TextFormField(
-                                    controller: monthCtl,
-                                    keyboardType: TextInputType.number,
-                                    style: TextStyle(
-                                      fontSize: 14.sp,
-                                      fontWeight: FontWeight.w600,
-                                      color: AppColors.textPrimary,
-                                    ),
-                                    decoration: _fieldDecoration(
-                                      hint: 'Month (1–12)',
-                                    ),
+                                DropdownButtonFormField<int>(
+                                  value: _clinicalRefDropdownSelectedValue(
+                                    refId: procedureId,
+                                    customName: customProcedureName,
+                                    choices: available,
                                   ),
+                                  isExpanded: true,
+                                  decoration:
+                                      _fieldDecoration(hint: 'Procedure'),
+                                  items: _clinicalRefDropdownItems(available),
+                                  onChanged: (v) {
+                                    if (v == null) return;
+                                    setLocal(() {
+                                      if (v == _kClinicalOtherChoiceId) {
+                                        procedureId = _kClinicalOtherChoiceId;
+                                        procedureName = '';
+                                      } else {
+                                        procedureId = v;
+                                        procedureName =
+                                            _namedRefLabel(available, v);
+                                        customProcedureName = '';
+                                        customNameCtl.clear();
+                                      }
+                                    });
+                                  },
                                 ),
-                                SizedBox(width: 10.w),
-                                Expanded(
-                                  child: TextFormField(
-                                    controller: yearCtl,
-                                    keyboardType: TextInputType.number,
-                                    style: TextStyle(
-                                      fontSize: 14.sp,
-                                      fontWeight: FontWeight.w600,
-                                      color: AppColors.textPrimary,
-                                    ),
-                                    decoration: _fieldDecoration(
-                                      hint: 'Year (approx.)',
-                                    ),
+                                if (procedureId == _kClinicalOtherChoiceId) ...[
+                                  SizedBox(height: 12.h),
+                                  _clinicalCustomNameField(
+                                    controller: customNameCtl,
+                                    hint: 'Custom procedure name',
+                                    onChanged: (v) =>
+                                        customProcedureName = v.trim(),
                                   ),
+                                ],
+                                SizedBox(height: 12.h),
+                                TextFormField(
+                                  controller: notesCtl,
+                                  maxLines: 3,
+                                  style: TextStyle(
+                                    fontSize: 14.sp,
+                                    fontWeight: FontWeight.w600,
+                                    color: AppColors.textPrimary,
+                                  ),
+                                  decoration: _fieldDecoration(
+                                      hint: 'Notes (optional)'),
+                                ),
+                                SizedBox(height: 12.h),
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: TextFormField(
+                                        controller: monthCtl,
+                                        keyboardType: TextInputType.number,
+                                        style: TextStyle(
+                                          fontSize: 14.sp,
+                                          fontWeight: FontWeight.w600,
+                                          color: AppColors.textPrimary,
+                                        ),
+                                        decoration: _fieldDecoration(
+                                          hint: 'Month (1–12)',
+                                        ),
+                                      ),
+                                    ),
+                                    SizedBox(width: 10.w),
+                                    Expanded(
+                                      child: TextFormField(
+                                        controller: yearCtl,
+                                        keyboardType: TextInputType.number,
+                                        style: TextStyle(
+                                          fontSize: 14.sp,
+                                          fontWeight: FontWeight.w600,
+                                          color: AppColors.textPrimary,
+                                        ),
+                                        decoration: _fieldDecoration(
+                                          hint: 'Year (approx.)',
+                                        ),
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ],
                             ),
-                          ],
-                        ),
+                          ),
+                          _historyModalFooter(
+                            onCancel: () => Navigator.of(dialogCtx).pop(),
+                            onSubmit: () {
+                              final isOther =
+                                  procedureId == _kClinicalOtherChoiceId;
+                              final custom = customNameCtl.text.trim();
+                              if (isOther && custom.isEmpty) {
+                                _toast('Enter a custom procedure name.');
+                                return;
+                              }
+                              if (!isOther && procedureId <= 0) {
+                                _toast('Select a procedure.');
+                                return;
+                              }
+                              final mo = int.tryParse(monthCtl.text.trim());
+                              final yr = int.tryParse(yearCtl.text.trim());
+                              Navigator.of(dialogCtx).pop(
+                                PatientSurgicalHistoryRow(
+                                  id: _allocTempClinicalId(),
+                                  patientId: widget.summary.patientId,
+                                  procedureId: isOther
+                                      ? _kClinicalOtherChoiceId
+                                      : procedureId,
+                                  procedureName: isOther ? '' : procedureName,
+                                  customProcedureName: isOther ? custom : '',
+                                  approxMonth: mo,
+                                  approxYear: yr,
+                                  notes: notesCtl.text.trim(),
+                                ),
+                              );
+                            },
+                            submitLabel: 'Add procedure',
+                          ),
+                        ],
                       ),
-                      _historyModalFooter(
-                        onCancel: () => Navigator.of(dialogCtx).pop(),
-                        onSubmit: () {
-                          final isOther =
-                              procedureId == _kClinicalOtherChoiceId;
-                          final custom = customNameCtl.text.trim();
-                          if (isOther && custom.isEmpty) {
-                            _toast('Enter a custom procedure name.');
-                            return;
-                          }
-                          if (!isOther && procedureId <= 0) {
-                            _toast('Select a procedure.');
-                            return;
-                          }
-                          final mo = int.tryParse(monthCtl.text.trim());
-                          final yr = int.tryParse(yearCtl.text.trim());
-                          Navigator.of(dialogCtx).pop(
-                            PatientSurgicalHistoryRow(
-                              id: _allocTempClinicalId(),
-                              patientId: widget.summary.patientId,
-                              procedureId: isOther
-                                  ? _kClinicalOtherChoiceId
-                                  : procedureId,
-                              procedureName: isOther ? '' : procedureName,
-                              customProcedureName: isOther ? custom : '',
-                              approxMonth: mo,
-                              approxYear: yr,
-                              notes: notesCtl.text.trim(),
-                            ),
-                          );
-                        },
-                        submitLabel: 'Add procedure',
-                      ),
-                    ],
+                    ),
                   ),
-                ),
-              ),
+                );
+              },
             );
           },
         );
       },
     );
 
-    notesCtl.dispose();
-    customNameCtl.dispose();
-    monthCtl.dispose();
-    yearCtl.dispose();
     if (row == null || !mounted) return;
     setState(() {
       _surgical = [..._surgical, row];
@@ -1989,187 +2057,196 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
         useOtherFirst ? _kClinicalOtherChoiceId : available.first.id;
     String categoryName = useOtherFirst ? '' : available.first.name;
     String customCategoryName = '';
-    final customNameCtl = TextEditingController();
     int? adherenceLevelId;
     String adherenceLevelName = '';
-    final sideEffectsCtl = TextEditingController();
 
     final row = await showDialog<PatientDrugHistoryRow>(
       context: context,
       barrierDismissible: true,
       barrierColor: Colors.black.withValues(alpha: 0.5),
       builder: (dialogCtx) {
-        return StatefulBuilder(
-          builder: (ctx, setLocal) {
-            return Dialog(
-              backgroundColor: AppColors.surface,
-              surfaceTintColor: Colors.transparent,
-              elevation: 6,
-              insetPadding:
-                  EdgeInsets.symmetric(horizontal: 20.w, vertical: 24.h),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8.r),
-              ),
-              clipBehavior: Clip.antiAlias,
-              child: ConstrainedBox(
-                constraints: BoxConstraints(maxWidth: 480.w),
-                child: SingleChildScrollView(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      _historyModalHeader(
-                        icon: Icons.medication_liquid_outlined,
-                        title: 'Add drug category',
-                        subtitle: 'Adherence and side effects are optional.',
-                      ),
-                      Padding(
-                        padding: EdgeInsets.fromLTRB(16.w, 16.h, 16.w, 8.h),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            DropdownButtonFormField<int>(
-                              value: _clinicalRefDropdownSelectedValue(
-                                refId: categoryId,
-                                customName: customCategoryName,
-                                choices: available,
-                              ),
-                              isExpanded: true,
-                              decoration: _fieldDecoration(
-                                hint: 'Medicine category',
-                              ),
-                              items: _clinicalRefDropdownItems(available),
-                              onChanged: (v) {
-                                if (v == null) return;
-                                setLocal(() {
-                                  if (v == _kClinicalOtherChoiceId) {
-                                    categoryId = _kClinicalOtherChoiceId;
-                                    categoryName = '';
-                                  } else {
-                                    categoryId = v;
-                                    categoryName = _namedRefLabel(available, v);
-                                    customCategoryName = '';
-                                    customNameCtl.clear();
-                                  }
-                                });
-                              },
-                            ),
-                            if (categoryId == _kClinicalOtherChoiceId) ...[
-                              SizedBox(height: 12.h),
-                              _clinicalCustomNameField(
-                                controller: customNameCtl,
-                                hint: 'Custom medicine category name',
-                                onChanged: (v) => customCategoryName = v.trim(),
-                              ),
-                            ],
-                            if (_adherenceLevels.isNotEmpty) ...[
-                              SizedBox(height: 12.h),
-                              DropdownButtonFormField<int?>(
-                                value: adherenceLevelId,
-                                isExpanded: true,
-                                decoration: _fieldDecoration(
-                                  hint: 'Adherence level (optional)',
-                                ),
-                                items: [
-                                  DropdownMenuItem<int?>(
-                                    value: null,
-                                    child: Text(
-                                      '—',
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: TextStyle(
-                                        fontSize: 14.sp,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
+        return _DialogControllerScope(
+          controllerCount: 2,
+          builder: (context, ctrls) {
+            final customNameCtl = ctrls[0];
+            final sideEffectsCtl = ctrls[1];
+            return StatefulBuilder(
+              builder: (ctx, setLocal) {
+                return Dialog(
+                  backgroundColor: AppColors.surface,
+                  surfaceTintColor: Colors.transparent,
+                  elevation: 6,
+                  insetPadding:
+                      EdgeInsets.symmetric(horizontal: 20.w, vertical: 24.h),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8.r),
+                  ),
+                  clipBehavior: Clip.antiAlias,
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(maxWidth: 480.w),
+                    child: SingleChildScrollView(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          _historyModalHeader(
+                            icon: Icons.medication_liquid_outlined,
+                            title: 'Add drug category',
+                            subtitle:
+                                'Adherence and side effects are optional.',
+                          ),
+                          Padding(
+                            padding: EdgeInsets.fromLTRB(16.w, 16.h, 16.w, 8.h),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                DropdownButtonFormField<int>(
+                                  value: _clinicalRefDropdownSelectedValue(
+                                    refId: categoryId,
+                                    customName: customCategoryName,
+                                    choices: available,
                                   ),
-                                  ..._adherenceLevels
-                                      .where((e) => e.id > 0)
-                                      .map(
-                                        (e) => DropdownMenuItem<int?>(
-                                          value: e.id,
-                                          child: Text(
-                                            e.name,
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
-                                            style: TextStyle(
-                                              fontSize: 14.sp,
-                                              fontWeight: FontWeight.w600,
-                                            ),
+                                  isExpanded: true,
+                                  decoration: _fieldDecoration(
+                                    hint: 'Medicine category',
+                                  ),
+                                  items: _clinicalRefDropdownItems(available),
+                                  onChanged: (v) {
+                                    if (v == null) return;
+                                    setLocal(() {
+                                      if (v == _kClinicalOtherChoiceId) {
+                                        categoryId = _kClinicalOtherChoiceId;
+                                        categoryName = '';
+                                      } else {
+                                        categoryId = v;
+                                        categoryName =
+                                            _namedRefLabel(available, v);
+                                        customCategoryName = '';
+                                        customNameCtl.clear();
+                                      }
+                                    });
+                                  },
+                                ),
+                                if (categoryId == _kClinicalOtherChoiceId) ...[
+                                  SizedBox(height: 12.h),
+                                  _clinicalCustomNameField(
+                                    controller: customNameCtl,
+                                    hint: 'Custom medicine category name',
+                                    onChanged: (v) =>
+                                        customCategoryName = v.trim(),
+                                  ),
+                                ],
+                                if (_adherenceLevels.isNotEmpty) ...[
+                                  SizedBox(height: 12.h),
+                                  DropdownButtonFormField<int?>(
+                                    value: adherenceLevelId,
+                                    isExpanded: true,
+                                    decoration: _fieldDecoration(
+                                      hint: 'Adherence level (optional)',
+                                    ),
+                                    items: [
+                                      DropdownMenuItem<int?>(
+                                        value: null,
+                                        child: Text(
+                                          '—',
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: TextStyle(
+                                            fontSize: 14.sp,
+                                            fontWeight: FontWeight.w600,
                                           ),
                                         ),
                                       ),
+                                      ..._adherenceLevels
+                                          .where((e) => e.id > 0)
+                                          .map(
+                                            (e) => DropdownMenuItem<int?>(
+                                              value: e.id,
+                                              child: Text(
+                                                e.name,
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                                style: TextStyle(
+                                                  fontSize: 14.sp,
+                                                  fontWeight: FontWeight.w600,
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                    ],
+                                    onChanged: (v) {
+                                      setLocal(() {
+                                        adherenceLevelId = v;
+                                        adherenceLevelName = v == null
+                                            ? ''
+                                            : _adherenceLevels
+                                                .firstWhere((e) => e.id == v)
+                                                .name;
+                                      });
+                                    },
+                                  ),
                                 ],
-                                onChanged: (v) {
-                                  setLocal(() {
-                                    adherenceLevelId = v;
-                                    adherenceLevelName = v == null
-                                        ? ''
-                                        : _adherenceLevels
-                                            .firstWhere((e) => e.id == v)
-                                            .name;
-                                  });
-                                },
-                              ),
-                            ],
-                            SizedBox(height: 12.h),
-                            TextFormField(
-                              controller: sideEffectsCtl,
-                              maxLines: 2,
-                              style: TextStyle(
-                                fontSize: 14.sp,
-                                fontWeight: FontWeight.w600,
-                                color: AppColors.textPrimary,
-                              ),
-                              decoration: _fieldDecoration(
-                                hint: 'Side effects / notes (optional)',
-                              ),
+                                SizedBox(height: 12.h),
+                                TextFormField(
+                                  controller: sideEffectsCtl,
+                                  maxLines: 2,
+                                  style: TextStyle(
+                                    fontSize: 14.sp,
+                                    fontWeight: FontWeight.w600,
+                                    color: AppColors.textPrimary,
+                                  ),
+                                  decoration: _fieldDecoration(
+                                    hint: 'Side effects / notes (optional)',
+                                  ),
+                                ),
+                              ],
                             ),
-                          ],
-                        ),
+                          ),
+                          _historyModalFooter(
+                            onCancel: () => Navigator.of(dialogCtx).pop(),
+                            onSubmit: () {
+                              final isOther =
+                                  categoryId == _kClinicalOtherChoiceId;
+                              final custom = customNameCtl.text.trim();
+                              if (isOther && custom.isEmpty) {
+                                _toast(
+                                    'Enter a custom medicine category name.');
+                                return;
+                              }
+                              if (!isOther && categoryId <= 0) {
+                                _toast('Select a medicine category.');
+                                return;
+                              }
+                              Navigator.of(dialogCtx).pop(
+                                PatientDrugHistoryRow(
+                                  id: _allocTempClinicalId(),
+                                  patientId: widget.summary.patientId,
+                                  medicineCategoryId: isOther
+                                      ? _kClinicalOtherChoiceId
+                                      : categoryId,
+                                  categoryName: isOther ? '' : categoryName,
+                                  customMedicineCategoryName:
+                                      isOther ? custom : '',
+                                  adherenceLevelId: adherenceLevelId,
+                                  adherenceLevelName: adherenceLevelName,
+                                  sideEffects: sideEffectsCtl.text.trim(),
+                                ),
+                              );
+                            },
+                            submitLabel: 'Add category',
+                          ),
+                        ],
                       ),
-                      _historyModalFooter(
-                        onCancel: () => Navigator.of(dialogCtx).pop(),
-                        onSubmit: () {
-                          final isOther = categoryId == _kClinicalOtherChoiceId;
-                          final custom = customNameCtl.text.trim();
-                          if (isOther && custom.isEmpty) {
-                            _toast('Enter a custom medicine category name.');
-                            return;
-                          }
-                          if (!isOther && categoryId <= 0) {
-                            _toast('Select a medicine category.');
-                            return;
-                          }
-                          Navigator.of(dialogCtx).pop(
-                            PatientDrugHistoryRow(
-                              id: _allocTempClinicalId(),
-                              patientId: widget.summary.patientId,
-                              medicineCategoryId: isOther
-                                  ? _kClinicalOtherChoiceId
-                                  : categoryId,
-                              categoryName: isOther ? '' : categoryName,
-                              customMedicineCategoryName: isOther ? custom : '',
-                              adherenceLevelId: adherenceLevelId,
-                              adherenceLevelName: adherenceLevelName,
-                              sideEffects: sideEffectsCtl.text.trim(),
-                            ),
-                          );
-                        },
-                        submitLabel: 'Add category',
-                      ),
-                    ],
+                    ),
                   ),
-                ),
-              ),
+                );
+              },
             );
           },
         );
       },
     );
 
-    sideEffectsCtl.dispose();
-    customNameCtl.dispose();
     if (row == null || !mounted) return;
     setState(() {
       _drugs = [..._drugs, row];
@@ -2804,34 +2881,13 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
     Widget? headerTrailing,
     Widget? footer,
   }) {
-    return Container(
-      margin: EdgeInsets.only(bottom: 18.h),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(16.r),
-        border: Border.all(color: AppColors.border),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.dashboardPrimaryDark.withValues(alpha: 0.06),
-            blurRadius: 14,
-            offset: Offset(0, 5.h),
-          ),
-        ],
-      ),
-      clipBehavior: Clip.antiAlias,
+    return Padding(
+      padding: EdgeInsets.only(bottom: 18.h),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Container(
-            padding: EdgeInsets.fromLTRB(14.w, 12.h, 14.w, 12.h),
-            decoration: BoxDecoration(
-              color: AppColors.registrationFieldFill.withValues(alpha: 0.65),
-              border: Border(
-                bottom: BorderSide(
-                  color: AppColors.border.withValues(alpha: 0.85),
-                ),
-              ),
-            ),
+          Padding(
+            padding: EdgeInsets.only(bottom: 12.h),
             child: Row(
               children: [
                 Container(
@@ -2861,15 +2917,11 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
               ],
             ),
           ),
-          Padding(
-            padding: EdgeInsets.fromLTRB(14.w, 14.h, 14.w, 12.h),
-            child: child,
-          ),
-          if (footer != null)
-            Padding(
-              padding: EdgeInsets.fromLTRB(14.w, 0, 14.w, 14.h),
-              child: footer,
-            ),
+          child,
+          if (footer != null) ...[
+            SizedBox(height: 12.h),
+            footer,
+          ],
         ],
       ),
     );
@@ -2939,6 +2991,7 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
                       customName: customNameCtl.text,
                     );
                     return Container(
+                      key: ValueKey('chronic-${row.id}'),
                       margin: EdgeInsets.only(bottom: 12.h),
                       padding: EdgeInsets.all(12.r),
                       decoration: BoxDecoration(
@@ -3178,6 +3231,7 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
                       customName: customNameCtl.text,
                     );
                     return Container(
+                      key: ValueKey('surgical-${s.id}'),
                       margin: EdgeInsets.only(bottom: 12.h),
                       padding: EdgeInsets.all(12.r),
                       decoration: BoxDecoration(
@@ -3364,6 +3418,7 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
                       customName: customNameCtl.text,
                     );
                     return Container(
+                      key: ValueKey('drug-${d.id}'),
                       margin: EdgeInsets.only(bottom: 12.h),
                       padding: EdgeInsets.all(12.r),
                       decoration: BoxDecoration(
@@ -4410,4 +4465,44 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
       ),
     );
   }
+}
+
+class _DialogControllerScope extends StatefulWidget {
+  const _DialogControllerScope({
+    required this.controllerCount,
+    required this.builder,
+  });
+
+  final int controllerCount;
+  final Widget Function(
+    BuildContext context,
+    List<TextEditingController> controllers,
+  ) builder;
+
+  @override
+  State<_DialogControllerScope> createState() => _DialogControllerScopeState();
+}
+
+class _DialogControllerScopeState extends State<_DialogControllerScope> {
+  late final List<TextEditingController> _controllers;
+
+  @override
+  void initState() {
+    super.initState();
+    _controllers = List.generate(
+      widget.controllerCount,
+      (_) => TextEditingController(),
+    );
+  }
+
+  @override
+  void dispose() {
+    for (final c in _controllers) {
+      c.dispose();
+    }
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.builder(context, _controllers);
 }

@@ -18,8 +18,8 @@ class AppTheme {
     );
 
     final textTheme = base.textTheme.apply(
-      fontFamily: 'Cause',
-      fontFamilyFallback: const ['NotoNastaliqUrdu'],
+      fontFamily: 'Inter',
+      fontFamilyFallback: const ['Cause', 'NotoNastaliqUrdu'],
     );
 
     return base.copyWith(
@@ -54,8 +54,12 @@ class AppTheme {
           backgroundColor: AppColors.blue,
           foregroundColor: Colors.white,
           minimumSize: const Size.fromHeight(52),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-          textStyle: const TextStyle(fontWeight: FontWeight.w600),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          textStyle: textTheme.labelLarge?.copyWith(
+            fontWeight: FontWeight.w600,
+            color: Colors.white,
+          ),
         ),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
@@ -63,8 +67,12 @@ class AppTheme {
           foregroundColor: AppColors.blueDark,
           minimumSize: const Size.fromHeight(52),
           side: const BorderSide(color: AppColors.blue),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-          textStyle: const TextStyle(fontWeight: FontWeight.w600),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          textStyle: textTheme.labelLarge?.copyWith(
+            fontWeight: FontWeight.w600,
+            color: AppColors.blueDark,
+          ),
         ),
       ),
       inputDecorationTheme: InputDecorationTheme(
@@ -82,7 +90,8 @@ class AppTheme {
           borderRadius: BorderRadius.circular(6),
           borderSide: const BorderSide(color: AppColors.blue),
         ),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
       ),
       snackBarTheme: SnackBarThemeData(
         behavior: SnackBarBehavior.floating,
@@ -101,4 +110,3 @@ class AppTheme {
     );
   }
 }
-
