@@ -11,7 +11,18 @@ class NamedReferenceItem {
   factory NamedReferenceItem.fromJson(Map<String, dynamic> json) {
     return NamedReferenceItem(
       id: _readInt(
-        json['id'] ?? json['Id'],
+        json['id'] ??
+            json['Id'] ??
+            json['relationDegreeId'] ??
+            json['RelationDegreeId'] ??
+            json['conditionId'] ??
+            json['ConditionId'] ??
+            json['procedureId'] ??
+            json['ProcedureId'] ??
+            json['medicineCategoryId'] ??
+            json['MedicineCategoryId'] ??
+            json['categoryId'] ??
+            json['CategoryId'],
       ),
       name: _firstNonEmptyField(json, const [
         'name',
@@ -20,6 +31,18 @@ class NamedReferenceItem {
         'Label',
         'title',
         'Title',
+        'relationDegreeName',
+        'RelationDegreeName',
+        'degreeName',
+        'DegreeName',
+        'conditionName',
+        'ConditionName',
+        'procedureName',
+        'ProcedureName',
+        'categoryName',
+        'CategoryName',
+        'medicineCategoryName',
+        'MedicineCategoryName',
       ]),
     );
   }

@@ -1,5 +1,8 @@
+import 'dart:convert';
+
 import 'package:dio/dio.dart';
 
+import 'package:doctor_app/src/core/logging/app_logger.dart';
 import 'package:doctor_app/src/core/network/api_client.dart';
 import 'package:doctor_app/src/core/network/endpoints.dart';
 import 'package:doctor_app/src/features/patients/patient_api_models.dart';
@@ -376,14 +379,26 @@ class PatientApi {
     required String patientId,
     required String bearerToken,
   }) async {
+    final path = Endpoints.patientFamilyHistory(patientId);
     try {
       final res = await _client.get(
-        Endpoints.patientFamilyHistory(patientId),
+        path,
         bearerToken: bearerToken,
       );
-      return PatientFamilyHistoryData.tryFromJson(res.data);
+      try {
+        final pretty = const JsonEncoder.withIndent('  ').convert(res.data);
+        AppLogger.instance.i('[PatientApi] RAW GET $path\n$pretty');
+      } catch (_) {
+        AppLogger.instance.i('[PatientApi] RAW GET $path\n${res.data}');
+      }
+      final parsed = PatientFamilyHistoryData.tryFromJson(res.data);
+      AppLogger.instance.i(
+        '[PatientApi] PARSED GET $path → ${parsed?.relatives.length ?? 0} relative(s)',
+      );
+      return parsed;
     } on DioException catch (e) {
       if (e.response?.statusCode == 404) {
+        AppLogger.instance.i('[PatientApi] GET $path → 404 (no family history yet)');
         return const PatientFamilyHistoryData(relatives: []);
       }
       rethrow;

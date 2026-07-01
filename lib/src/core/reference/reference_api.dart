@@ -143,6 +143,11 @@ class ReferenceApi {
     final data = res.data;
     _logReferenceRaw(path, data);
     final parsed = _parseList(data, NamedReferenceItem.fromJson);
+    if (parsed.isEmpty && data != null) {
+      AppLogger.instance.w(
+        '[ReferenceAPI] GET $path parsed 0 rows — verify id/name field names in RAW payload above',
+      );
+    }
     _logParsedSummary(
       path,
       parsed.length,
@@ -219,6 +224,10 @@ class ReferenceApi {
         final inner = map[k];
         if (inner is List) {
           return _mapList(inner, fromJson);
+        }
+        if (inner is Map) {
+          final nested = _parseList(inner, fromJson);
+          if (nested.isNotEmpty) return nested;
         }
       }
     }

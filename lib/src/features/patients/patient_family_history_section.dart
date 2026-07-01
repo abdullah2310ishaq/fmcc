@@ -4,7 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:provider/provider.dart';
 
+import 'package:doctor_app/src/core/logging/app_logger.dart';
 import 'package:doctor_app/src/core/network/api_failure.dart';
+import 'package:doctor_app/src/core/presentation/dialog_controller_scope.dart';
 import 'package:doctor_app/src/core/reference/reference_models.dart';
 import 'package:doctor_app/src/core/session/session_controller.dart';
 import 'package:doctor_app/src/core/theme/app_colors.dart';
@@ -48,6 +50,7 @@ class _PatientFamilyHistorySectionState
   void initState() {
     super.initState();
     _degreeId = _firstPositiveId(widget.relationDegrees);
+    _logFamilyState('initState');
     WidgetsBinding.instance.addPostFrameCallback((_) {
       unawaited(_load());
     });
@@ -56,8 +59,20 @@ class _PatientFamilyHistorySectionState
   @override
   void didUpdateWidget(covariant PatientFamilyHistorySection oldWidget) {
     super.didUpdateWidget(oldWidget);
+    final refsArrived = oldWidget.relationDegrees.isEmpty &&
+        widget.relationDegrees.isNotEmpty;
+    final conditionsArrived = oldWidget.medicalConditions.isEmpty &&
+        widget.medicalConditions.isNotEmpty;
+    if (refsArrived || conditionsArrived) {
+      _logFamilyState('didUpdateWidget (refs arrived)');
+    }
     if (_degreeId == null && widget.relationDegrees.isNotEmpty) {
-      _degreeId = _firstPositiveId(widget.relationDegrees);
+      setState(() {
+        _degreeId = _firstPositiveId(widget.relationDegrees);
+      });
+      AppLogger.instance.i(
+        '[FamilyHistory] degreeId set from refs → $_degreeId',
+      );
     }
   }
 
@@ -69,6 +84,39 @@ class _PatientFamilyHistorySectionState
   }
 
   int _allocTempRelativeId() => --_tempRelativeIdSeq;
+
+  void _logFamilyState(String where) {
+    final degreeSummary = widget.relationDegrees
+        .map((e) => '${e.id}:${e.name}')
+        .join(', ');
+    final conditionSummary = widget.medicalConditions
+        .take(8)
+        .map((e) => '${e.id}:${e.name}')
+        .join(', ');
+    AppLogger.instance.i(
+      '[FamilyHistory] $where | patientId=${widget.patientId} '
+      'relationDegrees=${widget.relationDegrees.length} '
+      'medicalConditions=${widget.medicalConditions.length} '
+      'degreeId=$_degreeId relatives=${_relatives.length} '
+      'loaded=$_loaded loading=$_loading',
+    );
+    if (widget.relationDegrees.isEmpty) {
+      AppLogger.instance.w(
+        '[FamilyHistory] relationDegrees EMPTY at $where — dropdown/tabs will be blank',
+      );
+    } else {
+      AppLogger.instance.i('[FamilyHistory] relationDegrees → $degreeSummary');
+    }
+    if (widget.medicalConditions.isEmpty) {
+      AppLogger.instance.w(
+        '[FamilyHistory] medicalConditions EMPTY at $where — condition dropdown will be blank',
+      );
+    } else {
+      AppLogger.instance.i(
+        '[FamilyHistory] medicalConditions (first 8) → $conditionSummary',
+      );
+    }
+  }
 
   String _labelForId(List<NamedReferenceItem> items, int id) {
     for (final e in items) {
@@ -91,17 +139,25 @@ class _PatientFamilyHistorySectionState
 
     setState(() => _loading = true);
     try {
+      AppLogger.instance.i(
+        '[FamilyHistory] GET familyhistory/${widget.patientId}',
+      );
       final data = await widget.patientApi.getFamilyHistory(
         patientId: widget.patientId,
         bearerToken: token,
       );
       if (!mounted) return;
+      AppLogger.instance.i(
+        '[FamilyHistory] loaded ${data?.relatives.length ?? 0} relative(s)',
+      );
       setState(() {
         _relatives = data?.relatives ?? const [];
         _loaded = true;
       });
+      _logFamilyState('after _load');
     } on Object catch (e) {
       if (!mounted || e is SessionEndedFailure) return;
+      AppLogger.instance.e('[FamilyHistory] _load failed: $e');
       _toast(session.apiClient.mapError(e).message);
     } finally {
       if (mounted) setState(() => _loading = false);
@@ -215,8 +271,12 @@ class _PatientFamilyHistorySectionState
   }
 
   Future<void> _addRelative() async {
+    _logFamilyState('before _addRelative');
     final defaultDegree = _degreeId ?? _firstPositiveId(widget.relationDegrees);
     if (defaultDegree == null || widget.relationDegrees.isEmpty) {
+      AppLogger.instance.w(
+        '[FamilyHistory] _addRelative blocked — relationDegrees empty or no valid id',
+      );
       _toast('Relation degree list is still loading or empty.');
       return;
     }
@@ -224,12 +284,15 @@ class _PatientFamilyHistorySectionState
     int relationDegreeId = defaultDegree;
     String relationDegreeName =
         _labelForId(widget.relationDegrees, defaultDegree);
-    final specificCtl = TextEditingController();
 
     final row = await showDialog<PatientFamilyRelativeRow>(
       context: context,
       builder: (dialogCtx) {
-        return StatefulBuilder(
+        return DialogControllerScope(
+          controllerCount: 1,
+          builder: (context, ctrls) {
+            final specificCtl = ctrls[0];
+            return StatefulBuilder(
           builder: (ctx, setLocal) {
             return AlertDialog(
               title: Text(
@@ -299,11 +362,12 @@ class _PatientFamilyHistorySectionState
               ],
             );
           },
+            );
+          },
         );
       },
     );
 
-    specificCtl.dispose();
     if (row == null || !mounted) return;
     setState(() => _relatives = [..._relatives, row]);
   }
@@ -320,6 +384,9 @@ class _PatientFamilyHistorySectionState
         .toList(growable: false);
 
     if (widget.medicalConditions.isEmpty) {
+      AppLogger.instance.w(
+        '[FamilyHistory] _addCondition blocked — medicalConditions empty',
+      );
       _toast('Medical condition list is still loading or empty.');
       return;
     }
@@ -328,12 +395,15 @@ class _PatientFamilyHistorySectionState
     int conditionId =
         useOtherFirst ? _kOtherChoiceId : available.first.id;
     String conditionName = useOtherFirst ? '' : available.first.name;
-    final customNameCtl = TextEditingController();
 
     final condition = await showDialog<PatientFamilyConditionRow>(
       context: context,
       builder: (dialogCtx) {
-        return StatefulBuilder(
+        return DialogControllerScope(
+          controllerCount: 1,
+          builder: (context, ctrls) {
+            final customNameCtl = ctrls[0];
+            return StatefulBuilder(
           builder: (ctx, setLocal) {
             return AlertDialog(
               title: Text(
@@ -424,11 +494,12 @@ class _PatientFamilyHistorySectionState
               ],
             );
           },
+            );
+          },
         );
       },
     );
 
-    customNameCtl.dispose();
     if (condition == null || !mounted) return;
 
     setState(() {
@@ -545,7 +616,12 @@ class _PatientFamilyHistorySectionState
 
   Widget _degreeTabBar() {
     final degrees = widget.relationDegrees.where((e) => e.id > 0).toList();
-    if (degrees.isEmpty) return const SizedBox.shrink();
+    if (degrees.isEmpty) {
+      AppLogger.instance.w(
+        '[FamilyHistory] _degreeTabBar hidden — no relationDegrees with id > 0',
+      );
+      return const SizedBox.shrink();
+    }
 
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,

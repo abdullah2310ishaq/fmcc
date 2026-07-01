@@ -7,8 +7,10 @@ import 'package:provider/provider.dart';
 import 'package:doctor_app/src/core/format/name_initials.dart';
 import 'package:doctor_app/src/core/input_format/cnic_input_formatter.dart';
 import 'package:doctor_app/src/core/input_format/pakistan_phone_input_formatter.dart';
+import 'package:doctor_app/src/core/logging/app_logger.dart';
 import 'package:doctor_app/src/core/network/api_failure.dart';
 import 'package:doctor_app/src/core/reference/reference_api.dart';
+import 'package:doctor_app/src/core/presentation/dialog_controller_scope.dart';
 import 'package:doctor_app/src/core/reference/reference_models.dart';
 import 'package:doctor_app/src/core/presentation/bp_reading_color.dart';
 import 'package:doctor_app/src/core/session/session_controller.dart';
@@ -366,6 +368,23 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
         _medicineCategories = results[4];
         _relationDegrees = results[5];
       });
+      AppLogger.instance.i(
+        '[PatientDetail] clinical refs loaded — '
+        'conditions=${_medicalConditions.length} '
+        'relationDegrees=${_relationDegrees.length} '
+        'procedures=${_surgicalProcedures.length} '
+        'categories=${_medicineCategories.length}',
+      );
+      if (_relationDegrees.isEmpty) {
+        AppLogger.instance.w(
+          '[PatientDetail] relationDegrees EMPTY after /api/Reference/relation-degrees',
+        );
+      } else {
+        AppLogger.instance.i(
+          '[PatientDetail] relationDegrees → '
+          '${_relationDegrees.map((e) => '${e.id}:${e.name}').join(', ')}',
+        );
+      }
     } on Object catch (e) {
       if (!mounted || e is SessionEndedFailure) return;
       _toast(session.apiClient.mapError(e).message);
@@ -1662,7 +1681,7 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
       barrierDismissible: true,
       barrierColor: Colors.black.withValues(alpha: 0.5),
       builder: (dialogCtx) {
-        return _DialogControllerScope(
+        return DialogControllerScope(
           controllerCount: 2,
           builder: (context, ctrls) {
             final customNameCtl = ctrls[0];
@@ -1877,7 +1896,7 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
       barrierDismissible: true,
       barrierColor: Colors.black.withValues(alpha: 0.5),
       builder: (dialogCtx) {
-        return _DialogControllerScope(
+        return DialogControllerScope(
           controllerCount: 4,
           builder: (context, ctrls) {
             final customNameCtl = ctrls[0];
@@ -2065,7 +2084,7 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
       barrierDismissible: true,
       barrierColor: Colors.black.withValues(alpha: 0.5),
       builder: (dialogCtx) {
-        return _DialogControllerScope(
+        return DialogControllerScope(
           controllerCount: 2,
           builder: (context, ctrls) {
             final customNameCtl = ctrls[0];
@@ -4465,44 +4484,4 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
       ),
     );
   }
-}
-
-class _DialogControllerScope extends StatefulWidget {
-  const _DialogControllerScope({
-    required this.controllerCount,
-    required this.builder,
-  });
-
-  final int controllerCount;
-  final Widget Function(
-    BuildContext context,
-    List<TextEditingController> controllers,
-  ) builder;
-
-  @override
-  State<_DialogControllerScope> createState() => _DialogControllerScopeState();
-}
-
-class _DialogControllerScopeState extends State<_DialogControllerScope> {
-  late final List<TextEditingController> _controllers;
-
-  @override
-  void initState() {
-    super.initState();
-    _controllers = List.generate(
-      widget.controllerCount,
-      (_) => TextEditingController(),
-    );
-  }
-
-  @override
-  void dispose() {
-    for (final c in _controllers) {
-      c.dispose();
-    }
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) => widget.builder(context, _controllers);
 }
