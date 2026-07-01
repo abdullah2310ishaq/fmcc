@@ -4236,20 +4236,27 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
 
   Widget _sectionBody() {
     final api = _patientApi;
-    return switch (_section) {
-      PatientDetailSection.personalInfo => _personalForm(),
-      PatientDetailSection.medicalHistory => _medicalBody(),
-      PatientDetailSection.familyHistory => api == null
-          ? const SizedBox.shrink()
-          : PatientFamilyHistorySection(
-              patientId: widget.summary.patientId,
-              patientApi: api,
-              medicalConditions: _medicalConditions,
-              relationDegrees: _relationDegrees,
-            ),
-      PatientDetailSection.baselineLifestyle => _baselineBody(),
-      PatientDetailSection.visitHistory => _visitsBody(),
-    };
+    final familySection = api == null
+        ? const SizedBox.shrink()
+        : PatientFamilyHistorySection(
+            key: ValueKey('family-history-${widget.summary.patientId}'),
+            patientId: widget.summary.patientId,
+            patientApi: api,
+            medicalConditions: _medicalConditions,
+            relationDegrees: _relationDegrees,
+          );
+
+    return IndexedStack(
+      index: PatientDetailSection.values.indexOf(_section),
+      sizing: StackFit.loose,
+      children: [
+        _personalForm(),
+        _medicalBody(),
+        familySection,
+        _baselineBody(),
+        _visitsBody(),
+      ],
+    );
   }
 
   Widget _tab(PatientDetailSection s) {

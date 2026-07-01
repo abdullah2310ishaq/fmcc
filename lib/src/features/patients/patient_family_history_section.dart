@@ -52,8 +52,16 @@ class _PatientFamilyHistorySectionState
     _degreeId = _firstPositiveId(widget.relationDegrees);
     _logFamilyState('initState');
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      unawaited(_load());
+      unawaited(_loadWhenReady());
     });
+  }
+
+  Future<void> _loadWhenReady() async {
+    if (widget.medicalConditions.isEmpty || widget.relationDegrees.isEmpty) {
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+      if (!mounted) return;
+    }
+    await _load();
   }
 
   @override
@@ -65,8 +73,18 @@ class _PatientFamilyHistorySectionState
         widget.medicalConditions.isNotEmpty;
     if (refsArrived || conditionsArrived) {
       _logFamilyState('didUpdateWidget (refs arrived)');
-    }
-    if (_degreeId == null && widget.relationDegrees.isNotEmpty) {
+      setState(() {
+        if (_degreeId == null && widget.relationDegrees.isNotEmpty) {
+          _degreeId = _firstPositiveId(widget.relationDegrees);
+        }
+        _relatives = _enrichRelatives(_relatives);
+      });
+      if (_loaded) {
+        unawaited(
+          _load(keepOnEmpty: true, mergeWith: _relatives),
+        );
+      }
+    } else if (_degreeId == null && widget.relationDegrees.isNotEmpty) {
       setState(() {
         _degreeId = _firstPositiveId(widget.relationDegrees);
       });
@@ -125,6 +143,218 @@ class _PatientFamilyHistorySectionState
     return '';
   }
 
+  List<PatientFamilyRelativeRow> _enrichRelatives(
+    List<PatientFamilyRelativeRow> rows,
+  ) {
+    return rows
+        .map((rel) {
+          var degreeName = rel.relationDegreeName.trim();
+          if (degreeName.isEmpty && rel.relationDegreeId > 0) {
+            degreeName = _labelForId(widget.relationDegrees, rel.relationDegreeId);
+          }
+
+          final conditions = rel.conditions
+              .map(_enrichCondition)
+              .where((c) => c.displayConditionName.isNotEmpty)
+              .toList(growable: false);
+
+          return rel.copyWith(
+            relationDegreeName: degreeName,
+            conditions: conditions,
+          );
+        })
+        .toList(growable: false);
+  }
+
+  PatientFamilyConditionRow _enrichCondition(PatientFamilyConditionRow c) {
+    final custom = c.customConditionName.trim();
+    if (custom.isNotEmpty) return c;
+
+    var name = c.conditionName.trim();
+    if (name.isEmpty && c.conditionId > 0) {
+      name = _labelForId(widget.medicalConditions, c.conditionId);
+    }
+    if (name.isNotEmpty) {
+      return c.copyWith(conditionName: name);
+    }
+    return c;
+  }
+
+  PatientFamilyConditionRow _mergeConditionPair(
+    PatientFamilyConditionRow local,
+    PatientFamilyConditionRow remote,
+  ) {
+    var out = remote;
+    if (remote.conditionName.trim().isEmpty &&
+        local.conditionName.trim().isNotEmpty) {
+      out = out.copyWith(conditionName: local.conditionName);
+    }
+    if (remote.customConditionName.trim().isEmpty &&
+        local.customConditionName.trim().isNotEmpty) {
+      out = out.copyWith(customConditionName: local.customConditionName);
+    }
+    if (remote.conditionId <= 0 && local.conditionId > 0) {
+      out = out.copyWith(conditionId: local.conditionId);
+    }
+    if (remote.relativeConditionId.startsWith('local-') &&
+        local.relativeConditionId.isNotEmpty &&
+        !local.relativeConditionId.startsWith('local-')) {
+      out = out.copyWith(relativeConditionId: local.relativeConditionId);
+    } else if (remote.relativeConditionId.trim().isEmpty &&
+        local.relativeConditionId.trim().isNotEmpty) {
+      out = out.copyWith(relativeConditionId: local.relativeConditionId);
+    }
+    return _enrichCondition(out);
+  }
+
+  void _applyRelatives(
+    List<PatientFamilyRelativeRow> rows, {
+    bool keepOnEmpty = false,
+    List<PatientFamilyRelativeRow>? mergeWith,
+  }) {
+    var incoming = _enrichRelatives(rows);
+    if (mergeWith != null && mergeWith.isNotEmpty) {
+      incoming = _mergeRelatives(mergeWith, incoming);
+    }
+    setState(() {
+      if (incoming.isNotEmpty || !keepOnEmpty) {
+        _relatives = incoming;
+      }
+      _loaded = true;
+    });
+  }
+
+  List<PatientFamilyRelativeRow> _mergeRelatives(
+    List<PatientFamilyRelativeRow> local,
+    List<PatientFamilyRelativeRow> remote,
+  ) {
+    if (remote.isEmpty) return local;
+
+    final localById = {
+      for (final r in local)
+        if (r.relativeId > 0) r.relativeId: r,
+    };
+    final merged = <PatientFamilyRelativeRow>[];
+    final seen = <int>{};
+
+    for (final remoteRow in remote) {
+      seen.add(remoteRow.relativeId);
+      merged.add(_mergeRelativePair(localById[remoteRow.relativeId], remoteRow));
+    }
+
+    for (final localRow in local) {
+      if (localRow.relativeId > 0 && seen.contains(localRow.relativeId)) {
+        continue;
+      }
+      merged.add(localRow);
+    }
+
+    return _enrichRelatives(merged);
+  }
+
+  PatientFamilyRelativeRow _mergeRelativePair(
+    PatientFamilyRelativeRow? local,
+    PatientFamilyRelativeRow remote,
+  ) {
+    if (local == null) return remote;
+
+    var out = remote;
+    if (remote.relationDegreeId <= 0 && local.relationDegreeId > 0) {
+      out = out.copyWith(
+        relationDegreeId: local.relationDegreeId,
+        relationDegreeName: local.relationDegreeName,
+      );
+    } else if (remote.relationDegreeName.trim().isEmpty &&
+        local.relationDegreeName.trim().isNotEmpty) {
+      out = out.copyWith(relationDegreeName: local.relationDegreeName);
+    }
+
+    if (remote.specificRelation.trim().isEmpty &&
+        local.specificRelation.trim().isNotEmpty) {
+      out = out.copyWith(specificRelation: local.specificRelation);
+    }
+
+    if (remote.conditions.isEmpty && local.conditions.isNotEmpty) {
+      out = out.copyWith(conditions: local.conditions);
+    } else if (remote.conditions.isNotEmpty && local.conditions.isNotEmpty) {
+      out = out.copyWith(
+        conditions: _mergeConditionLists(local.conditions, remote.conditions),
+      );
+    }
+
+    return out;
+  }
+
+  List<PatientFamilyConditionRow> _mergeConditionLists(
+    List<PatientFamilyConditionRow> local,
+    List<PatientFamilyConditionRow> remote,
+  ) {
+    if (remote.isEmpty) return local.map(_enrichCondition).toList(growable: false);
+    if (local.isEmpty) {
+      return remote.map(_enrichCondition).toList(growable: false);
+    }
+
+    final usedRemote = <int>{};
+    final merged = <PatientFamilyConditionRow>[];
+
+    for (final localCond in local) {
+      PatientFamilyConditionRow? match;
+      for (var i = 0; i < remote.length; i++) {
+        if (usedRemote.contains(i)) continue;
+        final remoteCond = remote[i];
+        final sameId = localCond.relativeConditionId.isNotEmpty &&
+            localCond.relativeConditionId == remoteCond.relativeConditionId;
+        final sameCondition = localCond.conditionId > 0 &&
+            localCond.conditionId == remoteCond.conditionId;
+        final sameCustom = localCond.customConditionName.trim().isNotEmpty &&
+            localCond.customConditionName.trim() ==
+                remoteCond.customConditionName.trim();
+        if (sameId || sameCondition || sameCustom) {
+          match = remoteCond;
+          usedRemote.add(i);
+          break;
+        }
+      }
+
+      if (match != null) {
+        merged.add(_mergeConditionPair(localCond, match));
+      } else if (localCond.isDraft) {
+        continue;
+      } else {
+        merged.add(localCond);
+      }
+    }
+
+    for (var i = 0; i < remote.length; i++) {
+      if (!usedRemote.contains(i)) {
+        merged.add(_enrichCondition(remote[i]));
+      }
+    }
+
+    return merged;
+  }
+
+  List<PatientFamilyRelativeRow> _markConditionsSaved(
+    List<PatientFamilyRelativeRow> rows,
+  ) {
+    return rows
+        .map((rel) {
+          final conditions = rel.conditions
+              .map((c) {
+                if (!c.isDraft) return c;
+                final key = c.conditionId > 0
+                    ? 'c${c.conditionId}'
+                    : 'x${c.customConditionName.trim()}';
+                return c.copyWith(
+                  relativeConditionId: 'local-${rel.relativeId}-$key',
+                );
+              })
+              .toList(growable: false);
+          return rel.copyWith(conditions: conditions);
+        })
+        .toList(growable: false);
+  }
+
   void _toast(String msg) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
@@ -132,11 +362,15 @@ class _PatientFamilyHistorySectionState
     );
   }
 
-  Future<void> _load() async {
+  Future<void> _load({
+    bool keepOnEmpty = false,
+    List<PatientFamilyRelativeRow>? mergeWith,
+  }) async {
     final session = context.read<SessionController>();
     final token = session.state.accessToken?.trim();
     if (token == null || token.isEmpty) return;
 
+    final previous = List<PatientFamilyRelativeRow>.from(_relatives);
     setState(() => _loading = true);
     try {
       AppLogger.instance.i(
@@ -150,10 +384,11 @@ class _PatientFamilyHistorySectionState
       AppLogger.instance.i(
         '[FamilyHistory] loaded ${data?.relatives.length ?? 0} relative(s)',
       );
-      setState(() {
-        _relatives = data?.relatives ?? const [];
-        _loaded = true;
-      });
+      _applyRelatives(
+        data?.relatives ?? const [],
+        keepOnEmpty: keepOnEmpty,
+        mergeWith: mergeWith ?? previous,
+      );
       _logFamilyState('after _load');
     } on Object catch (e) {
       if (!mounted || e is SessionEndedFailure) return;
@@ -167,7 +402,16 @@ class _PatientFamilyHistorySectionState
   List<PatientFamilyRelativeRow> _relativesForDegree() {
     final d = _degreeId;
     if (d == null || d <= 0) return _relatives;
-    return _relatives.where((r) => r.relationDegreeId == d).toList();
+
+    final matched =
+        _relatives.where((r) => r.relationDegreeId == d).toList();
+    if (matched.isNotEmpty) return matched;
+
+    final unassigned =
+        _relatives.where((r) => r.relationDegreeId <= 0).toList();
+    if (unassigned.isNotEmpty) return unassigned;
+
+    return matched;
   }
 
   int _globalIndexFor(PatientFamilyRelativeRow row) {
@@ -235,8 +479,10 @@ class _PatientFamilyHistorySectionState
       }
 
       if (!mounted) return;
+      final saved = _markConditionsSaved(_enrichRelatives(relatives));
+      setState(() => _relatives = saved);
       _toast('Family history saved.');
-      await _load();
+      await _load(keepOnEmpty: true, mergeWith: saved);
     } on Object catch (e) {
       if (!mounted || e is SessionEndedFailure) return;
       _toast(session.apiClient.mapError(e).message);
@@ -369,7 +615,10 @@ class _PatientFamilyHistorySectionState
     );
 
     if (row == null || !mounted) return;
-    setState(() => _relatives = [..._relatives, row]);
+    setState(() {
+      _degreeId = row.relationDegreeId;
+      _relatives = [..._relatives, row];
+    });
   }
 
   Future<void> _addCondition(int globalIndex) async {
@@ -558,7 +807,9 @@ class _PatientFamilyHistorySectionState
 
     final ok = await _confirmDelete(
       title: cond.isDraft ? 'Remove condition?' : 'Delete condition?',
-      message: '“${cond.displayConditionName}” will be removed.',
+      message: cond.displayConditionName.isNotEmpty
+          ? '“${cond.displayConditionName}” will be removed.'
+          : 'This condition will be removed.',
     );
     if (!ok || !mounted) return;
 
@@ -597,6 +848,38 @@ class _PatientFamilyHistorySectionState
       if (!mounted || e is SessionEndedFailure) return;
       _toast(session.apiClient.mapError(e).message);
     }
+  }
+
+  Widget _entryDeleteButton({
+    required VoidCallback onPressed,
+    double size = 24,
+  }) {
+    return Tooltip(
+      message: 'Delete',
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onPressed,
+          borderRadius: BorderRadius.circular(10.r),
+          child: Padding(
+            padding: EdgeInsets.all(6.r),
+            child: Image.asset(
+              'assets/delete.png',
+              width: size.r,
+              height: size.r,
+              fit: BoxFit.contain,
+              errorBuilder: (context, error, stackTrace) {
+                return Icon(
+                  Icons.delete_outline_rounded,
+                  size: size.sp,
+                  color: AppColors.dashboardPrimaryDark,
+                );
+              },
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   InputDecoration _fieldDecoration({String? hint}) {
@@ -803,10 +1086,9 @@ class _PatientFamilyHistorySectionState
                             ),
                           ),
                         ),
-                      IconButton(
-                        icon: const Icon(Icons.delete_outline_rounded),
-                        color: AppColors.dashboardPrimaryDark,
-                        onPressed: () => unawaited(_deleteRelative(globalIndex)),
+                      _entryDeleteButton(
+                        onPressed: () =>
+                            unawaited(_deleteRelative(globalIndex)),
                       ),
                     ],
                   ),
@@ -844,9 +1126,8 @@ class _PatientFamilyHistorySectionState
                                 ),
                               ),
                             ),
-                            IconButton(
-                              icon: const Icon(Icons.close_rounded, size: 20),
-                              color: AppColors.textSecondary,
+                            _entryDeleteButton(
+                              size: 20,
                               onPressed: () => unawaited(
                                 _deleteCondition(globalIndex, ci),
                               ),

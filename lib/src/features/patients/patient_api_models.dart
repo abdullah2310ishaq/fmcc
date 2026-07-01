@@ -402,24 +402,30 @@ class PatientFamilyConditionRow {
   final String conditionName;
   final String customConditionName;
 
-  bool get isDraft => relativeConditionId.trim().isEmpty;
+  bool get isDraft =>
+      relativeConditionId.trim().isEmpty ||
+      relativeConditionId.startsWith('local-');
 
   bool get isCustomCondition => customConditionName.trim().isNotEmpty;
 
   String get displayConditionName {
     final custom = customConditionName.trim();
     if (custom.isNotEmpty) return custom;
-    return conditionName;
+    final name = conditionName.trim();
+    if (name.isNotEmpty) return name;
+    if (conditionId > 0) return 'Condition #$conditionId';
+    return '';
   }
 
   PatientFamilyConditionRow copyWith({
+    String? relativeConditionId,
     int? conditionId,
     String? conditionName,
     String? customConditionName,
     bool clearCustomCondition = false,
   }) {
     return PatientFamilyConditionRow(
-      relativeConditionId: relativeConditionId,
+      relativeConditionId: relativeConditionId ?? this.relativeConditionId,
       conditionId: conditionId ?? this.conditionId,
       conditionName: conditionName ?? this.conditionName,
       customConditionName: clearCustomCondition
@@ -431,19 +437,45 @@ class PatientFamilyConditionRow {
   static PatientFamilyConditionRow? tryFromJson(dynamic json) {
     if (json is! Map) return null;
     final m = Map<String, dynamic>.from(json);
-    final rcId = _readString(
+    var rcId = _readString(
           m,
           'relativeConditionId',
           'RelativeConditionId',
         ) ??
-        _readString(m, 'id', 'Id');
-    if (rcId == null || rcId.isEmpty) return null;
+        _readString(m, 'patientRelativeConditionId', 'PatientRelativeConditionId');
+    if (rcId == null || rcId.isEmpty) {
+      rcId = _readString(m, 'id', 'Id');
+    }
+    if (rcId == null || rcId.isEmpty) {
+      final intId = _readInt(m, 'relativeConditionId', 'RelativeConditionId') ??
+          _readInt(m, 'patientRelativeConditionId', 'PatientRelativeConditionId') ??
+          _readInt(m, 'id', 'Id');
+      if (intId != null && intId > 0) rcId = intId.toString();
+    }
+
+    final conditionId = _readFamilyConditionId(m);
+    final conditionName = _readFamilyConditionName(m);
+    final customConditionName = _readFamilyCustomConditionName(m);
+
+    if (rcId == null || rcId.isEmpty) {
+      if (conditionId <= 0 &&
+          customConditionName.isEmpty &&
+          conditionName.isEmpty) {
+        return null;
+      }
+      return PatientFamilyConditionRow(
+        relativeConditionId: '',
+        conditionId: conditionId,
+        conditionName: conditionName,
+        customConditionName: customConditionName,
+      );
+    }
+
     return PatientFamilyConditionRow(
       relativeConditionId: rcId,
-      conditionId: _readInt(m, 'conditionId', 'ConditionId') ?? 0,
-      conditionName: _readString(m, 'conditionName', 'ConditionName') ?? '',
-      customConditionName:
-          _readString(m, 'customConditionName', 'CustomConditionName') ?? '',
+      conditionId: conditionId,
+      conditionName: conditionName,
+      customConditionName: customConditionName,
     );
   }
 }
@@ -492,15 +524,27 @@ class PatientFamilyRelativeRow {
     );
   }
 
-  static PatientFamilyRelativeRow? tryFromJson(dynamic json) {
+  static PatientFamilyRelativeRow? tryFromJson(
+    dynamic json, {
+    int? fallbackDegreeId,
+    String fallbackDegreeName = '',
+  }) {
     if (json is! Map) return null;
     final m = Map<String, dynamic>.from(json);
     final relativeId = _readInt(m, 'relativeId', 'RelativeId') ??
+        _readInt(m, 'patientRelativeId', 'PatientRelativeId') ??
         _readInt(m, 'id', 'Id');
     if (relativeId == null || relativeId <= 0) return null;
 
     final conditions = <PatientFamilyConditionRow>[];
-    final condRaw = m['conditions'] ?? m['Conditions'];
+    final condRaw = m['conditions'] ??
+        m['Conditions'] ??
+        m['relativeConditions'] ??
+        m['RelativeConditions'] ??
+        m['patientRelativeConditions'] ??
+        m['PatientRelativeConditions'] ??
+        m['illnesses'] ??
+        m['Illnesses'];
     if (condRaw is List) {
       for (final item in condRaw) {
         final row = PatientFamilyConditionRow.tryFromJson(item);
@@ -508,12 +552,40 @@ class PatientFamilyRelativeRow {
       }
     }
 
+    var relationDegreeId =
+        _readInt(m, 'relationDegreeId', 'RelationDegreeId') ??
+        _readInt(m, 'degreeId', 'DegreeId') ??
+        0;
+    var relationDegreeName =
+        _readString(m, 'relationDegreeName', 'RelationDegreeName') ??
+        _readString(m, 'degreeName', 'DegreeName') ??
+        '';
+    if (relationDegreeId <= 0) {
+      final nested = m['relationDegree'] ?? m['RelationDegree'];
+      if (nested is Map) {
+        final nm = Map<String, dynamic>.from(nested);
+        relationDegreeId = _readInt(nm, 'relationDegreeId', 'RelationDegreeId') ??
+            _readInt(nm, 'id', 'Id') ??
+            relationDegreeId;
+        relationDegreeName = _readString(nm, 'name', 'Name') ??
+            _readString(nm, 'relationDegreeName', 'RelationDegreeName') ??
+            relationDegreeName;
+      }
+    }
+    if (relationDegreeId <= 0 &&
+        fallbackDegreeId != null &&
+        fallbackDegreeId > 0) {
+      relationDegreeId = fallbackDegreeId;
+    }
+    if (relationDegreeName.isEmpty && fallbackDegreeName.isNotEmpty) {
+      relationDegreeName = fallbackDegreeName;
+    }
+
     return PatientFamilyRelativeRow(
       relativeId: relativeId,
       patientId: _readString(m, 'patientId', 'PatientId') ?? '',
-      relationDegreeId: _readInt(m, 'relationDegreeId', 'RelationDegreeId') ?? 0,
-      relationDegreeName:
-          _readString(m, 'relationDegreeName', 'RelationDegreeName') ?? '',
+      relationDegreeId: relationDegreeId,
+      relationDegreeName: relationDegreeName,
       specificRelation:
           _readString(m, 'specificRelation', 'SpecificRelation') ?? '',
       conditions: conditions,
@@ -527,30 +599,87 @@ class PatientFamilyHistoryData {
   final List<PatientFamilyRelativeRow> relatives;
 
   static PatientFamilyHistoryData? tryFromJson(dynamic json) {
-    List<dynamic>? raw;
-    if (json is List) {
-      raw = json;
-    } else if (json is Map) {
-      var m = Map<String, dynamic>.from(json);
-      final envelope = m['data'] ?? m['Data'];
-      if (envelope is Map) {
-        m = Map<String, dynamic>.from(envelope);
-      } else if (envelope is List) {
-        raw = envelope;
-      }
-      raw ??= m['relatives'] ??
-          m['Relatives'] ??
-          m['familyHistory'] ??
-          m['FamilyHistory'];
-    }
+    final raw = _extractFamilyHistoryRawList(json);
     if (raw == null) return const PatientFamilyHistoryData(relatives: []);
 
+    return PatientFamilyHistoryData(relatives: _parseRelativesFromRaw(raw));
+  }
+
+  static List<dynamic>? _extractFamilyHistoryRawList(dynamic json) {
+    if (json is List) return json;
+    if (json is! Map) return null;
+
+    var m = Map<String, dynamic>.from(json);
+    final envelope = m['data'] ?? m['Data'] ?? m['result'] ?? m['Result'];
+    if (envelope is List) return envelope;
+    if (envelope is Map) {
+      m = Map<String, dynamic>.from(envelope);
+    }
+
+    for (final key in const [
+      'relatives',
+      'Relatives',
+      'familyHistory',
+      'FamilyHistory',
+      'patientFamilyHistory',
+      'PatientFamilyHistory',
+      'familyHistoryByDegree',
+      'FamilyHistoryByDegree',
+    ]) {
+      final value = m[key];
+      if (value is List) return value;
+    }
+
+    final flattened = <dynamic>[];
+    for (final value in m.values) {
+      if (value is! List || value.isEmpty) continue;
+      if (value.first is Map) flattened.addAll(value);
+    }
+    if (flattened.isNotEmpty) return flattened;
+
+    return null;
+  }
+
+  static List<PatientFamilyRelativeRow> _parseRelativesFromRaw(
+    List<dynamic> raw,
+  ) {
     final relatives = <PatientFamilyRelativeRow>[];
     for (final item in raw) {
+      if (item is! Map) continue;
+      final m = Map<String, dynamic>.from(item);
+
+      final nested = m['relatives'] ??
+          m['Relatives'] ??
+          m['patientRelatives'] ??
+          m['PatientRelatives'] ??
+          m['familyRelatives'] ??
+          m['FamilyRelatives'] ??
+          m['items'] ??
+          m['Items'] ??
+          m['members'] ??
+          m['Members'];
+      if (nested is List) {
+        final groupDegreeId = _readInt(m, 'relationDegreeId', 'RelationDegreeId') ??
+            _readInt(m, 'degreeId', 'DegreeId');
+        final groupDegreeName =
+            _readString(m, 'relationDegreeName', 'RelationDegreeName') ??
+            _readString(m, 'degreeName', 'DegreeName') ??
+            '';
+        for (final relItem in nested) {
+          final row = PatientFamilyRelativeRow.tryFromJson(
+            relItem,
+            fallbackDegreeId: groupDegreeId,
+            fallbackDegreeName: groupDegreeName,
+          );
+          if (row != null) relatives.add(row);
+        }
+        continue;
+      }
+
       final row = PatientFamilyRelativeRow.tryFromJson(item);
       if (row != null) relatives.add(row);
     }
-    return PatientFamilyHistoryData(relatives: relatives);
+    return relatives;
   }
 }
 
@@ -702,4 +831,72 @@ DateTime? _readDateTime(Map<String, dynamic> m, String a, String b) {
   if (v is DateTime) return v;
   if (v is String) return DateTime.tryParse(v.trim());
   return null;
+}
+
+Map<String, dynamic>? _nestedFamilyMap(
+  Map<String, dynamic> m,
+  List<String> keys,
+) {
+  for (final key in keys) {
+    final nested = m[key];
+    if (nested is Map) return Map<String, dynamic>.from(nested);
+  }
+  return null;
+}
+
+int _readFamilyConditionId(Map<String, dynamic> m) {
+  var id = _readInt(m, 'conditionId', 'ConditionId') ??
+      _readInt(m, 'medicalConditionId', 'MedicalConditionId') ??
+      0;
+  if (id > 0) return id;
+
+  final nested = _nestedFamilyMap(m, const [
+    'condition',
+    'Condition',
+    'medicalCondition',
+    'MedicalCondition',
+  ]);
+  if (nested == null) return 0;
+
+  return _readInt(nested, 'conditionId', 'ConditionId') ??
+      _readInt(nested, 'medicalConditionId', 'MedicalConditionId') ??
+      _readInt(nested, 'id', 'Id') ??
+      0;
+}
+
+String _readFamilyConditionName(Map<String, dynamic> m) {
+  final direct = _readString(m, 'conditionName', 'ConditionName') ??
+      _readString(m, 'medicalConditionName', 'MedicalConditionName') ??
+      _readString(m, 'name', 'Name') ??
+      '';
+  if (direct.isNotEmpty) return direct;
+
+  final nested = _nestedFamilyMap(m, const [
+    'condition',
+    'Condition',
+    'medicalCondition',
+    'MedicalCondition',
+  ]);
+  if (nested == null) return '';
+
+  return _readString(nested, 'conditionName', 'ConditionName') ??
+      _readString(nested, 'medicalConditionName', 'MedicalConditionName') ??
+      _readString(nested, 'name', 'Name') ??
+      '';
+}
+
+String _readFamilyCustomConditionName(Map<String, dynamic> m) {
+  final direct =
+      _readString(m, 'customConditionName', 'CustomConditionName') ?? '';
+  if (direct.isNotEmpty) return direct;
+
+  final nested = _nestedFamilyMap(m, const [
+    'condition',
+    'Condition',
+    'medicalCondition',
+    'MedicalCondition',
+  ]);
+  if (nested == null) return '';
+
+  return _readString(nested, 'customConditionName', 'CustomConditionName') ?? '';
 }
