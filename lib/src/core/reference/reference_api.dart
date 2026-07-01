@@ -127,6 +127,11 @@ class ReferenceApi {
   }) =>
       _namedClinicalList(Endpoints.complianceLevels, bearerToken);
 
+  Future<List<NamedReferenceItem>> getRelationDegrees({
+    required String bearerToken,
+  }) =>
+      _namedClinicalList(Endpoints.relationDegrees, bearerToken);
+
   Future<List<NamedReferenceItem>> _namedClinicalList(
     String path,
     String bearerToken,

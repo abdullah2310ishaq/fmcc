@@ -19,14 +19,12 @@ import 'package:doctor_app/src/features/splash/splash_screen.dart';
 
 final _rootNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'root');
 
-/// Signed-in flag must agree with a stored bearer token, otherwise send user to auth.
 bool _hasPersistedAuth(AppSession session) {
   return session.isSignedIn &&
       session.accessToken != null &&
       session.accessToken!.trim().isNotEmpty;
 }
 
-/// Normalized path for redirects (matches `context.push('/profile')`, etc.).
 String _redirectPath(GoRouterState state) {
   var p = state.uri.path;
   if (p.isEmpty) return SplashScreen.routePath;
@@ -36,7 +34,6 @@ String _redirectPath(GoRouterState state) {
   return p;
 }
 
-/// Single destination for the current session (splash is only for unknown cold-start loading).
 String _sessionDestination(AppSession session) {
   if (session.role == UserRole.unknown) {
     return RoleScreen.routePath;
@@ -164,4 +161,3 @@ GoRouter _buildRouter(SessionController sessionController) {
     },
   );
 }
-

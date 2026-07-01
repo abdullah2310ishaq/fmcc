@@ -16,9 +16,14 @@ import 'package:doctor_app/src/core/theme/app_colors.dart';
 import 'package:doctor_app/src/features/home/health_worker_dashboard_models.dart';
 import 'package:doctor_app/src/features/patients/patient_api.dart';
 import 'package:doctor_app/src/features/patients/patient_api_models.dart';
+import 'package:doctor_app/src/features/patients/patient_family_history_section.dart';
 import 'package:doctor_app/src/features/patients/patient_directory_coordinator.dart';
 import 'package:doctor_app/src/features/patients/visit_detail_screen.dart';
 import 'package:doctor_app/src/features/shell/tabs/visit_tab_page.dart';
+
+/// Sentinel dropdown value for reference lists that support a custom name via API.
+const int _kClinicalOtherChoiceId = -1;
+const String _kClinicalOtherChoiceLabel = 'Other';
 
 String patientDetailShortVisit(DateTime? d) {
   if (d == null) return '—';
@@ -73,6 +78,7 @@ extension on _VisitHistorySegment {
 enum PatientDetailSection {
   personalInfo,
   medicalHistory,
+  familyHistory,
   baselineLifestyle,
   visitHistory,
 }
@@ -81,18 +87,20 @@ extension on PatientDetailSection {
   String get label => switch (this) {
         PatientDetailSection.personalInfo => 'Personal Info',
         PatientDetailSection.medicalHistory => 'Medical History',
+        PatientDetailSection.familyHistory => 'Family History',
         PatientDetailSection.baselineLifestyle => 'Baseline Lifestyle',
         PatientDetailSection.visitHistory => 'Visit History',
       };
 }
 
-enum _MedicalHistoryTab { chronic, surgical, drug }
+enum _MedicalHistoryTab { chronic, surgical, drug, tobacco }
 
 extension on _MedicalHistoryTab {
   String get label => switch (this) {
         _MedicalHistoryTab.chronic => 'Chronic History',
         _MedicalHistoryTab.surgical => 'Surgical History',
         _MedicalHistoryTab.drug => 'Drug History',
+        _MedicalHistoryTab.tobacco => 'Tobacco History',
       };
 }
 
@@ -129,14 +137,20 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
   List<NamedReferenceItem> _complianceLevels = const [];
   List<NamedReferenceItem> _adherenceLevels = const [];
   final Map<int, TextEditingController> _medicalDurationCtl = {};
+  final Map<int, TextEditingController> _medicalCustomNameCtl = {};
   final Map<int, TextEditingController> _surgicalNotesCtl = {};
   final Map<int, TextEditingController> _surgicalMonthCtl = {};
   final Map<int, TextEditingController> _surgicalYearCtl = {};
+  final Map<int, TextEditingController> _surgicalCustomNameCtl = {};
   final Map<int, TextEditingController> _drugSideEffectsCtl = {};
+  final Map<int, TextEditingController> _drugCustomNameCtl = {};
+  final _tobaccoTypeController = TextEditingController();
+  final _tobaccoQuantityController = TextEditingController();
 
   List<NamedReferenceItem> _medicalConditions = const [];
   List<NamedReferenceItem> _surgicalProcedures = const [];
   List<NamedReferenceItem> _medicineCategories = const [];
+  List<NamedReferenceItem> _relationDegrees = const [];
   int _clinicalTempIdSeq = 0;
 
   PatientDetailSection _section = PatientDetailSection.personalInfo;
@@ -163,11 +177,22 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
   List<PatientVisitRow> _visits = const [];
   _VisitHistorySegment _visitHistorySegment = _VisitHistorySegment.all;
   bool _familyHtn = false;
-  bool _tobacco = false;
+  bool _tobaccoUse = false;
+  DateTime? _tobaccoDurationStart;
+  DateTime? _tobaccoDurationEnd;
   bool _baselineLoaded = false;
 
   bool _savingPersonal = false;
   bool _savingMedical = false;
+  bool _savingBaseline = false;
+
+  final Set<int> _editingChronicIds = {};
+  final Set<int> _editingSurgicalIds = {};
+  final Set<int> _editingDrugIds = {};
+  bool _editingTobacco = false;
+
+  bool _isClinicalRowEditing(int rowId, Set<int> editingIds) =>
+      editingIds.contains(rowId);
 
   @override
   void initState() {
@@ -329,6 +354,7 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
         ref.getMedicalConditions(bearerToken: token),
         ref.getSurgicalProcedures(bearerToken: token),
         ref.getMedicineCategories(bearerToken: token),
+        ref.getRelationDegrees(bearerToken: token),
       ]);
       if (!mounted) return;
       setState(() {
@@ -337,6 +363,7 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
         _medicalConditions = results[2];
         _surgicalProcedures = results[3];
         _medicineCategories = results[4];
+        _relationDegrees = results[5];
       });
     } on Object catch (e) {
       if (!mounted || e is SessionEndedFailure) return;
@@ -375,11 +402,23 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
       _medicalDurationCtl,
       (m) => m.durationInMonths?.toString() ?? '',
     );
+    syncMap<PatientMedicalHistoryRow>(
+      _medical,
+      (m) => m.id,
+      _medicalCustomNameCtl,
+      (m) => m.customConditionName,
+    );
     syncMap<PatientSurgicalHistoryRow>(
       _surgical,
       (s) => s.id,
       _surgicalNotesCtl,
       (s) => s.notes,
+    );
+    syncMap<PatientSurgicalHistoryRow>(
+      _surgical,
+      (s) => s.id,
+      _surgicalCustomNameCtl,
+      (s) => s.customProcedureName,
     );
     syncMap<PatientSurgicalHistoryRow>(
       _surgical,
@@ -398,6 +437,12 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
       (d) => d.id,
       _drugSideEffectsCtl,
       (d) => d.sideEffects,
+    );
+    syncMap<PatientDrugHistoryRow>(
+      _drugs,
+      (d) => d.id,
+      _drugCustomNameCtl,
+      (d) => d.customMedicineCategoryName,
     );
   }
 
@@ -428,6 +473,10 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
 
     if (!mounted) return;
     setState(() {
+      _editingChronicIds.clear();
+      _editingSurgicalIds.clear();
+      _editingDrugIds.clear();
+      _editingTobacco = false;
       if (history != null) {
         _medical = List<PatientMedicalHistoryRow>.from(history.medical);
         _surgical = List<PatientSurgicalHistoryRow>.from(history.surgical);
@@ -435,11 +484,20 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
         final baseline = history.baseline;
         if (baseline != null) {
           _familyHtn = baseline.familyHistoryOfHtnOrStroke;
-          _tobacco = baseline.tobaccoUse;
+          _tobaccoUse = baseline.tobaccoUse;
+          _tobaccoTypeController.text = baseline.tobaccoType?.trim() ?? '';
+          _tobaccoQuantityController.text =
+              baseline.tobaccoQuantityPerDay?.toString() ?? '';
+          _tobaccoDurationStart = baseline.tobaccoDurationStart;
+          _tobaccoDurationEnd = baseline.tobaccoDurationEnd;
           _baselineLoaded = true;
         } else {
           _familyHtn = false;
-          _tobacco = false;
+          _tobaccoUse = false;
+          _tobaccoTypeController.clear();
+          _tobaccoQuantityController.clear();
+          _tobaccoDurationStart = null;
+          _tobaccoDurationEnd = null;
           _baselineLoaded = false;
         }
       } else {
@@ -447,7 +505,11 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
         _surgical = const [];
         _drugs = const [];
         _familyHtn = false;
-        _tobacco = false;
+        _tobaccoUse = false;
+        _tobaccoTypeController.clear();
+        _tobaccoQuantityController.clear();
+        _tobaccoDurationStart = null;
+        _tobaccoDurationEnd = null;
         _baselineLoaded = false;
       }
       _visits = List<PatientVisitRow>.from(visits)
@@ -510,6 +572,9 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
     for (final c in _medicalDurationCtl.values) {
       c.dispose();
     }
+    for (final c in _medicalCustomNameCtl.values) {
+      c.dispose();
+    }
     for (final c in _surgicalNotesCtl.values) {
       c.dispose();
     }
@@ -519,14 +584,25 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
     for (final c in _surgicalYearCtl.values) {
       c.dispose();
     }
+    for (final c in _surgicalCustomNameCtl.values) {
+      c.dispose();
+    }
     for (final c in _drugSideEffectsCtl.values) {
       c.dispose();
     }
+    for (final c in _drugCustomNameCtl.values) {
+      c.dispose();
+    }
+    _tobaccoTypeController.dispose();
+    _tobaccoQuantityController.dispose();
     _medicalDurationCtl.clear();
+    _medicalCustomNameCtl.clear();
     _surgicalNotesCtl.clear();
     _surgicalMonthCtl.clear();
     _surgicalYearCtl.clear();
+    _surgicalCustomNameCtl.clear();
     _drugSideEffectsCtl.clear();
+    _drugCustomNameCtl.clear();
     _firstNameController.dispose();
     _lastNameController.dispose();
     _dobController.dispose();
@@ -644,11 +720,30 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
     try {
       for (final row in _medical) {
         final durRaw = _medicalDurationCtl[row.id]?.text.trim() ?? '';
+        final customName = _medicalCustomNameCtl[row.id]?.text.trim() ??
+            row.customConditionName.trim();
+        final isCustom = _isClinicalOtherSelection(
+          refId: row.conditionId,
+          customName: customName,
+        );
+        if (isCustom && customName.isEmpty) {
+          _toast('Enter a custom condition name for each “Other” row.');
+          return;
+        }
+        if (!isCustom && row.conditionId <= 0) {
+          _toast('Select a medical condition for each chronic row.');
+          return;
+        }
+
         final body = <String, dynamic>{
           'patientId': pid,
-          'conditionId': row.conditionId,
           'isOnMedication': row.isOnMedication,
         };
+        if (isCustom) {
+          body['customConditionName'] = customName;
+        } else {
+          body['conditionId'] = row.conditionId;
+        }
         if (durRaw.isNotEmpty) {
           final d = int.tryParse(durRaw);
           if (d != null && d > 0) body['durationInMonths'] = d;
@@ -665,10 +760,29 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
       }
 
       for (final s in _surgical) {
+        final customName = _surgicalCustomNameCtl[s.id]?.text.trim() ??
+            s.customProcedureName.trim();
+        final isCustom = _isClinicalOtherSelection(
+          refId: s.procedureId,
+          customName: customName,
+        );
+        if (isCustom && customName.isEmpty) {
+          _toast('Enter a custom procedure name for each “Other” row.');
+          return;
+        }
+        if (!isCustom && s.procedureId <= 0) {
+          _toast('Select a procedure for each surgical row.');
+          return;
+        }
+
         final body = <String, dynamic>{
           'patientId': pid,
-          'procedureId': s.procedureId,
         };
+        if (isCustom) {
+          body['customProcedureName'] = customName;
+        } else {
+          body['procedureId'] = s.procedureId;
+        }
         final notes = _surgicalNotesCtl[s.id]?.text ?? s.notes;
         final notesTrim = notes.trim();
         if (notesTrim.isNotEmpty) body['notes'] = notesTrim;
@@ -693,10 +807,29 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
       }
 
       for (final d in _drugs) {
+        final customName = _drugCustomNameCtl[d.id]?.text.trim() ??
+            d.customMedicineCategoryName.trim();
+        final isCustom = _isClinicalOtherSelection(
+          refId: d.medicineCategoryId,
+          customName: customName,
+        );
+        if (isCustom && customName.isEmpty) {
+          _toast('Enter a custom category name for each “Other” drug row.');
+          return;
+        }
+        if (!isCustom && d.medicineCategoryId <= 0) {
+          _toast('Select a medicine category for each drug row.');
+          return;
+        }
+
         final body = <String, dynamic>{
           'patientId': pid,
-          'medicineCategoryId': d.medicineCategoryId,
         };
+        if (isCustom) {
+          body['customMedicineCategoryName'] = customName;
+        } else {
+          body['medicineCategoryId'] = d.medicineCategoryId;
+        }
         if (d.adherenceLevelId != null && d.adherenceLevelId! > 0) {
           body['adherenceLevelId'] = d.adherenceLevelId;
         }
@@ -711,31 +844,130 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
         }
       }
 
-      final baselineBody = <String, dynamic>{
-        'patientId': pid,
-        'familyHistoryOfHTNOrStroke': _familyHtn,
-        'tobaccoUse': _tobacco,
-      };
-      if (_baselineLoaded) {
-        await api.putBaselineLifestyle(
-          body: baselineBody,
-          bearerToken: token,
-        );
-      } else {
-        await api.postBaselineLifestyle(
-          body: baselineBody,
-          bearerToken: token,
-        );
-      }
-
       if (!mounted) return;
-      _toast('Medical data saved.');
+      _toast('Medical history saved.');
       await _loadClinical(session, token);
     } on Object catch (e) {
       if (!mounted || e is SessionEndedFailure) return;
       _toast(session.apiClient.mapError(e).message);
     } finally {
       if (mounted) setState(() => _savingMedical = false);
+    }
+  }
+
+  String _apiDateOnly(DateTime date) {
+    final y = date.year.toString().padLeft(4, '0');
+    final m = date.month.toString().padLeft(2, '0');
+    final d = date.day.toString().padLeft(2, '0');
+    return '$y-$m-$d';
+  }
+
+  String _displayDate(DateTime? date) {
+    if (date == null) return 'Select date';
+    return '${date.day.toString().padLeft(2, '0')}/'
+        '${date.month.toString().padLeft(2, '0')}/'
+        '${date.year}';
+  }
+
+  Map<String, dynamic> _buildBaselineLifestyleBody(String patientId) {
+    final body = <String, dynamic>{
+      'patientId': patientId,
+      'familyHistoryOfHTNOrStroke': _familyHtn,
+      'tobaccoUse': _tobaccoUse,
+    };
+    final type = _tobaccoTypeController.text.trim();
+    if (type.isNotEmpty) body['tobaccoType'] = type;
+    final qtyRaw = _tobaccoQuantityController.text.trim();
+    if (qtyRaw.isNotEmpty) {
+      final qty = int.tryParse(qtyRaw);
+      if (qty != null && qty >= 0) {
+        body['tobaccoQuantityPerDay'] = qty;
+      }
+    }
+    final start = _tobaccoDurationStart;
+    if (start != null) {
+      body['tobaccoDurationStart'] = _apiDateOnly(start);
+    }
+    final end = _tobaccoDurationEnd;
+    if (end != null) {
+      body['tobaccoDurationEnd'] = _apiDateOnly(end);
+    }
+    return body;
+  }
+
+  Future<void> _pickTobaccoDate({
+    required bool isStart,
+  }) async {
+    final now = DateTime.now();
+    final initial = isStart
+        ? (_tobaccoDurationStart ?? now)
+        : (_tobaccoDurationEnd ?? _tobaccoDurationStart ?? now);
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: initial,
+      firstDate: DateTime(1900),
+      lastDate: DateTime(now.year + 1),
+      builder: (ctx, child) {
+        return Theme(
+          data: Theme.of(ctx).copyWith(
+            colorScheme: ColorScheme.light(
+              primary: AppColors.registrationSaveBlue,
+              onPrimary: Colors.white,
+              surface: AppColors.surface,
+              onSurface: AppColors.textPrimary,
+            ),
+          ),
+          child: child ?? const SizedBox.shrink(),
+        );
+      },
+    );
+    if (picked == null || !mounted) return;
+    setState(() {
+      if (isStart) {
+        _tobaccoDurationStart = picked;
+      } else {
+        _tobaccoDurationEnd = picked;
+      }
+    });
+  }
+
+  Future<void> _saveBaselineLifestyle({
+    required String successMessage,
+    bool validateTobacco = false,
+  }) async {
+    final session = context.read<SessionController>();
+    final token = session.state.accessToken?.trim();
+    if (token == null || token.isEmpty) {
+      _toast('Please sign in again.');
+      return;
+    }
+    if (validateTobacco &&
+        _tobaccoUse &&
+        _tobaccoTypeController.text.trim().isEmpty) {
+      _toast('Enter tobacco type when tobacco use is enabled.');
+      return;
+    }
+
+    final pid = widget.summary.patientId;
+    final api = _patientApi!;
+    final body = _buildBaselineLifestyleBody(pid);
+
+    setState(() => _savingBaseline = true);
+    try {
+      if (_baselineLoaded) {
+        await api.putBaselineLifestyle(body: body, bearerToken: token);
+      } else {
+        await api.postBaselineLifestyle(body: body, bearerToken: token);
+      }
+      if (!mounted) return;
+      _toast(successMessage);
+      setState(() => _editingTobacco = false);
+      await _loadClinical(session, token);
+    } on Object catch (e) {
+      if (!mounted || e is SessionEndedFailure) return;
+      _toast(session.apiClient.mapError(e).message);
+    } finally {
+      if (mounted) setState(() => _savingBaseline = false);
     }
   }
 
@@ -750,6 +982,48 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
             ? widget.summary.gender
             : '—',
         lastVisit: patientDetailShortVisit(widget.summary.lastVisitDate),
+      ),
+    );
+  }
+
+  Widget _tobaccoDateField({
+    required String label,
+    required DateTime? date,
+    required VoidCallback onTap,
+    VoidCallback? onClear,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12.r),
+      child: InputDecorator(
+        decoration: _fieldDecoration(hint: label),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                _displayDate(date),
+                style: TextStyle(
+                  fontSize: 14.sp,
+                  fontWeight: FontWeight.w600,
+                  color: date == null
+                      ? AppColors.textSecondary
+                      : AppColors.textPrimary,
+                ),
+              ),
+            ),
+            if (onClear != null)
+              IconButton(
+                onPressed: onClear,
+                icon: Icon(Icons.close, size: 18.sp),
+                tooltip: 'Clear',
+              ),
+            Icon(
+              Icons.calendar_today_outlined,
+              size: 18.sp,
+              color: AppColors.textSecondary,
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1137,6 +1411,75 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
     return '';
   }
 
+  bool _isClinicalOtherSelection({
+    required int refId,
+    required String customName,
+  }) {
+    return refId == _kClinicalOtherChoiceId || customName.trim().isNotEmpty;
+  }
+
+  int? _clinicalRefDropdownSelectedValue({
+    required int refId,
+    required String customName,
+    required List<NamedReferenceItem> choices,
+  }) {
+    if (_isClinicalOtherSelection(refId: refId, customName: customName)) {
+      return _kClinicalOtherChoiceId;
+    }
+    if (refId > 0 && choices.any((e) => e.id == refId)) return refId;
+    return null;
+  }
+
+  List<DropdownMenuItem<int>> _clinicalRefDropdownItems(
+    List<NamedReferenceItem> choices,
+  ) {
+    return [
+      ...choices.map(
+        (e) => DropdownMenuItem<int>(
+          value: e.id,
+          child: Text(
+            e.name,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 14.sp,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+      ),
+      DropdownMenuItem<int>(
+        value: _kClinicalOtherChoiceId,
+        child: Text(
+          _kClinicalOtherChoiceLabel,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            fontSize: 14.sp,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ),
+    ];
+  }
+
+  Widget _clinicalCustomNameField({
+    required TextEditingController controller,
+    required String hint,
+    ValueChanged<String>? onChanged,
+  }) {
+    return TextFormField(
+      controller: controller,
+      onChanged: onChanged,
+      style: TextStyle(
+        fontSize: 14.sp,
+        fontWeight: FontWeight.w600,
+        color: AppColors.textPrimary,
+      ),
+      decoration: _fieldDecoration(hint: hint),
+    );
+  }
+
   int? _clinicalRefDropdownValue(
     int? raw,
     List<NamedReferenceItem> items,
@@ -1207,12 +1550,8 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
     final available = _medicalConditions
         .where((e) => e.id > 0 && !used.contains(e.id))
         .toList(growable: false);
-    if (available.isEmpty) {
-      _toast(
-        _medicalConditions.isEmpty
-            ? 'Medical condition list is still loading or empty.'
-            : 'All listed conditions are already added.',
-      );
+    if (_medicalConditions.isEmpty) {
+      _toast('Medical condition list is still loading or empty.');
       return;
     }
     unawaited(_showAddChronicDialog(available));
@@ -1224,12 +1563,8 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
     final available = _surgicalProcedures
         .where((e) => e.id > 0 && !used.contains(e.id))
         .toList(growable: false);
-    if (available.isEmpty) {
-      _toast(
-        _surgicalProcedures.isEmpty
-            ? 'Procedure list is still loading or empty.'
-            : 'All listed procedures are already added.',
-      );
+    if (_surgicalProcedures.isEmpty) {
+      _toast('Procedure list is still loading or empty.');
       return;
     }
     unawaited(_showAddSurgicalDialog(available));
@@ -1241,12 +1576,8 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
     final available = _medicineCategories
         .where((e) => e.id > 0 && !used.contains(e.id))
         .toList(growable: false);
-    if (available.isEmpty) {
-      _toast(
-        _medicineCategories.isEmpty
-            ? 'Medicine category list is still loading or empty.'
-            : 'All listed categories are already added.',
-      );
+    if (_medicineCategories.isEmpty) {
+      _toast('Medicine category list is still loading or empty.');
       return;
     }
     unawaited(_showAddDrugDialog(available));
@@ -1255,8 +1586,12 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
   Future<void> _showAddChronicDialog(
     List<NamedReferenceItem> available,
   ) async {
-    int conditionId = available.first.id;
-    String conditionName = available.first.name;
+    final useOtherFirst = available.isEmpty;
+    int conditionId =
+        useOtherFirst ? _kClinicalOtherChoiceId : available.first.id;
+    String conditionName = useOtherFirst ? '' : available.first.name;
+    String customConditionName = '';
+    final customNameCtl = TextEditingController();
     final durationCtl = TextEditingController();
     bool onMedication = false;
     int? complianceLevelId;
@@ -1297,37 +1632,41 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
                             DropdownButtonFormField<int>(
-                              value: conditionId,
+                              value: _clinicalRefDropdownSelectedValue(
+                                refId: conditionId,
+                                customName: customConditionName,
+                                choices: available,
+                              ),
                               isExpanded: true,
                               decoration: _fieldDecoration(
                                 hint: 'Medical condition',
                               ),
-                              items: available
-                                  .map(
-                                    (e) => DropdownMenuItem<int>(
-                                      value: e.id,
-                                      child: Text(
-                                        e.name,
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: TextStyle(
-                                          fontSize: 14.sp,
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                      ),
-                                    ),
-                                  )
-                                  .toList(),
+                              items: _clinicalRefDropdownItems(available),
                               onChanged: (v) {
                                 if (v == null) return;
                                 setLocal(() {
-                                  conditionId = v;
-                                  conditionName = available
-                                      .firstWhere((e) => e.id == v)
-                                      .name;
+                                  if (v == _kClinicalOtherChoiceId) {
+                                    conditionId = _kClinicalOtherChoiceId;
+                                    conditionName = '';
+                                  } else {
+                                    conditionId = v;
+                                    conditionName =
+                                        _namedRefLabel(available, v);
+                                    customConditionName = '';
+                                    customNameCtl.clear();
+                                  }
                                 });
                               },
                             ),
+                            if (conditionId == _kClinicalOtherChoiceId) ...[
+                              SizedBox(height: 12.h),
+                              _clinicalCustomNameField(
+                                controller: customNameCtl,
+                                hint: 'Custom condition name',
+                                onChanged: (v) =>
+                                    customConditionName = v.trim(),
+                              ),
+                            ],
                             SizedBox(height: 12.h),
                             TextFormField(
                               controller: durationCtl,
@@ -1409,13 +1748,27 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
                       _historyModalFooter(
                         onCancel: () => Navigator.of(dialogCtx).pop(),
                         onSubmit: () {
+                          final isOther =
+                              conditionId == _kClinicalOtherChoiceId;
+                          final custom = customNameCtl.text.trim();
+                          if (isOther && custom.isEmpty) {
+                            _toast('Enter a custom condition name.');
+                            return;
+                          }
+                          if (!isOther && conditionId <= 0) {
+                            _toast('Select a medical condition.');
+                            return;
+                          }
                           final dur = int.tryParse(durationCtl.text.trim());
                           Navigator.of(dialogCtx).pop(
                             PatientMedicalHistoryRow(
                               id: _allocTempClinicalId(),
                               patientId: widget.summary.patientId,
-                              conditionId: conditionId,
-                              conditionName: conditionName,
+                              conditionId: isOther
+                                  ? _kClinicalOtherChoiceId
+                                  : conditionId,
+                              conditionName: isOther ? '' : conditionName,
+                              customConditionName: isOther ? custom : '',
                               durationInMonths: dur,
                               isOnMedication: onMedication,
                               complianceLevelId: complianceLevelId,
@@ -1436,6 +1789,7 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
     );
 
     durationCtl.dispose();
+    customNameCtl.dispose();
     if (row == null || !mounted) return;
     setState(() {
       _medical = [..._medical, row];
@@ -1446,8 +1800,12 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
   Future<void> _showAddSurgicalDialog(
     List<NamedReferenceItem> available,
   ) async {
-    int procedureId = available.first.id;
-    String procedureName = available.first.name;
+    final useOtherFirst = available.isEmpty;
+    int procedureId =
+        useOtherFirst ? _kClinicalOtherChoiceId : available.first.id;
+    String procedureName = useOtherFirst ? '' : available.first.name;
+    String customProcedureName = '';
+    final customNameCtl = TextEditingController();
     final notesCtl = TextEditingController();
     final monthCtl = TextEditingController();
     final yearCtl = TextEditingController();
@@ -1487,35 +1845,39 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
                             DropdownButtonFormField<int>(
-                              value: procedureId,
+                              value: _clinicalRefDropdownSelectedValue(
+                                refId: procedureId,
+                                customName: customProcedureName,
+                                choices: available,
+                              ),
                               isExpanded: true,
                               decoration: _fieldDecoration(hint: 'Procedure'),
-                              items: available
-                                  .map(
-                                    (e) => DropdownMenuItem<int>(
-                                      value: e.id,
-                                      child: Text(
-                                        e.name,
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: TextStyle(
-                                          fontSize: 14.sp,
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                      ),
-                                    ),
-                                  )
-                                  .toList(),
+                              items: _clinicalRefDropdownItems(available),
                               onChanged: (v) {
                                 if (v == null) return;
                                 setLocal(() {
-                                  procedureId = v;
-                                  procedureName = available
-                                      .firstWhere((e) => e.id == v)
-                                      .name;
+                                  if (v == _kClinicalOtherChoiceId) {
+                                    procedureId = _kClinicalOtherChoiceId;
+                                    procedureName = '';
+                                  } else {
+                                    procedureId = v;
+                                    procedureName =
+                                        _namedRefLabel(available, v);
+                                    customProcedureName = '';
+                                    customNameCtl.clear();
+                                  }
                                 });
                               },
                             ),
+                            if (procedureId == _kClinicalOtherChoiceId) ...[
+                              SizedBox(height: 12.h),
+                              _clinicalCustomNameField(
+                                controller: customNameCtl,
+                                hint: 'Custom procedure name',
+                                onChanged: (v) =>
+                                    customProcedureName = v.trim(),
+                              ),
+                            ],
                             SizedBox(height: 12.h),
                             TextFormField(
                               controller: notesCtl,
@@ -1568,14 +1930,28 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
                       _historyModalFooter(
                         onCancel: () => Navigator.of(dialogCtx).pop(),
                         onSubmit: () {
+                          final isOther =
+                              procedureId == _kClinicalOtherChoiceId;
+                          final custom = customNameCtl.text.trim();
+                          if (isOther && custom.isEmpty) {
+                            _toast('Enter a custom procedure name.');
+                            return;
+                          }
+                          if (!isOther && procedureId <= 0) {
+                            _toast('Select a procedure.');
+                            return;
+                          }
                           final mo = int.tryParse(monthCtl.text.trim());
                           final yr = int.tryParse(yearCtl.text.trim());
                           Navigator.of(dialogCtx).pop(
                             PatientSurgicalHistoryRow(
                               id: _allocTempClinicalId(),
                               patientId: widget.summary.patientId,
-                              procedureId: procedureId,
-                              procedureName: procedureName,
+                              procedureId: isOther
+                                  ? _kClinicalOtherChoiceId
+                                  : procedureId,
+                              procedureName: isOther ? '' : procedureName,
+                              customProcedureName: isOther ? custom : '',
                               approxMonth: mo,
                               approxYear: yr,
                               notes: notesCtl.text.trim(),
@@ -1595,6 +1971,7 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
     );
 
     notesCtl.dispose();
+    customNameCtl.dispose();
     monthCtl.dispose();
     yearCtl.dispose();
     if (row == null || !mounted) return;
@@ -1607,8 +1984,12 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
   Future<void> _showAddDrugDialog(
     List<NamedReferenceItem> available,
   ) async {
-    int categoryId = available.first.id;
-    String categoryName = available.first.name;
+    final useOtherFirst = available.isEmpty;
+    int categoryId =
+        useOtherFirst ? _kClinicalOtherChoiceId : available.first.id;
+    String categoryName = useOtherFirst ? '' : available.first.name;
+    String customCategoryName = '';
+    final customNameCtl = TextEditingController();
     int? adherenceLevelId;
     String adherenceLevelName = '';
     final sideEffectsCtl = TextEditingController();
@@ -1648,37 +2029,39 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
                             DropdownButtonFormField<int>(
-                              value: categoryId,
+                              value: _clinicalRefDropdownSelectedValue(
+                                refId: categoryId,
+                                customName: customCategoryName,
+                                choices: available,
+                              ),
                               isExpanded: true,
                               decoration: _fieldDecoration(
                                 hint: 'Medicine category',
                               ),
-                              items: available
-                                  .map(
-                                    (e) => DropdownMenuItem<int>(
-                                      value: e.id,
-                                      child: Text(
-                                        e.name,
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: TextStyle(
-                                          fontSize: 14.sp,
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                      ),
-                                    ),
-                                  )
-                                  .toList(),
+                              items: _clinicalRefDropdownItems(available),
                               onChanged: (v) {
                                 if (v == null) return;
                                 setLocal(() {
-                                  categoryId = v;
-                                  categoryName = available
-                                      .firstWhere((e) => e.id == v)
-                                      .name;
+                                  if (v == _kClinicalOtherChoiceId) {
+                                    categoryId = _kClinicalOtherChoiceId;
+                                    categoryName = '';
+                                  } else {
+                                    categoryId = v;
+                                    categoryName = _namedRefLabel(available, v);
+                                    customCategoryName = '';
+                                    customNameCtl.clear();
+                                  }
                                 });
                               },
                             ),
+                            if (categoryId == _kClinicalOtherChoiceId) ...[
+                              SizedBox(height: 12.h),
+                              _clinicalCustomNameField(
+                                controller: customNameCtl,
+                                hint: 'Custom medicine category name',
+                                onChanged: (v) => customCategoryName = v.trim(),
+                              ),
+                            ],
                             if (_adherenceLevels.isNotEmpty) ...[
                               SizedBox(height: 12.h),
                               DropdownButtonFormField<int?>(
@@ -1748,12 +2131,25 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
                       _historyModalFooter(
                         onCancel: () => Navigator.of(dialogCtx).pop(),
                         onSubmit: () {
+                          final isOther = categoryId == _kClinicalOtherChoiceId;
+                          final custom = customNameCtl.text.trim();
+                          if (isOther && custom.isEmpty) {
+                            _toast('Enter a custom medicine category name.');
+                            return;
+                          }
+                          if (!isOther && categoryId <= 0) {
+                            _toast('Select a medicine category.');
+                            return;
+                          }
                           Navigator.of(dialogCtx).pop(
                             PatientDrugHistoryRow(
                               id: _allocTempClinicalId(),
                               patientId: widget.summary.patientId,
-                              medicineCategoryId: categoryId,
-                              categoryName: categoryName,
+                              medicineCategoryId: isOther
+                                  ? _kClinicalOtherChoiceId
+                                  : categoryId,
+                              categoryName: isOther ? '' : categoryName,
+                              customMedicineCategoryName: isOther ? custom : '',
                               adherenceLevelId: adherenceLevelId,
                               adherenceLevelName: adherenceLevelName,
                               sideEffects: sideEffectsCtl.text.trim(),
@@ -1773,6 +2169,7 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
     );
 
     sideEffectsCtl.dispose();
+    customNameCtl.dispose();
     if (row == null || !mounted) return;
     setState(() {
       _drugs = [..._drugs, row];
@@ -2046,6 +2443,188 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
     );
   }
 
+  void _cancelTobaccoEdit() {
+    setState(() {
+      _editingTobacco = false;
+      if (!_baselineLoaded) {
+        _tobaccoUse = false;
+        _tobaccoTypeController.clear();
+        _tobaccoQuantityController.clear();
+        _tobaccoDurationStart = null;
+        _tobaccoDurationEnd = null;
+      }
+    });
+  }
+
+  Widget _historyHeaderAddButton({
+    required String label,
+    required VoidCallback onPressed,
+  }) {
+    return Material(
+      color: AppColors.dashboardPrimary,
+      borderRadius: BorderRadius.circular(999),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(999),
+        onTap: onPressed,
+        child: Padding(
+          padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 8.h),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.add_rounded,
+                size: 16.sp,
+                color: AppColors.surface,
+              ),
+              SizedBox(width: 4.w),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 12.sp,
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.surface,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _historyEntryUpdateButton({
+    required VoidCallback onPressed,
+    String label = 'Update',
+  }) {
+    return TextButton(
+      onPressed: onPressed,
+      style: TextButton.styleFrom(
+        foregroundColor: AppColors.dashboardPrimary,
+        padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 4.h),
+        minimumSize: Size.zero,
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      ),
+      child: Text(
+        label,
+        style: TextStyle(fontSize: 12.sp, fontWeight: FontWeight.w800),
+      ),
+    );
+  }
+
+  Widget _historyEntryViewActions({
+    required VoidCallback onUpdate,
+    required VoidCallback onDelete,
+  }) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _historyEntryUpdateButton(onPressed: onUpdate),
+        _historyEntryDeleteButton(onPressed: onDelete),
+      ],
+    );
+  }
+
+  Widget _historyViewLine({
+    required String label,
+    required String value,
+  }) {
+    final text = value.trim();
+    if (text.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: EdgeInsets.only(bottom: 10.h),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 11.sp,
+              fontWeight: FontWeight.w700,
+              color: AppColors.textSecondary,
+              letterSpacing: 0.2,
+            ),
+          ),
+          SizedBox(height: 3.h),
+          Text(
+            text,
+            style: TextStyle(
+              fontSize: 14.sp,
+              fontWeight: FontWeight.w700,
+              color: AppColors.textPrimary,
+              height: 1.3,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _historyCardHeader({
+    required String title,
+    required bool isDraft,
+    required bool isEditing,
+    required VoidCallback onUpdate,
+    required VoidCallback onDelete,
+  }) {
+    final displayTitle =
+        title.trim().isNotEmpty ? title.trim() : (isDraft ? 'New entry' : '—');
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (isDraft) ...[
+          Container(
+            padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 3.h),
+            decoration: BoxDecoration(
+              color: AppColors.dashboardPeach.withValues(alpha: 0.55),
+              borderRadius: BorderRadius.circular(8.r),
+            ),
+            child: Text(
+              'New',
+              style: TextStyle(
+                fontSize: 10.sp,
+                fontWeight: FontWeight.w900,
+                color: AppColors.dashboardWarning,
+              ),
+            ),
+          ),
+          SizedBox(width: 8.w),
+        ],
+        Expanded(
+          child: Text(
+            displayTitle,
+            style: TextStyle(
+              fontSize: 14.sp,
+              fontWeight: FontWeight.w800,
+              color: AppColors.textPrimary,
+            ),
+          ),
+        ),
+        if (isEditing)
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _historyEntryUpdateButton(
+                onPressed: onUpdate,
+                label: 'View',
+              ),
+              _historyEntryDeleteButton(onPressed: onDelete),
+            ],
+          )
+        else
+          _historyEntryViewActions(onUpdate: onUpdate, onDelete: onDelete),
+      ],
+    );
+  }
+
+  String _formatSurgicalApproxDate(PatientSurgicalHistoryRow row) {
+    final mo = row.approxMonth;
+    final yr = row.approxYear;
+    if (mo != null && yr != null) return '$mo/$yr';
+    if (yr != null) return yr.toString();
+    if (mo != null) return 'Month $mo';
+    return '';
+  }
+
   void _removeMedicalEntryAt(int index) {
     if (index < 0 || index >= _medical.length) return;
     setState(() {
@@ -2074,8 +2653,8 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
     if (index < 0 || index >= _medical.length) return;
     final row = _medical[index];
     final isDraft = row.id <= 0;
-    final name = row.conditionName.trim().isNotEmpty
-        ? row.conditionName.trim()
+    final name = row.displayConditionName.trim().isNotEmpty
+        ? row.displayConditionName.trim()
         : 'This entry';
     final ok = await _confirmDeleteHistoryEntry(
       title: isDraft ? 'Discard new condition?' : 'Delete chronic condition?',
@@ -2087,6 +2666,7 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
 
     if (isDraft) {
       _removeMedicalEntryAt(index);
+      _editingChronicIds.remove(row.id);
       _toast('Draft removed.');
       return;
     }
@@ -2103,6 +2683,7 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
       if (!mounted) return;
       final idx = _medical.indexWhere((e) => e.id == row.id);
       if (idx >= 0) _removeMedicalEntryAt(idx);
+      _editingChronicIds.remove(row.id);
       _toast('Chronic condition deleted.');
     } on Object catch (e) {
       if (!mounted || e is SessionEndedFailure) return;
@@ -2114,8 +2695,8 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
     if (index < 0 || index >= _surgical.length) return;
     final row = _surgical[index];
     final isDraft = row.id <= 0;
-    final name = row.procedureName.trim().isNotEmpty
-        ? row.procedureName.trim()
+    final name = row.displayProcedureName.trim().isNotEmpty
+        ? row.displayProcedureName.trim()
         : 'This entry';
     final ok = await _confirmDeleteHistoryEntry(
       title: isDraft ? 'Discard new procedure?' : 'Delete procedure?',
@@ -2127,6 +2708,7 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
 
     if (isDraft) {
       _removeSurgicalEntryAt(index);
+      _editingSurgicalIds.remove(row.id);
       _toast('Draft removed.');
       return;
     }
@@ -2143,6 +2725,7 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
       if (!mounted) return;
       final idx = _surgical.indexWhere((e) => e.id == row.id);
       if (idx >= 0) _removeSurgicalEntryAt(idx);
+      _editingSurgicalIds.remove(row.id);
       _toast('Surgical history deleted.');
     } on Object catch (e) {
       if (!mounted || e is SessionEndedFailure) return;
@@ -2154,8 +2737,8 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
     if (index < 0 || index >= _drugs.length) return;
     final row = _drugs[index];
     final isDraft = row.id <= 0;
-    final name = row.categoryName.trim().isNotEmpty
-        ? row.categoryName.trim()
+    final name = row.displayCategoryName.trim().isNotEmpty
+        ? row.displayCategoryName.trim()
         : 'This entry';
     final ok = await _confirmDeleteHistoryEntry(
       title: isDraft ? 'Discard new drug row?' : 'Delete drug history row?',
@@ -2167,6 +2750,7 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
 
     if (isDraft) {
       _removeDrugEntryAt(index);
+      _editingDrugIds.remove(row.id);
       _toast('Draft removed.');
       return;
     }
@@ -2183,6 +2767,7 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
       if (!mounted) return;
       final idx = _drugs.indexWhere((e) => e.id == row.id);
       if (idx >= 0) _removeDrugEntryAt(idx);
+      _editingDrugIds.remove(row.id);
       _toast('Drug history deleted.');
     } on Object catch (e) {
       if (!mounted || e is SessionEndedFailure) return;
@@ -2190,11 +2775,33 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
     }
   }
 
+  Future<void> _offerDeleteTobacco() async {
+    final ok = await _confirmDeleteHistoryEntry(
+      title: 'Clear tobacco history?',
+      message:
+          'Tobacco details will be removed for this patient when you confirm.',
+    );
+    if (!mounted || !ok) return;
+
+    setState(() {
+      _tobaccoUse = false;
+      _tobaccoTypeController.clear();
+      _tobaccoQuantityController.clear();
+      _tobaccoDurationStart = null;
+      _tobaccoDurationEnd = null;
+      _editingTobacco = false;
+    });
+
+    await _saveBaselineLifestyle(
+      successMessage: 'Tobacco history cleared.',
+    );
+  }
+
   Widget _historySectionCard({
     required IconData icon,
     required String title,
-    String? subtitle,
     required Widget child,
+    Widget? headerTrailing,
     Widget? footer,
   }) {
     return Container(
@@ -2241,33 +2848,16 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
                 ),
                 SizedBox(width: 12.w),
                 Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        title,
-                        style: TextStyle(
-                          fontSize: 14.sp,
-                          fontWeight: FontWeight.w900,
-                          color: AppColors.dashboardPrimaryDark,
-                        ),
-                      ),
-                      if (subtitle != null && subtitle.trim().isNotEmpty)
-                        Padding(
-                          padding: EdgeInsets.only(top: 2.h),
-                          child: Text(
-                            subtitle.trim(),
-                            style: TextStyle(
-                              fontSize: 11.sp,
-                              fontWeight: FontWeight.w600,
-                              height: 1.25,
-                              color: AppColors.textSecondary,
-                            ),
-                          ),
-                        ),
-                    ],
+                  child: Text(
+                    title,
+                    style: TextStyle(
+                      fontSize: 14.sp,
+                      fontWeight: FontWeight.w900,
+                      color: AppColors.dashboardPrimaryDark,
+                    ),
                   ),
                 ),
+                if (headerTrailing != null) headerTrailing,
               ],
             ),
           ),
@@ -2318,16 +2908,10 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
           _historySectionCard(
             icon: Icons.monitor_heart_outlined,
             title: 'Chronic conditions',
-            subtitle:
-                'Add from the reference list or edit saved rows. Changes apply when you save.',
+            headerTrailing: _medicalAddButton(),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: _medicalAddButton(),
-                ),
-                SizedBox(height: 12.h),
                 if (_medical.isEmpty)
                   Text(
                     'No chronic conditions on file yet. Use “Add condition” to create one.',
@@ -2342,9 +2926,18 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
                   ...List.generate(_medical.length, (i) {
                     final row = _medical[i];
                     final durCtl = _medicalDurationCtl[row.id];
-                    if (durCtl == null) return const SizedBox.shrink();
+                    final customNameCtl = _medicalCustomNameCtl[row.id];
+                    if (durCtl == null || customNameCtl == null) {
+                      return const SizedBox.shrink();
+                    }
                     final isDraft = row.id <= 0;
+                    final isEditing =
+                        _isClinicalRowEditing(row.id, _editingChronicIds);
                     final choices = _conditionChoicesForRow(i);
+                    final showCustomField = _isClinicalOtherSelection(
+                      refId: row.conditionId,
+                      customName: customNameCtl.text,
+                    );
                     return Container(
                       margin: EdgeInsets.only(bottom: 12.h),
                       padding: EdgeInsets.all(12.r),
@@ -2358,186 +2951,184 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          if (isDraft)
-                            Row(
-                              children: [
-                                Container(
-                                  padding: EdgeInsets.symmetric(
-                                    horizontal: 8.w,
-                                    vertical: 3.h,
+                          _historyCardHeader(
+                            title: row.displayConditionName,
+                            isDraft: isDraft,
+                            isEditing: isEditing,
+                            onUpdate: () => setState(() {
+                              if (_editingChronicIds.contains(row.id)) {
+                                _editingChronicIds.remove(row.id);
+                              } else {
+                                _editingChronicIds.add(row.id);
+                              }
+                            }),
+                            onDelete: () =>
+                                unawaited(_offerDeleteMedicalRow(i)),
+                          ),
+                          if (isEditing) ...[
+                            if (isDraft) ...[
+                              SizedBox(height: 8.h),
+                              if (choices.isEmpty &&
+                                  row.conditionId != _kClinicalOtherChoiceId)
+                                Text(
+                                  'No selectable conditions (lists loading or all already added). Choose Other.',
+                                  style: TextStyle(
+                                    fontSize: 12.sp,
+                                    fontWeight: FontWeight.w600,
+                                    color: AppColors.dashboardWarning,
                                   ),
-                                  decoration: BoxDecoration(
-                                    color: AppColors.dashboardPeach
-                                        .withValues(alpha: 0.55),
-                                    borderRadius: BorderRadius.circular(8.r),
+                                )
+                              else
+                                DropdownButtonFormField<int>(
+                                  value: _clinicalRefDropdownSelectedValue(
+                                    refId: row.conditionId,
+                                    customName: customNameCtl.text,
+                                    choices: choices,
                                   ),
-                                  child: Text(
-                                    'New',
-                                    style: TextStyle(
-                                      fontSize: 10.sp,
-                                      fontWeight: FontWeight.w900,
-                                      color: AppColors.dashboardWarning,
-                                    ),
-                                  ),
+                                  isExpanded: true,
+                                  decoration: _fieldDecoration(
+                                      hint: 'Medical condition'),
+                                  items: _clinicalRefDropdownItems(choices),
+                                  onChanged: (v) {
+                                    if (v == null) return;
+                                    setState(() {
+                                      if (v == _kClinicalOtherChoiceId) {
+                                        _medical[i] = _medical[i].copyWith(
+                                          conditionId: _kClinicalOtherChoiceId,
+                                          conditionName: '',
+                                          clearCustomCondition: true,
+                                        );
+                                        customNameCtl.clear();
+                                      } else {
+                                        _medical[i] = _medical[i].copyWith(
+                                          conditionId: v,
+                                          conditionName:
+                                              _namedRefLabel(choices, v),
+                                          clearCustomCondition: true,
+                                        );
+                                        customNameCtl.clear();
+                                      }
+                                    });
+                                  },
                                 ),
-                                const Spacer(),
-                                _historyEntryDeleteButton(
-                                  onPressed: () =>
-                                      unawaited(_offerDeleteMedicalRow(i)),
+                              if (showCustomField) ...[
+                                SizedBox(height: 10.h),
+                                _clinicalCustomNameField(
+                                  controller: customNameCtl,
+                                  hint: 'Custom condition name',
+                                  onChanged: (v) {
+                                    setState(() {
+                                      _medical[i] = _medical[i].copyWith(
+                                        customConditionName: v.trim(),
+                                      );
+                                    });
+                                  },
                                 ),
                               ],
-                            )
-                          else
-                            Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Expanded(
-                                  child: Text(
-                                    row.conditionName,
-                                    style: TextStyle(
-                                      fontSize: 14.sp,
-                                      fontWeight: FontWeight.w800,
-                                      color: AppColors.textPrimary,
-                                    ),
-                                  ),
-                                ),
-                                _historyEntryDeleteButton(
-                                  onPressed: () =>
-                                      unawaited(_offerDeleteMedicalRow(i)),
-                                ),
-                              ],
-                            ),
-                          if (isDraft) ...[
-                            SizedBox(height: 8.h),
-                            if (choices.isEmpty)
-                              Text(
-                                'No selectable conditions (lists loading or all already added).',
+                            ],
+                            if (!isDraft) SizedBox(height: 8.h),
+                            SwitchListTile(
+                              contentPadding: EdgeInsets.zero,
+                              title: Text(
+                                'On medication',
                                 style: TextStyle(
-                                  fontSize: 12.sp,
+                                  fontSize: 13.sp,
                                   fontWeight: FontWeight.w600,
-                                  color: AppColors.dashboardWarning,
                                 ),
-                              )
-                            else
-                              DropdownButtonFormField<int>(
-                                value: row.conditionId > 0
-                                    ? row.conditionId
-                                    : null,
+                              ),
+                              value: row.isOnMedication,
+                              onChanged: (v) {
+                                setState(() {
+                                  _medical[i] =
+                                      _medical[i].copyWith(isOnMedication: v);
+                                });
+                              },
+                            ),
+                            SizedBox(height: 6.h),
+                            TextFormField(
+                              controller: durCtl,
+                              keyboardType: TextInputType.number,
+                              style: TextStyle(
+                                fontSize: 14.sp,
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.textPrimary,
+                              ),
+                              decoration: _fieldDecoration(
+                                hint:
+                                    'Duration on treatment (months), optional',
+                              ),
+                            ),
+                            if (_complianceLevels.isNotEmpty) ...[
+                              SizedBox(height: 10.h),
+                              DropdownButtonFormField<int?>(
+                                value: _clinicalRefDropdownValue(
+                                  row.complianceLevelId,
+                                  _complianceLevels,
+                                ),
                                 isExpanded: true,
                                 decoration:
-                                    _fieldDecoration(hint: 'Medical condition'),
-                                items: choices
-                                    .map(
-                                      (e) => DropdownMenuItem<int>(
-                                        value: e.id,
-                                        child: Text(
-                                          e.name,
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: TextStyle(
-                                            fontSize: 14.sp,
-                                            fontWeight: FontWeight.w600,
+                                    _fieldDecoration(hint: 'Compliance level'),
+                                items: [
+                                  DropdownMenuItem<int?>(
+                                    value: null,
+                                    child: Text(
+                                      '—',
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        fontSize: 14.sp,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ),
+                                  ..._complianceLevels
+                                      .where((e) => e.id > 0)
+                                      .map(
+                                        (e) => DropdownMenuItem<int?>(
+                                          value: e.id,
+                                          child: Text(
+                                            e.name,
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: TextStyle(
+                                              fontSize: 14.sp,
+                                              fontWeight: FontWeight.w600,
+                                            ),
                                           ),
                                         ),
                                       ),
-                                    )
-                                    .toList(),
+                                ],
                                 onChanged: (v) {
-                                  if (v == null) return;
-                                  final name = _namedRefLabel(choices, v);
                                   setState(() {
-                                    _medical[i] = _medical[i].copyWith(
-                                      conditionId: v,
-                                      conditionName: name,
-                                    );
+                                    if (v == null) {
+                                      _medical[i] = _medical[i].copyWith(
+                                        clearComplianceLevel: true,
+                                      );
+                                    } else {
+                                      _medical[i] = _medical[i].copyWith(
+                                        complianceLevelId: v,
+                                        complianceLevelName: _namedRefLabel(
+                                            _complianceLevels, v),
+                                      );
+                                    }
                                   });
                                 },
                               ),
-                          ],
-                          if (!isDraft) SizedBox(height: 8.h),
-                          SwitchListTile(
-                            contentPadding: EdgeInsets.zero,
-                            title: Text(
-                              'On medication',
-                              style: TextStyle(
-                                fontSize: 13.sp,
-                                fontWeight: FontWeight.w600,
-                              ),
+                            ],
+                          ] else ...[
+                            SizedBox(height: 8.h),
+                            _historyViewLine(
+                              label: 'On medication',
+                              value: row.isOnMedication ? 'Yes' : 'No',
                             ),
-                            value: row.isOnMedication,
-                            onChanged: (v) {
-                              setState(() {
-                                _medical[i] =
-                                    _medical[i].copyWith(isOnMedication: v);
-                              });
-                            },
-                          ),
-                          SizedBox(height: 6.h),
-                          TextFormField(
-                            controller: durCtl,
-                            keyboardType: TextInputType.number,
-                            style: TextStyle(
-                              fontSize: 14.sp,
-                              fontWeight: FontWeight.w600,
-                              color: AppColors.textPrimary,
+                            _historyViewLine(
+                              label: 'Duration on treatment (months)',
+                              value: row.durationInMonths?.toString() ??
+                                  durCtl.text.trim(),
                             ),
-                            decoration: _fieldDecoration(
-                              hint: 'Duration on treatment (months), optional',
-                            ),
-                          ),
-                          if (_complianceLevels.isNotEmpty) ...[
-                            SizedBox(height: 10.h),
-                            DropdownButtonFormField<int?>(
-                              value: _clinicalRefDropdownValue(
-                                row.complianceLevelId,
-                                _complianceLevels,
-                              ),
-                              isExpanded: true,
-                              decoration:
-                                  _fieldDecoration(hint: 'Compliance level'),
-                              items: [
-                                DropdownMenuItem<int?>(
-                                  value: null,
-                                  child: Text(
-                                    '—',
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: TextStyle(
-                                      fontSize: 14.sp,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                ),
-                                ..._complianceLevels.where((e) => e.id > 0).map(
-                                      (e) => DropdownMenuItem<int?>(
-                                        value: e.id,
-                                        child: Text(
-                                          e.name,
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: TextStyle(
-                                            fontSize: 14.sp,
-                                            fontWeight: FontWeight.w600,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                              ],
-                              onChanged: (v) {
-                                setState(() {
-                                  if (v == null) {
-                                    _medical[i] = _medical[i].copyWith(
-                                      clearComplianceLevel: true,
-                                    );
-                                  } else {
-                                    _medical[i] = _medical[i].copyWith(
-                                      complianceLevelId: v,
-                                      complianceLevelName:
-                                          _namedRefLabel(_complianceLevels, v),
-                                    );
-                                  }
-                                });
-                              },
+                            _historyViewLine(
+                              label: 'Compliance level',
+                              value: row.complianceLevelName,
                             ),
                           ],
                         ],
@@ -2551,15 +3142,10 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
           _historySectionCard(
             icon: Icons.local_hospital_outlined,
             title: 'Surgical history',
-            subtitle: 'Past procedures — approximate date optional.',
+            headerTrailing: _medicalAddButton(),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: _medicalAddButton(),
-                ),
-                SizedBox(height: 12.h),
                 if (_surgical.isEmpty)
                   Text(
                     'No surgical procedures on file yet. Use “Add procedure” to add one.',
@@ -2576,11 +3162,21 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
                     final notesCtl = _surgicalNotesCtl[s.id];
                     final moCtl = _surgicalMonthCtl[s.id];
                     final yrCtl = _surgicalYearCtl[s.id];
-                    if (notesCtl == null || moCtl == null || yrCtl == null) {
+                    final customNameCtl = _surgicalCustomNameCtl[s.id];
+                    if (notesCtl == null ||
+                        moCtl == null ||
+                        yrCtl == null ||
+                        customNameCtl == null) {
                       return const SizedBox.shrink();
                     }
                     final isDraft = s.id <= 0;
+                    final isEditing =
+                        _isClinicalRowEditing(s.id, _editingSurgicalIds);
                     final procChoices = _procedureChoicesForRow(i);
+                    final showCustomField = _isClinicalOtherSelection(
+                      refId: s.procedureId,
+                      customName: customNameCtl.text,
+                    );
                     return Container(
                       margin: EdgeInsets.only(bottom: 12.h),
                       padding: EdgeInsets.all(12.r),
@@ -2594,145 +3190,138 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          if (isDraft)
-                            Row(
-                              children: [
-                                Container(
-                                  padding: EdgeInsets.symmetric(
-                                    horizontal: 8.w,
-                                    vertical: 3.h,
+                          _historyCardHeader(
+                            title: s.displayProcedureName,
+                            isDraft: isDraft,
+                            isEditing: isEditing,
+                            onUpdate: () => setState(() {
+                              if (_editingSurgicalIds.contains(s.id)) {
+                                _editingSurgicalIds.remove(s.id);
+                              } else {
+                                _editingSurgicalIds.add(s.id);
+                              }
+                            }),
+                            onDelete: () =>
+                                unawaited(_offerDeleteSurgicalRow(i)),
+                          ),
+                          if (isEditing) ...[
+                            if (isDraft) ...[
+                              SizedBox(height: 8.h),
+                              if (procChoices.isEmpty &&
+                                  s.procedureId != _kClinicalOtherChoiceId)
+                                Text(
+                                  'No selectable procedures (lists loading or all already added). Choose Other.',
+                                  style: TextStyle(
+                                    fontSize: 12.sp,
+                                    fontWeight: FontWeight.w600,
+                                    color: AppColors.dashboardWarning,
                                   ),
-                                  decoration: BoxDecoration(
-                                    color: AppColors.dashboardPeach
-                                        .withValues(alpha: 0.55),
-                                    borderRadius: BorderRadius.circular(8.r),
+                                )
+                              else
+                                DropdownButtonFormField<int>(
+                                  value: _clinicalRefDropdownSelectedValue(
+                                    refId: s.procedureId,
+                                    customName: customNameCtl.text,
+                                    choices: procChoices,
                                   ),
-                                  child: Text(
-                                    'New',
-                                    style: TextStyle(
-                                      fontSize: 10.sp,
-                                      fontWeight: FontWeight.w900,
-                                      color: AppColors.dashboardWarning,
-                                    ),
-                                  ),
+                                  isExpanded: true,
+                                  decoration:
+                                      _fieldDecoration(hint: 'Procedure'),
+                                  items: _clinicalRefDropdownItems(procChoices),
+                                  onChanged: (v) {
+                                    if (v == null) return;
+                                    setState(() {
+                                      if (v == _kClinicalOtherChoiceId) {
+                                        _surgical[i] = _surgical[i].copyWith(
+                                          procedureId: _kClinicalOtherChoiceId,
+                                          procedureName: '',
+                                          clearCustomProcedure: true,
+                                        );
+                                        customNameCtl.clear();
+                                      } else {
+                                        _surgical[i] = _surgical[i].copyWith(
+                                          procedureId: v,
+                                          procedureName:
+                                              _namedRefLabel(procChoices, v),
+                                          clearCustomProcedure: true,
+                                        );
+                                        customNameCtl.clear();
+                                      }
+                                    });
+                                  },
                                 ),
-                                const Spacer(),
-                                _historyEntryDeleteButton(
-                                  onPressed: () =>
-                                      unawaited(_offerDeleteSurgicalRow(i)),
+                              if (showCustomField) ...[
+                                SizedBox(height: 10.h),
+                                _clinicalCustomNameField(
+                                  controller: customNameCtl,
+                                  hint: 'Custom procedure name',
+                                  onChanged: (v) {
+                                    setState(() {
+                                      _surgical[i] = _surgical[i].copyWith(
+                                        customProcedureName: v.trim(),
+                                      );
+                                    });
+                                  },
                                 ),
                               ],
-                            )
-                          else
+                            ],
+                            if (!isDraft) SizedBox(height: 8.h),
+                            TextFormField(
+                              controller: notesCtl,
+                              maxLines: 3,
+                              style: TextStyle(
+                                fontSize: 14.sp,
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.textPrimary,
+                              ),
+                              decoration:
+                                  _fieldDecoration(hint: 'Notes (optional)'),
+                            ),
+                            SizedBox(height: 8.h),
                             Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Expanded(
-                                  child: Text(
-                                    s.procedureName,
+                                  child: TextFormField(
+                                    controller: moCtl,
+                                    keyboardType: TextInputType.number,
                                     style: TextStyle(
                                       fontSize: 14.sp,
-                                      fontWeight: FontWeight.w800,
+                                      fontWeight: FontWeight.w600,
                                       color: AppColors.textPrimary,
+                                    ),
+                                    decoration: _fieldDecoration(
+                                      hint: 'Month (1–12)',
                                     ),
                                   ),
                                 ),
-                                _historyEntryDeleteButton(
-                                  onPressed: () =>
-                                      unawaited(_offerDeleteSurgicalRow(i)),
+                                SizedBox(width: 10.w),
+                                Expanded(
+                                  child: TextFormField(
+                                    controller: yrCtl,
+                                    keyboardType: TextInputType.number,
+                                    style: TextStyle(
+                                      fontSize: 14.sp,
+                                      fontWeight: FontWeight.w600,
+                                      color: AppColors.textPrimary,
+                                    ),
+                                    decoration: _fieldDecoration(
+                                      hint: 'Year (approx.)',
+                                    ),
+                                  ),
                                 ),
                               ],
                             ),
-                          if (isDraft) ...[
+                          ] else ...[
                             SizedBox(height: 8.h),
-                            if (procChoices.isEmpty)
-                              Text(
-                                'No selectable procedures (lists loading or all already added).',
-                                style: TextStyle(
-                                  fontSize: 12.sp,
-                                  fontWeight: FontWeight.w600,
-                                  color: AppColors.dashboardWarning,
-                                ),
-                              )
-                            else
-                              DropdownButtonFormField<int>(
-                                value: s.procedureId > 0 ? s.procedureId : null,
-                                isExpanded: true,
-                                decoration: _fieldDecoration(hint: 'Procedure'),
-                                items: procChoices
-                                    .map(
-                                      (e) => DropdownMenuItem<int>(
-                                        value: e.id,
-                                        child: Text(
-                                          e.name,
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: TextStyle(
-                                            fontSize: 14.sp,
-                                            fontWeight: FontWeight.w600,
-                                          ),
-                                        ),
-                                      ),
-                                    )
-                                    .toList(),
-                                onChanged: (v) {
-                                  if (v == null) return;
-                                  final name = _namedRefLabel(procChoices, v);
-                                  setState(() {
-                                    _surgical[i] = _surgical[i].copyWith(
-                                      procedureId: v,
-                                      procedureName: name,
-                                    );
-                                  });
-                                },
-                              ),
-                          ],
-                          if (!isDraft) SizedBox(height: 8.h),
-                          TextFormField(
-                            controller: notesCtl,
-                            maxLines: 3,
-                            style: TextStyle(
-                              fontSize: 14.sp,
-                              fontWeight: FontWeight.w600,
-                              color: AppColors.textPrimary,
+                            _historyViewLine(
+                              label: 'Notes',
+                              value: s.notes,
                             ),
-                            decoration:
-                                _fieldDecoration(hint: 'Notes (optional)'),
-                          ),
-                          SizedBox(height: 8.h),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: TextFormField(
-                                  controller: moCtl,
-                                  keyboardType: TextInputType.number,
-                                  style: TextStyle(
-                                    fontSize: 14.sp,
-                                    fontWeight: FontWeight.w600,
-                                    color: AppColors.textPrimary,
-                                  ),
-                                  decoration: _fieldDecoration(
-                                    hint: 'Month (1–12)',
-                                  ),
-                                ),
-                              ),
-                              SizedBox(width: 10.w),
-                              Expanded(
-                                child: TextFormField(
-                                  controller: yrCtl,
-                                  keyboardType: TextInputType.number,
-                                  style: TextStyle(
-                                    fontSize: 14.sp,
-                                    fontWeight: FontWeight.w600,
-                                    color: AppColors.textPrimary,
-                                  ),
-                                  decoration: _fieldDecoration(
-                                    hint: 'Year (approx.)',
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
+                            _historyViewLine(
+                              label: 'Approximate date',
+                              value: _formatSurgicalApproxDate(s),
+                            ),
+                          ],
                         ],
                       ),
                     );
@@ -2744,15 +3333,10 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
           _historySectionCard(
             icon: Icons.medication_liquid_outlined,
             title: 'Drug history',
-            subtitle: 'Medicine categories and adherence — optional notes.',
+            headerTrailing: _medicalAddButton(),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: _medicalAddButton(),
-                ),
-                SizedBox(height: 12.h),
                 if (_drugs.isEmpty)
                   Text(
                     'No drug history rows yet. Use “Add category” to add one.',
@@ -2767,9 +3351,18 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
                   ...List.generate(_drugs.length, (i) {
                     final d = _drugs[i];
                     final fxCtl = _drugSideEffectsCtl[d.id];
-                    if (fxCtl == null) return const SizedBox.shrink();
+                    final customNameCtl = _drugCustomNameCtl[d.id];
+                    if (fxCtl == null || customNameCtl == null) {
+                      return const SizedBox.shrink();
+                    }
                     final isDraft = d.id <= 0;
+                    final isEditing =
+                        _isClinicalRowEditing(d.id, _editingDrugIds);
                     final catChoices = _categoryChoicesForRow(i);
+                    final showCustomField = _isClinicalOtherSelection(
+                      refId: d.medicineCategoryId,
+                      customName: customNameCtl.text,
+                    );
                     return Container(
                       margin: EdgeInsets.only(bottom: 12.h),
                       padding: EdgeInsets.all(12.r),
@@ -2783,170 +3376,163 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          if (isDraft)
-                            Row(
-                              children: [
-                                Container(
-                                  padding: EdgeInsets.symmetric(
-                                    horizontal: 8.w,
-                                    vertical: 3.h,
+                          _historyCardHeader(
+                            title: d.displayCategoryName,
+                            isDraft: isDraft,
+                            isEditing: isEditing,
+                            onUpdate: () => setState(() {
+                              if (_editingDrugIds.contains(d.id)) {
+                                _editingDrugIds.remove(d.id);
+                              } else {
+                                _editingDrugIds.add(d.id);
+                              }
+                            }),
+                            onDelete: () => unawaited(_offerDeleteDrugRow(i)),
+                          ),
+                          if (isEditing) ...[
+                            if (isDraft) ...[
+                              SizedBox(height: 8.h),
+                              if (catChoices.isEmpty &&
+                                  d.medicineCategoryId !=
+                                      _kClinicalOtherChoiceId)
+                                Text(
+                                  'No selectable categories (lists loading or all already added). Choose Other.',
+                                  style: TextStyle(
+                                    fontSize: 12.sp,
+                                    fontWeight: FontWeight.w600,
+                                    color: AppColors.dashboardWarning,
                                   ),
-                                  decoration: BoxDecoration(
-                                    color: AppColors.dashboardPeach
-                                        .withValues(alpha: 0.55),
-                                    borderRadius: BorderRadius.circular(8.r),
+                                )
+                              else
+                                DropdownButtonFormField<int>(
+                                  value: _clinicalRefDropdownSelectedValue(
+                                    refId: d.medicineCategoryId,
+                                    customName: customNameCtl.text,
+                                    choices: catChoices,
                                   ),
-                                  child: Text(
-                                    'New',
-                                    style: TextStyle(
-                                      fontSize: 10.sp,
-                                      fontWeight: FontWeight.w900,
-                                      color: AppColors.dashboardWarning,
-                                    ),
-                                  ),
+                                  isExpanded: true,
+                                  decoration: _fieldDecoration(
+                                      hint: 'Medicine category'),
+                                  items: _clinicalRefDropdownItems(catChoices),
+                                  onChanged: (v) {
+                                    if (v == null) return;
+                                    setState(() {
+                                      if (v == _kClinicalOtherChoiceId) {
+                                        _drugs[i] = _drugs[i].copyWith(
+                                          medicineCategoryId:
+                                              _kClinicalOtherChoiceId,
+                                          categoryName: '',
+                                          clearCustomCategory: true,
+                                        );
+                                        customNameCtl.clear();
+                                      } else {
+                                        _drugs[i] = _drugs[i].copyWith(
+                                          medicineCategoryId: v,
+                                          categoryName:
+                                              _namedRefLabel(catChoices, v),
+                                          clearCustomCategory: true,
+                                        );
+                                        customNameCtl.clear();
+                                      }
+                                    });
+                                  },
                                 ),
-                                const Spacer(),
-                                _historyEntryDeleteButton(
-                                  onPressed: () =>
-                                      unawaited(_offerDeleteDrugRow(i)),
+                              if (showCustomField) ...[
+                                SizedBox(height: 10.h),
+                                _clinicalCustomNameField(
+                                  controller: customNameCtl,
+                                  hint: 'Custom medicine category name',
+                                  onChanged: (v) {
+                                    setState(() {
+                                      _drugs[i] = _drugs[i].copyWith(
+                                        customMedicineCategoryName: v.trim(),
+                                      );
+                                    });
+                                  },
                                 ),
                               ],
-                            )
-                          else
-                            Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Expanded(
-                                  child: Text(
-                                    d.categoryName,
-                                    style: TextStyle(
-                                      fontSize: 14.sp,
-                                      fontWeight: FontWeight.w800,
-                                      color: AppColors.textPrimary,
-                                    ),
-                                  ),
+                            ],
+                            if (_adherenceLevels.isNotEmpty) ...[
+                              SizedBox(height: 10.h),
+                              DropdownButtonFormField<int?>(
+                                value: _clinicalRefDropdownValue(
+                                  d.adherenceLevelId,
+                                  _adherenceLevels,
                                 ),
-                                _historyEntryDeleteButton(
-                                  onPressed: () =>
-                                      unawaited(_offerDeleteDrugRow(i)),
-                                ),
-                              ],
-                            ),
-                          if (isDraft) ...[
-                            SizedBox(height: 8.h),
-                            if (catChoices.isEmpty)
-                              Text(
-                                'No selectable categories (lists loading or all already added).',
-                                style: TextStyle(
-                                  fontSize: 12.sp,
-                                  fontWeight: FontWeight.w600,
-                                  color: AppColors.dashboardWarning,
-                                ),
-                              )
-                            else
-                              DropdownButtonFormField<int>(
-                                value: d.medicineCategoryId > 0
-                                    ? d.medicineCategoryId
-                                    : null,
                                 isExpanded: true,
                                 decoration:
-                                    _fieldDecoration(hint: 'Medicine category'),
-                                items: catChoices
-                                    .map(
-                                      (e) => DropdownMenuItem<int>(
-                                        value: e.id,
-                                        child: Text(
-                                          e.name,
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: TextStyle(
-                                            fontSize: 14.sp,
-                                            fontWeight: FontWeight.w600,
+                                    _fieldDecoration(hint: 'Adherence level'),
+                                items: [
+                                  DropdownMenuItem<int?>(
+                                    value: null,
+                                    child: Text(
+                                      '—',
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        fontSize: 14.sp,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ),
+                                  ..._adherenceLevels
+                                      .where((e) => e.id > 0)
+                                      .map(
+                                        (e) => DropdownMenuItem<int?>(
+                                          value: e.id,
+                                          child: Text(
+                                            e.name,
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: TextStyle(
+                                              fontSize: 14.sp,
+                                              fontWeight: FontWeight.w600,
+                                            ),
                                           ),
                                         ),
                                       ),
-                                    )
-                                    .toList(),
+                                ],
                                 onChanged: (v) {
-                                  if (v == null) return;
-                                  final name = _namedRefLabel(catChoices, v);
                                   setState(() {
-                                    _drugs[i] = _drugs[i].copyWith(
-                                      medicineCategoryId: v,
-                                      categoryName: name,
-                                    );
+                                    if (v == null) {
+                                      _drugs[i] = _drugs[i].copyWith(
+                                        clearAdherenceLevel: true,
+                                      );
+                                    } else {
+                                      _drugs[i] = _drugs[i].copyWith(
+                                        adherenceLevelId: v,
+                                        adherenceLevelName:
+                                            _namedRefLabel(_adherenceLevels, v),
+                                      );
+                                    }
                                   });
                                 },
                               ),
-                          ],
-                          if (_adherenceLevels.isNotEmpty) ...[
-                            SizedBox(height: 10.h),
-                            DropdownButtonFormField<int?>(
-                              value: _clinicalRefDropdownValue(
-                                d.adherenceLevelId,
-                                _adherenceLevels,
+                            ],
+                            SizedBox(height: 8.h),
+                            TextFormField(
+                              controller: fxCtl,
+                              maxLines: 2,
+                              style: TextStyle(
+                                fontSize: 14.sp,
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.textPrimary,
                               ),
-                              isExpanded: true,
-                              decoration:
-                                  _fieldDecoration(hint: 'Adherence level'),
-                              items: [
-                                DropdownMenuItem<int?>(
-                                  value: null,
-                                  child: Text(
-                                    '—',
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: TextStyle(
-                                      fontSize: 14.sp,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                ),
-                                ..._adherenceLevels.where((e) => e.id > 0).map(
-                                      (e) => DropdownMenuItem<int?>(
-                                        value: e.id,
-                                        child: Text(
-                                          e.name,
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: TextStyle(
-                                            fontSize: 14.sp,
-                                            fontWeight: FontWeight.w600,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                              ],
-                              onChanged: (v) {
-                                setState(() {
-                                  if (v == null) {
-                                    _drugs[i] = _drugs[i].copyWith(
-                                      clearAdherenceLevel: true,
-                                    );
-                                  } else {
-                                    _drugs[i] = _drugs[i].copyWith(
-                                      adherenceLevelId: v,
-                                      adherenceLevelName:
-                                          _namedRefLabel(_adherenceLevels, v),
-                                    );
-                                  }
-                                });
-                              },
+                              decoration: _fieldDecoration(
+                                hint: 'Side effects / notes (optional)',
+                              ),
+                            ),
+                          ] else ...[
+                            SizedBox(height: 8.h),
+                            _historyViewLine(
+                              label: 'Adherence level',
+                              value: d.adherenceLevelName,
+                            ),
+                            _historyViewLine(
+                              label: 'Side effects / notes',
+                              value: d.sideEffects,
                             ),
                           ],
-                          SizedBox(height: 8.h),
-                          TextFormField(
-                            controller: fxCtl,
-                            maxLines: 2,
-                            style: TextStyle(
-                              fontSize: 14.sp,
-                              fontWeight: FontWeight.w600,
-                              color: AppColors.textPrimary,
-                            ),
-                            decoration: _fieldDecoration(
-                              hint: 'Side effects / notes (optional)',
-                            ),
-                          ),
                         ],
                       ),
                     );
@@ -2954,10 +3540,183 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
               ],
             ),
           ),
-        _primaryCtaButton(
-          onPressed: _savingMedical ? null : _saveMedicalAndLifestyle,
-          label: _savingMedical ? 'Saving…' : 'Save Medical History',
-        ),
+        if (_medicalTab == _MedicalHistoryTab.tobacco)
+          _historySectionCard(
+            icon: Icons.smoking_rooms_outlined,
+            title: 'Tobacco history',
+            headerTrailing: (!_baselineLoaded && !_editingTobacco)
+                ? _historyHeaderAddButton(
+                    label: 'Add new',
+                    onPressed: () => setState(() => _editingTobacco = true),
+                  )
+                : null,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                if (!_editingTobacco) ...[
+                  if (!_baselineLoaded)
+                    Text(
+                      'Not recorded yet',
+                      style: TextStyle(
+                        fontSize: 13.sp,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textSecondary,
+                        height: 1.35,
+                      ),
+                    )
+                  else ...[
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: Text(
+                            _tobaccoUse
+                                ? 'Tobacco use recorded'
+                                : 'No tobacco use',
+                            style: TextStyle(
+                              fontSize: 14.sp,
+                              fontWeight: FontWeight.w800,
+                              color: AppColors.textPrimary,
+                            ),
+                          ),
+                        ),
+                        _historyEntryViewActions(
+                          onUpdate: () =>
+                              setState(() => _editingTobacco = true),
+                          onDelete: () => unawaited(_offerDeleteTobacco()),
+                        ),
+                      ],
+                    ),
+                    SizedBox(height: 8.h),
+                    _historyViewLine(
+                      label: 'Tobacco use',
+                      value: _tobaccoUse ? 'Yes' : 'No',
+                    ),
+                    if (_tobaccoUse) ...[
+                      _historyViewLine(
+                        label: 'Tobacco type',
+                        value: _tobaccoTypeController.text,
+                      ),
+                      _historyViewLine(
+                        label: 'Quantity per day',
+                        value: _tobaccoQuantityController.text,
+                      ),
+                      _historyViewLine(
+                        label: 'Duration start',
+                        value: _tobaccoDurationStart != null
+                            ? _displayDate(_tobaccoDurationStart)
+                            : '',
+                      ),
+                      _historyViewLine(
+                        label: 'Duration end',
+                        value: _tobaccoDurationEnd != null
+                            ? _displayDate(_tobaccoDurationEnd)
+                            : '',
+                      ),
+                    ],
+                  ],
+                ] else ...[
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          _baselineLoaded
+                              ? 'Tobacco history'
+                              : 'New tobacco record',
+                          style: TextStyle(
+                            fontSize: 14.sp,
+                            fontWeight: FontWeight.w800,
+                            color: AppColors.textPrimary,
+                          ),
+                        ),
+                      ),
+                      _historyEntryUpdateButton(
+                        onPressed: _cancelTobaccoEdit,
+                        label: 'View',
+                      ),
+                      if (_baselineLoaded)
+                        _historyEntryDeleteButton(
+                          onPressed: () => unawaited(_offerDeleteTobacco()),
+                        ),
+                    ],
+                  ),
+                  SizedBox(height: 8.h),
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: Text(
+                      'Tobacco use',
+                      style: TextStyle(
+                        fontSize: 13.sp,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    value: _tobaccoUse,
+                    onChanged: (v) => setState(() => _tobaccoUse = v),
+                  ),
+                  if (_tobaccoUse) ...[
+                    SizedBox(height: 8.h),
+                    TextFormField(
+                      controller: _tobaccoTypeController,
+                      style: TextStyle(
+                        fontSize: 14.sp,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textPrimary,
+                      ),
+                      decoration: _fieldDecoration(
+                        hint: 'Tobacco type (e.g. Cigarette, Huqqa)',
+                      ),
+                    ),
+                    SizedBox(height: 10.h),
+                    TextFormField(
+                      controller: _tobaccoQuantityController,
+                      keyboardType: TextInputType.number,
+                      style: TextStyle(
+                        fontSize: 14.sp,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textPrimary,
+                      ),
+                      decoration: _fieldDecoration(
+                        hint: 'Quantity per day (optional)',
+                      ),
+                    ),
+                    SizedBox(height: 10.h),
+                    _tobaccoDateField(
+                      label: 'Duration start',
+                      date: _tobaccoDurationStart,
+                      onTap: () => unawaited(_pickTobaccoDate(isStart: true)),
+                    ),
+                    SizedBox(height: 10.h),
+                    _tobaccoDateField(
+                      label: 'Duration end (optional)',
+                      date: _tobaccoDurationEnd,
+                      onTap: () => unawaited(_pickTobaccoDate(isStart: false)),
+                      onClear: _tobaccoDurationEnd == null
+                          ? null
+                          : () => setState(() => _tobaccoDurationEnd = null),
+                    ),
+                  ],
+                ],
+              ],
+            ),
+          ),
+        if (_medicalTab == _MedicalHistoryTab.tobacco && _editingTobacco)
+          _primaryCtaButton(
+            onPressed: _savingBaseline
+                ? null
+                : () => unawaited(
+                      _saveBaselineLifestyle(
+                        successMessage: 'Tobacco history saved.',
+                        validateTobacco: true,
+                      ),
+                    ),
+            label: _savingBaseline ? 'Saving…' : 'Save Tobacco History',
+          )
+        else
+          _primaryCtaButton(
+            onPressed: _savingMedical ? null : _saveMedicalAndLifestyle,
+            label: _savingMedical ? 'Saving…' : 'Save Medical History',
+          ),
         SizedBox(height: MediaQuery.paddingOf(context).bottom + 12.h),
       ],
     );
@@ -3016,36 +3775,14 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
           onPressed: _addDrugDraft,
           label: 'Add category'
         ),
+      _MedicalHistoryTab.tobacco => (onPressed: () {}, label: ''),
     };
-    return Material(
-      color: AppColors.dashboardPrimary,
-      borderRadius: BorderRadius.circular(999),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(999),
-        onTap: action.onPressed,
-        child: Padding(
-          padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 8.h),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                Icons.add_rounded,
-                size: 16.sp,
-                color: AppColors.surface,
-              ),
-              SizedBox(width: 4.w),
-              Text(
-                action.label,
-                style: TextStyle(
-                  fontSize: 12.sp,
-                  fontWeight: FontWeight.w800,
-                  color: AppColors.surface,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
+    if (_medicalTab == _MedicalHistoryTab.tobacco) {
+      return const SizedBox.shrink();
+    }
+    return _historyHeaderAddButton(
+      label: action.label,
+      onPressed: action.onPressed,
     );
   }
 
@@ -3063,8 +3800,14 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
             ),
           ),
           _primaryCtaButton(
-            onPressed: _savingMedical ? null : _saveMedicalAndLifestyle,
-            label: _savingMedical ? 'Saving…' : 'Save Baseline Lifestyle',
+            onPressed: _savingBaseline
+                ? null
+                : () => unawaited(
+                      _saveBaselineLifestyle(
+                        successMessage: 'Baseline lifestyle saved.',
+                      ),
+                    ),
+            label: _savingBaseline ? 'Saving…' : 'Save Baseline Lifestyle',
           ),
           SizedBox(height: MediaQuery.paddingOf(context).bottom + 12.h),
         ],
@@ -3076,9 +3819,6 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
         _historySectionCard(
           icon: Icons.spa_outlined,
           title: 'Baseline lifestyle',
-          subtitle: _baselineLoaded
-              ? 'Family history and tobacco — saved with medical data.'
-              : 'First save creates this record; later saves update it.',
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -3092,22 +3832,18 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
                 value: _familyHtn,
                 onChanged: (v) => setState(() => _familyHtn = v),
               ),
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                title: Text(
-                  'Tobacco use',
-                  style:
-                      TextStyle(fontSize: 13.sp, fontWeight: FontWeight.w600),
-                ),
-                value: _tobacco,
-                onChanged: (v) => setState(() => _tobacco = v),
-              ),
             ],
           ),
         ),
         _primaryCtaButton(
-          onPressed: _savingMedical ? null : _saveMedicalAndLifestyle,
-          label: _savingMedical ? 'Saving…' : 'Save Baseline Lifestyle',
+          onPressed: _savingBaseline
+              ? null
+              : () => unawaited(
+                    _saveBaselineLifestyle(
+                      successMessage: 'Baseline lifestyle saved.',
+                    ),
+                  ),
+          label: _savingBaseline ? 'Saving…' : 'Save Baseline Lifestyle',
         ),
         SizedBox(height: MediaQuery.paddingOf(context).bottom + 12.h),
       ],
@@ -3425,9 +4161,18 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
   }
 
   Widget _sectionBody() {
+    final api = _patientApi;
     return switch (_section) {
       PatientDetailSection.personalInfo => _personalForm(),
       PatientDetailSection.medicalHistory => _medicalBody(),
+      PatientDetailSection.familyHistory => api == null
+          ? const SizedBox.shrink()
+          : PatientFamilyHistorySection(
+              patientId: widget.summary.patientId,
+              patientApi: api,
+              medicalConditions: _medicalConditions,
+              relationDegrees: _relationDegrees,
+            ),
       PatientDetailSection.baselineLifestyle => _baselineBody(),
       PatientDetailSection.visitHistory => _visitsBody(),
     };

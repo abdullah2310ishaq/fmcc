@@ -9,7 +9,7 @@
 /// - `POST` / `PUT /api/Patient/medicalhistory` — create / update row (`PUT` needs `id`)
 /// - `POST` / `PUT /api/Patient/surgicalhistory` — create / update (`PUT` needs `id`)
 /// - `POST` / `PUT /api/Patient/drughistory` — create / update (`PUT` needs `id`)
-/// - `POST` / `PUT /api/Patient/baselinelifestyle` — create / update baseline
+/// - `POST` / `PUT /api/Patient/baselinelifestyle` — create / update baseline (incl. tobacco fields)
 /// - `GET /api/Patient/visits/{patientId}/` — visit list
 /// - `POST /api/Patient/visit` — create visit
 /// - `PUT /api/Patient/visit` — update visit
@@ -90,6 +90,28 @@ class Endpoints {
       '/api/Reference/physical-activity-levels';
   static const String adherenceLevels = '/api/Reference/adherence-levels';
   static const String complianceLevels = '/api/Reference/compliance-levels';
+  static const String relationDegrees = '/api/Reference/relation-degrees';
+
+  static const String patientFamilyRelativeCreate =
+      '/api/Patient/familyhistory/relative';
+
+  static String patientFamilyHistory(String patientId) =>
+      '/api/Patient/familyhistory/${Uri.encodeComponent(patientId)}';
+
+  static String patientFamilyRelativeConditions(int relativeId) =>
+      '/api/Patient/familyhistory/relative/$relativeId/conditions';
+
+  static String patientFamilyRelativeDelete(
+    String patientId,
+    int relativeId,
+  ) =>
+      '/api/Patient/familyhistory/relative/${Uri.encodeComponent(patientId)}/$relativeId';
+
+  static String patientFamilyConditionDelete(
+    String patientId,
+    String relativeConditionId,
+  ) =>
+      '/api/Patient/familyhistory/condition/${Uri.encodeComponent(patientId)}/${Uri.encodeComponent(relativeConditionId)}';
 
   static const String patientVisitCreate = '/api/Patient/visit';
   static const String patientVisitUpdate = '/api/Patient/visit';

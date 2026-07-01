@@ -157,6 +157,7 @@ class PatientMedicalHistoryRow {
     required this.patientId,
     required this.conditionId,
     required this.conditionName,
+    this.customConditionName = '',
     this.durationInMonths,
     required this.isOnMedication,
     this.complianceLevelId,
@@ -167,14 +168,25 @@ class PatientMedicalHistoryRow {
   final String patientId;
   final int conditionId;
   final String conditionName;
+  final String customConditionName;
   final int? durationInMonths;
   final bool isOnMedication;
   final int? complianceLevelId;
   final String complianceLevelName;
 
+  bool get isCustomCondition => customConditionName.trim().isNotEmpty;
+
+  String get displayConditionName {
+    final custom = customConditionName.trim();
+    if (custom.isNotEmpty) return custom;
+    return conditionName;
+  }
+
   PatientMedicalHistoryRow copyWith({
     int? conditionId,
     String? conditionName,
+    String? customConditionName,
+    bool clearCustomCondition = false,
     bool? isOnMedication,
     int? durationInMonths,
     int? complianceLevelId,
@@ -186,6 +198,9 @@ class PatientMedicalHistoryRow {
       patientId: patientId,
       conditionId: conditionId ?? this.conditionId,
       conditionName: conditionName ?? this.conditionName,
+      customConditionName: clearCustomCondition
+          ? ''
+          : (customConditionName ?? this.customConditionName),
       durationInMonths: durationInMonths ?? this.durationInMonths,
       isOnMedication: isOnMedication ?? this.isOnMedication,
       complianceLevelId: clearComplianceLevel
@@ -207,6 +222,8 @@ class PatientMedicalHistoryRow {
       patientId: _readString(m, 'patientId', 'PatientId') ?? '',
       conditionId: _readInt(m, 'conditionId', 'ConditionId') ?? 0,
       conditionName: _readString(m, 'conditionName', 'ConditionName') ?? '',
+      customConditionName:
+          _readString(m, 'customConditionName', 'CustomConditionName') ?? '',
       durationInMonths: _readInt(m, 'durationInMonths', 'DurationInMonths'),
       isOnMedication: _readBool(m, 'isOnMedication', 'IsOnMedication') ?? false,
       complianceLevelId: _readInt(m, 'complianceLevelId', 'ComplianceLevelId'),
@@ -222,6 +239,7 @@ class PatientSurgicalHistoryRow {
     required this.patientId,
     required this.procedureId,
     required this.procedureName,
+    this.customProcedureName = '',
     this.approxMonth,
     this.approxYear,
     required this.notes,
@@ -231,13 +249,24 @@ class PatientSurgicalHistoryRow {
   final String patientId;
   final int procedureId;
   final String procedureName;
+  final String customProcedureName;
   final int? approxMonth;
   final int? approxYear;
   final String notes;
 
+  bool get isCustomProcedure => customProcedureName.trim().isNotEmpty;
+
+  String get displayProcedureName {
+    final custom = customProcedureName.trim();
+    if (custom.isNotEmpty) return custom;
+    return procedureName;
+  }
+
   PatientSurgicalHistoryRow copyWith({
     int? procedureId,
     String? procedureName,
+    String? customProcedureName,
+    bool clearCustomProcedure = false,
     int? approxMonth,
     int? approxYear,
     String? notes,
@@ -247,6 +276,9 @@ class PatientSurgicalHistoryRow {
       patientId: patientId,
       procedureId: procedureId ?? this.procedureId,
       procedureName: procedureName ?? this.procedureName,
+      customProcedureName: clearCustomProcedure
+          ? ''
+          : (customProcedureName ?? this.customProcedureName),
       approxMonth: approxMonth ?? this.approxMonth,
       approxYear: approxYear ?? this.approxYear,
       notes: notes ?? this.notes,
@@ -263,6 +295,8 @@ class PatientSurgicalHistoryRow {
       patientId: _readString(m, 'patientId', 'PatientId') ?? '',
       procedureId: _readInt(m, 'procedureId', 'ProcedureId') ?? 0,
       procedureName: _readString(m, 'procedureName', 'ProcedureName') ?? '',
+      customProcedureName:
+          _readString(m, 'customProcedureName', 'CustomProcedureName') ?? '',
       approxMonth: _readInt(m, 'approxMonth', 'ApproxMonth'),
       approxYear: _readInt(m, 'approxYear', 'ApproxYear'),
       notes: _readString(m, 'notes', 'Notes') ?? '',
@@ -276,6 +310,7 @@ class PatientDrugHistoryRow {
     required this.patientId,
     required this.medicineCategoryId,
     required this.categoryName,
+    this.customMedicineCategoryName = '',
     this.adherenceLevelId,
     required this.adherenceLevelName,
     required this.sideEffects,
@@ -285,13 +320,24 @@ class PatientDrugHistoryRow {
   final String patientId;
   final int medicineCategoryId;
   final String categoryName;
+  final String customMedicineCategoryName;
   final int? adherenceLevelId;
   final String adherenceLevelName;
   final String sideEffects;
 
+  bool get isCustomCategory => customMedicineCategoryName.trim().isNotEmpty;
+
+  String get displayCategoryName {
+    final custom = customMedicineCategoryName.trim();
+    if (custom.isNotEmpty) return custom;
+    return categoryName;
+  }
+
   PatientDrugHistoryRow copyWith({
     int? medicineCategoryId,
     String? categoryName,
+    String? customMedicineCategoryName,
+    bool clearCustomCategory = false,
     int? adherenceLevelId,
     String? adherenceLevelName,
     String? sideEffects,
@@ -302,6 +348,9 @@ class PatientDrugHistoryRow {
       patientId: patientId,
       medicineCategoryId: medicineCategoryId ?? this.medicineCategoryId,
       categoryName: categoryName ?? this.categoryName,
+      customMedicineCategoryName: clearCustomCategory
+          ? ''
+          : (customMedicineCategoryName ?? this.customMedicineCategoryName),
       adherenceLevelId: clearAdherenceLevel
           ? null
           : (adherenceLevelId ?? this.adherenceLevelId),
@@ -326,6 +375,12 @@ class PatientDrugHistoryRow {
       medicineCategoryId:
           _readInt(m, 'medicineCategoryId', 'MedicineCategoryId') ?? 0,
       categoryName: catName ?? '',
+      customMedicineCategoryName: _readString(
+            m,
+            'customMedicineCategoryName',
+            'CustomMedicineCategoryName',
+          ) ??
+          '',
       adherenceLevelId: _readInt(m, 'adherenceLevelId', 'AdherenceLevelId'),
       adherenceLevelName:
           _readString(m, 'adherenceLevelName', 'AdherenceLevelName') ?? '',
@@ -334,16 +389,189 @@ class PatientDrugHistoryRow {
   }
 }
 
+class PatientFamilyConditionRow {
+  const PatientFamilyConditionRow({
+    required this.relativeConditionId,
+    required this.conditionId,
+    required this.conditionName,
+    this.customConditionName = '',
+  });
+
+  final String relativeConditionId;
+  final int conditionId;
+  final String conditionName;
+  final String customConditionName;
+
+  bool get isDraft => relativeConditionId.trim().isEmpty;
+
+  bool get isCustomCondition => customConditionName.trim().isNotEmpty;
+
+  String get displayConditionName {
+    final custom = customConditionName.trim();
+    if (custom.isNotEmpty) return custom;
+    return conditionName;
+  }
+
+  PatientFamilyConditionRow copyWith({
+    int? conditionId,
+    String? conditionName,
+    String? customConditionName,
+    bool clearCustomCondition = false,
+  }) {
+    return PatientFamilyConditionRow(
+      relativeConditionId: relativeConditionId,
+      conditionId: conditionId ?? this.conditionId,
+      conditionName: conditionName ?? this.conditionName,
+      customConditionName: clearCustomCondition
+          ? ''
+          : (customConditionName ?? this.customConditionName),
+    );
+  }
+
+  static PatientFamilyConditionRow? tryFromJson(dynamic json) {
+    if (json is! Map) return null;
+    final m = Map<String, dynamic>.from(json);
+    final rcId = _readString(
+          m,
+          'relativeConditionId',
+          'RelativeConditionId',
+        ) ??
+        _readString(m, 'id', 'Id');
+    if (rcId == null || rcId.isEmpty) return null;
+    return PatientFamilyConditionRow(
+      relativeConditionId: rcId,
+      conditionId: _readInt(m, 'conditionId', 'ConditionId') ?? 0,
+      conditionName: _readString(m, 'conditionName', 'ConditionName') ?? '',
+      customConditionName:
+          _readString(m, 'customConditionName', 'CustomConditionName') ?? '',
+    );
+  }
+}
+
+class PatientFamilyRelativeRow {
+  const PatientFamilyRelativeRow({
+    required this.relativeId,
+    required this.patientId,
+    required this.relationDegreeId,
+    required this.relationDegreeName,
+    required this.specificRelation,
+    required this.conditions,
+  });
+
+  final int relativeId;
+  final String patientId;
+  final int relationDegreeId;
+  final String relationDegreeName;
+  final String specificRelation;
+  final List<PatientFamilyConditionRow> conditions;
+
+  bool get isDraft => relativeId <= 0;
+
+  String get displayTitle {
+    final spec = specificRelation.trim();
+    if (spec.isNotEmpty) return spec;
+    final degree = relationDegreeName.trim();
+    if (degree.isNotEmpty) return degree;
+    return 'Relative';
+  }
+
+  PatientFamilyRelativeRow copyWith({
+    int? relativeId,
+    int? relationDegreeId,
+    String? relationDegreeName,
+    String? specificRelation,
+    List<PatientFamilyConditionRow>? conditions,
+  }) {
+    return PatientFamilyRelativeRow(
+      relativeId: relativeId ?? this.relativeId,
+      patientId: patientId,
+      relationDegreeId: relationDegreeId ?? this.relationDegreeId,
+      relationDegreeName: relationDegreeName ?? this.relationDegreeName,
+      specificRelation: specificRelation ?? this.specificRelation,
+      conditions: conditions ?? this.conditions,
+    );
+  }
+
+  static PatientFamilyRelativeRow? tryFromJson(dynamic json) {
+    if (json is! Map) return null;
+    final m = Map<String, dynamic>.from(json);
+    final relativeId = _readInt(m, 'relativeId', 'RelativeId') ??
+        _readInt(m, 'id', 'Id');
+    if (relativeId == null || relativeId <= 0) return null;
+
+    final conditions = <PatientFamilyConditionRow>[];
+    final condRaw = m['conditions'] ?? m['Conditions'];
+    if (condRaw is List) {
+      for (final item in condRaw) {
+        final row = PatientFamilyConditionRow.tryFromJson(item);
+        if (row != null) conditions.add(row);
+      }
+    }
+
+    return PatientFamilyRelativeRow(
+      relativeId: relativeId,
+      patientId: _readString(m, 'patientId', 'PatientId') ?? '',
+      relationDegreeId: _readInt(m, 'relationDegreeId', 'RelationDegreeId') ?? 0,
+      relationDegreeName:
+          _readString(m, 'relationDegreeName', 'RelationDegreeName') ?? '',
+      specificRelation:
+          _readString(m, 'specificRelation', 'SpecificRelation') ?? '',
+      conditions: conditions,
+    );
+  }
+}
+
+class PatientFamilyHistoryData {
+  const PatientFamilyHistoryData({required this.relatives});
+
+  final List<PatientFamilyRelativeRow> relatives;
+
+  static PatientFamilyHistoryData? tryFromJson(dynamic json) {
+    List<dynamic>? raw;
+    if (json is List) {
+      raw = json;
+    } else if (json is Map) {
+      var m = Map<String, dynamic>.from(json);
+      final envelope = m['data'] ?? m['Data'];
+      if (envelope is Map) {
+        m = Map<String, dynamic>.from(envelope);
+      } else if (envelope is List) {
+        raw = envelope;
+      }
+      raw ??= m['relatives'] ??
+          m['Relatives'] ??
+          m['familyHistory'] ??
+          m['FamilyHistory'];
+    }
+    if (raw == null) return const PatientFamilyHistoryData(relatives: []);
+
+    final relatives = <PatientFamilyRelativeRow>[];
+    for (final item in raw) {
+      final row = PatientFamilyRelativeRow.tryFromJson(item);
+      if (row != null) relatives.add(row);
+    }
+    return PatientFamilyHistoryData(relatives: relatives);
+  }
+}
+
 class PatientBaselineLifestyle {
   const PatientBaselineLifestyle({
     required this.patientId,
     required this.familyHistoryOfHtnOrStroke,
     required this.tobaccoUse,
+    this.tobaccoType,
+    this.tobaccoQuantityPerDay,
+    this.tobaccoDurationStart,
+    this.tobaccoDurationEnd,
   });
 
   final String patientId;
   final bool familyHistoryOfHtnOrStroke;
   final bool tobaccoUse;
+  final String? tobaccoType;
+  final int? tobaccoQuantityPerDay;
+  final DateTime? tobaccoDurationStart;
+  final DateTime? tobaccoDurationEnd;
 
   static PatientBaselineLifestyle? tryFromJson(dynamic json) {
     if (json is! Map) return null;
@@ -356,6 +584,13 @@ class PatientBaselineLifestyle {
               m, 'familyHistoryOfHtnOrStroke', 'FamilyHistoryOfHtnOrStroke') ??
           false,
       tobaccoUse: _readBool(m, 'tobaccoUse', 'TobaccoUse') ?? false,
+      tobaccoType: _readString(m, 'tobaccoType', 'TobaccoType'),
+      tobaccoQuantityPerDay:
+          _readInt(m, 'tobaccoQuantityPerDay', 'TobaccoQuantityPerDay'),
+      tobaccoDurationStart:
+          _readDateTime(m, 'tobaccoDurationStart', 'TobaccoDurationStart'),
+      tobaccoDurationEnd:
+          _readDateTime(m, 'tobaccoDurationEnd', 'TobaccoDurationEnd'),
     );
   }
 }

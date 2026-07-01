@@ -29,12 +29,15 @@ class VisitTabPage extends StatefulWidget {
     this.initialPatient,
     this.openRequestId = 0,
     this.onLeaveToHomeTab,
+    this.onVisitAssessmentActiveChanged,
   });
 
   final VisitPatientSeed? initialPatient;
   final int openRequestId;
   /// System back from visit list (not assessment) → Home tab.
   final VoidCallback? onLeaveToHomeTab;
+  /// `true` while the visit assessment form is on screen (hide shell center FAB).
+  final ValueChanged<bool>? onVisitAssessmentActiveChanged;
 
   @override
   State<VisitTabPage> createState() => _VisitTabPageState();
@@ -74,6 +77,25 @@ class _VisitTabPageState extends State<VisitTabPage> {
   void initState() {
     super.initState();
     _selectedPatient = widget.initialPatient;
+    if (_selectedPatient != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        widget.onVisitAssessmentActiveChanged?.call(true);
+      });
+    }
+  }
+
+  void _setSelectedPatient(VisitPatientSeed? patient) {
+    if (_selectedPatient == patient) return;
+    setState(() => _selectedPatient = patient);
+    widget.onVisitAssessmentActiveChanged?.call(patient != null);
+  }
+
+  @override
+  void dispose() {
+    if (_selectedPatient != null) {
+      widget.onVisitAssessmentActiveChanged?.call(false);
+    }
+    super.dispose();
   }
 
   @override
@@ -84,6 +106,7 @@ class _VisitTabPageState extends State<VisitTabPage> {
         (next.apiPatientId != oldWidget.initialPatient?.apiPatientId ||
             widget.openRequestId != oldWidget.openRequestId)) {
       setState(() => _selectedPatient = next);
+      widget.onVisitAssessmentActiveChanged?.call(true);
     }
   }
 
@@ -95,7 +118,7 @@ class _VisitTabPageState extends State<VisitTabPage> {
     if (patient != null) {
       page = _VisitAssessmentView(
         patient: patient,
-        onBack: () => setState(() => _selectedPatient = null),
+        onBack: () => _setSelectedPatient(null),
       );
     } else {
       final session = context.watch<SessionController>();
@@ -248,9 +271,7 @@ class _VisitTabPageState extends State<VisitTabPage> {
                                 }
                                 return _VisitPatientCard(
                                   patient: seed,
-                                  onTap: () => setState(
-                                    () => _selectedPatient = seed,
-                                  ),
+                                  onTap: () => _setSelectedPatient(seed),
                                 );
                               },
                             ),
@@ -267,7 +288,7 @@ class _VisitTabPageState extends State<VisitTabPage> {
       onPopInvokedWithResult: (didPop, result) {
         if (didPop) return;
         if (_selectedPatient != null) {
-          setState(() => _selectedPatient = null);
+          _setSelectedPatient(null);
         } else {
           widget.onLeaveToHomeTab?.call();
         }
@@ -402,6 +423,8 @@ class _VisitAssessmentViewState extends State<_VisitAssessmentView> {
   final _systolic2Controller = TextEditingController(text: '120');
   final _diastolic2Controller = TextEditingController(text: '80');
   final _pulseController = TextEditingController(text: '78');
+  final _temperatureController = TextEditingController();
+  final _respiratoryRateController = TextEditingController();
   final _reasonController = TextEditingController();
   final _weightConcernsController = TextEditingController();
   final _adherenceNoteController = TextEditingController();
@@ -423,7 +446,7 @@ class _VisitAssessmentViewState extends State<_VisitAssessmentView> {
   int? _visitActionId;
   int? _physicalActivityLevelId;
 
-  final Set<int> _symptomIds = {};
+  final Map<int, bool> _symptomAnswers = {};
 
   bool _highSaltDiet = false;
   bool _alcoholUse = false;
@@ -546,6 +569,8 @@ class _VisitAssessmentViewState extends State<_VisitAssessmentView> {
     _systolic2Controller.dispose();
     _diastolic2Controller.dispose();
     _pulseController.dispose();
+    _temperatureController.dispose();
+    _respiratoryRateController.dispose();
     _reasonController.dispose();
     _weightConcernsController.dispose();
     _adherenceNoteController.dispose();
@@ -623,6 +648,10 @@ class _VisitAssessmentViewState extends State<_VisitAssessmentView> {
     return BpReadingColor.forPulse(p);
   }
 
+  double? _parseDoubleCtl(TextEditingController c) {
+    return double.tryParse(c.text.trim().replaceAll(',', '.'));
+  }
+
   Map<String, dynamic> _buildVisitBody({
     required String patientId,
     required String healthWorkerId,
@@ -632,6 +661,8 @@ class _VisitAssessmentViewState extends State<_VisitAssessmentView> {
     final s2 = _parseIntCtl(_systolic2Controller);
     final d2 = _parseIntCtl(_diastolic2Controller);
     final pulse = _parseIntCtl(_pulseController);
+    final temperature = _parseDoubleCtl(_temperatureController);
+    final respiratoryRate = _parseIntCtl(_respiratoryRateController);
 
     final map = <String, dynamic>{
       'patientId': patientId,
@@ -641,11 +672,25 @@ class _VisitAssessmentViewState extends State<_VisitAssessmentView> {
       'highSaltDiet': _highSaltDiet,
       'alcoholUse': _alcoholUse,
       'dangerSigns': _dangerSigns,
-      'symptomIds': _symptomIds.toList(),
+      'symptomIds': _symptomAnswers.entries
+          .where((e) => e.value)
+          .map((e) => e.key)
+          .toList(),
       // Send local "now" without `.toUtc()` so the calendar date that the
       // user sees on their phone is what the backend stores.
       'visitDate': DateTime.now().toIso8601String(),
     };
+
+    if (_symptomAnswers.isNotEmpty) {
+      map['symptoms'] = _symptomAnswers.entries
+          .map(
+            (e) => <String, dynamic>{
+              'symptomId': e.key,
+              'isPresent': e.value,
+            },
+          )
+          .toList();
+    }
 
     final reason = _reasonController.text.trim();
     if (reason.isNotEmpty) map['reasonForVisit'] = reason;
@@ -660,6 +705,8 @@ class _VisitAssessmentViewState extends State<_VisitAssessmentView> {
       map['avgDiastolicBP'] = avg.dbp;
     }
     if (pulse != null) map['pulse'] = pulse;
+    if (temperature != null) map['temperature'] = temperature;
+    if (respiratoryRate != null) map['respiratoryRate'] = respiratoryRate;
 
     if (_visitActionId != null && _visitActionId! > 0) {
       map['visitActionId'] = _visitActionId;
@@ -724,6 +771,32 @@ class _VisitAssessmentViewState extends State<_VisitAssessmentView> {
     if (pulse != null && (pulse < 20 || pulse > 300)) {
       _toast('Pulse must be between 20 and 300.');
       return;
+    }
+    final tempRaw = _temperatureController.text.trim();
+    if (tempRaw.isNotEmpty) {
+      final temp = _parseDoubleCtl(_temperatureController);
+      if (temp == null || temp < 30 || temp > 45) {
+        _toast('Temperature must be between 30 and 45 °C.');
+        return;
+      }
+    }
+    final rrRaw = _respiratoryRateController.text.trim();
+    if (rrRaw.isNotEmpty) {
+      final rr = _parseIntCtl(_respiratoryRateController);
+      if (rr == null || rr < 5 || rr > 80) {
+        _toast('Respiratory rate must be between 5 and 80 per minute.');
+        return;
+      }
+    }
+
+    if (_symptoms.isNotEmpty) {
+      for (final s in _symptoms) {
+        if (s.id <= 0) continue;
+        if (!_symptomAnswers.containsKey(s.id)) {
+          _toast('Answer Yes or No for each symptom.');
+          return;
+        }
+      }
     }
 
     final pid = widget.patient.apiPatientId.trim();
@@ -886,38 +959,136 @@ class _VisitAssessmentViewState extends State<_VisitAssessmentView> {
     );
   }
 
-  Widget _chip({
+  Widget _optionalIntField({
+    required String label,
+    required String unit,
+    required TextEditingController controller,
+  }) {
+    return TextFormField(
+      controller: controller,
+      keyboardType: TextInputType.number,
+      style: TextStyle(
+        fontSize: 18.sp,
+        fontWeight: FontWeight.w900,
+        color: AppColors.textPrimary,
+      ),
+      decoration: _fieldDecoration().copyWith(
+        labelText: label,
+        labelStyle: TextStyle(
+          fontSize: 11.sp,
+          fontWeight: FontWeight.w700,
+          color: AppColors.registrationSectionLabel,
+        ),
+        helperText: unit,
+        helperStyle: TextStyle(
+          fontSize: 10.sp,
+          fontWeight: FontWeight.w600,
+          color: AppColors.registrationSectionLabel,
+        ),
+      ),
+    );
+  }
+
+  Widget _optionalDecimalField({
+    required String label,
+    required String unit,
+    required TextEditingController controller,
+  }) {
+    return TextFormField(
+      controller: controller,
+      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+      style: TextStyle(
+        fontSize: 18.sp,
+        fontWeight: FontWeight.w900,
+        color: AppColors.textPrimary,
+      ),
+      decoration: _fieldDecoration().copyWith(
+        labelText: label,
+        labelStyle: TextStyle(
+          fontSize: 11.sp,
+          fontWeight: FontWeight.w700,
+          color: AppColors.registrationSectionLabel,
+        ),
+        helperText: unit,
+        helperStyle: TextStyle(
+          fontSize: 10.sp,
+          fontWeight: FontWeight.w600,
+          color: AppColors.registrationSectionLabel,
+        ),
+      ),
+    );
+  }
+
+  Widget _symptomYesNoRow(NamedReferenceItem symptom) {
+    final answer = _symptomAnswers[symptom.id];
+    return Padding(
+      padding: EdgeInsets.only(bottom: 8.h),
+      child: Container(
+        padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 10.h),
+        decoration: BoxDecoration(
+          color: AppColors.registrationFieldFill.withValues(alpha: 0.55),
+          borderRadius: BorderRadius.circular(12.r),
+          border: Border.all(color: AppColors.registrationFieldBorder),
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                symptom.name,
+                style: TextStyle(
+                  fontSize: 13.sp,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.dashboardPrimaryDark,
+                ),
+              ),
+            ),
+            SizedBox(width: 8.w),
+            _yesNoChoice(
+              label: 'Yes',
+              selected: answer == true,
+              onTap: () => setState(() => _symptomAnswers[symptom.id] = true),
+            ),
+            SizedBox(width: 6.w),
+            _yesNoChoice(
+              label: 'No',
+              selected: answer == false,
+              onTap: () => setState(() => _symptomAnswers[symptom.id] = false),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _yesNoChoice({
     required String label,
     required bool selected,
     required VoidCallback onTap,
   }) {
     return Material(
       color: selected
-          ? AppColors.dashboardPrimary.withValues(alpha: 0.08)
-          : AppColors.registrationFieldFill,
-      borderRadius: BorderRadius.circular(999),
+          ? AppColors.dashboardPrimary
+          : AppColors.surface,
+      borderRadius: BorderRadius.circular(8.r),
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(999),
+        borderRadius: BorderRadius.circular(8.r),
         child: Container(
-          padding: EdgeInsets.symmetric(horizontal: 14.w, vertical: 9.h),
+          padding: EdgeInsets.symmetric(horizontal: 14.w, vertical: 8.h),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(999),
+            borderRadius: BorderRadius.circular(8.r),
             border: Border.all(
               color: selected
                   ? AppColors.dashboardPrimary
                   : AppColors.registrationFieldBorder,
-              width: selected ? 1.3 : 1,
             ),
           ),
           child: Text(
             label,
             style: TextStyle(
               fontSize: 12.sp,
-              fontWeight: FontWeight.w700,
-              color: selected
-                  ? AppColors.dashboardPrimary
-                  : AppColors.dashboardPrimaryDark,
+              fontWeight: FontWeight.w800,
+              color: selected ? AppColors.surface : AppColors.textSecondary,
             ),
           ),
         ),
@@ -1148,6 +1319,27 @@ class _VisitAssessmentViewState extends State<_VisitAssessmentView> {
             unit: 'bpm',
             controller: _pulseController,
             valueColor: _pulseInputColor(),
+          ),
+          SizedBox(height: 14.h),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: _optionalDecimalField(
+                  label: 'Temperature',
+                  unit: '°C',
+                  controller: _temperatureController,
+                ),
+              ),
+              SizedBox(width: 10.w),
+              Expanded(
+                child: _optionalIntField(
+                  label: 'Respiratory rate',
+                  unit: '/min',
+                  controller: _respiratoryRateController,
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -1558,22 +1750,20 @@ class _VisitAssessmentViewState extends State<_VisitAssessmentView> {
                             color: AppColors.textSecondary,
                           ),
                         )
-                      else
-                        Wrap(
-                          spacing: 9.w,
-                          runSpacing: 9.h,
-                          children: _symptoms.map((s) {
-                            return _chip(
-                              label: s.name,
-                              selected: _symptomIds.contains(s.id),
-                              onTap: () => setState(() {
-                                if (!_symptomIds.add(s.id)) {
-                                  _symptomIds.remove(s.id);
-                                }
-                              }),
-                            );
-                          }).toList(),
+                      else ...[
+                        Text(
+                          'Mark Yes or No for each symptom.',
+                          style: TextStyle(
+                            fontSize: 11.sp,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.textSecondary,
+                          ),
                         ),
+                        SizedBox(height: 10.h),
+                        ..._symptoms
+                            .where((s) => s.id > 0)
+                            .map(_symptomYesNoRow),
+                      ],
                       SizedBox(height: 22.h),
                       _sectionTitle('LIFESTYLE (VISITUpsert)'),
                       if (!_refsLoading)

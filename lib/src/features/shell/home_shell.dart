@@ -32,6 +32,15 @@ class _HomeShellState extends State<HomeShell> {
   int _tabIndex = 0;
   int _visitOpenRequestId = 0;
   VisitPatientSeed? _visitPatient;
+  bool _visitAssessmentOpen = false;
+
+  bool get _showCenterFab =>
+      !(_tabIndex == HomeShellTab.visit.index && _visitAssessmentOpen);
+
+  void _onVisitAssessmentActiveChanged(bool open) {
+    if (_visitAssessmentOpen == open) return;
+    setState(() => _visitAssessmentOpen = open);
+  }
 
   Future<void> _onFab() async {
     final created = await context.push<bool>(
@@ -61,6 +70,7 @@ class _HomeShellState extends State<HomeShell> {
     setState(() {
       _tabIndex = HomeShellTab.home.index;
       _visitPatient = null;
+      _visitAssessmentOpen = false;
     });
   }
 
@@ -82,6 +92,7 @@ class _HomeShellState extends State<HomeShell> {
         initialPatient: _visitPatient,
         openRequestId: _visitOpenRequestId,
         onLeaveToHomeTab: _goHomeTab,
+        onVisitAssessmentActiveChanged: _onVisitAssessmentActiveChanged,
       ),
       ProfileTabPage(onLeaveToHomeTab: _goHomeTab),
     ];
@@ -111,15 +122,21 @@ class _HomeShellState extends State<HomeShell> {
             index: _tabIndex,
             children: pages,
           ),
-        floatingActionButton: FloatingActionButton(
-          onPressed: _onFab,
-          backgroundColor: AppColors.dashboardPrimaryDark,
-          elevation: 4,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(14.r),
-          ),
-          child: Icon(Icons.note_add_rounded, color: Colors.white, size: 26.sp),
-        ),
+        floatingActionButton: _showCenterFab
+            ? FloatingActionButton(
+                onPressed: _onFab,
+                backgroundColor: AppColors.dashboardPrimaryDark,
+                elevation: 4,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14.r),
+                ),
+                child: Icon(
+                  Icons.note_add_rounded,
+                  color: Colors.white,
+                  size: 26.sp,
+                ),
+              )
+            : null,
         floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
         bottomNavigationBar: BottomAppBar(
           padding: EdgeInsets.zero,
@@ -127,7 +144,7 @@ class _HomeShellState extends State<HomeShell> {
           color: AppColors.surface,
           elevation: 12,
           shadowColor: Colors.black26,
-          shape: const CircularNotchedRectangle(),
+          shape: _showCenterFab ? const CircularNotchedRectangle() : null,
           notchMargin: 8,
           child: Padding(
             padding: EdgeInsets.only(bottom: bottomInset),
@@ -149,7 +166,7 @@ class _HomeShellState extends State<HomeShell> {
                         setState(() => _tabIndex = HomeShellTab.patients.index),
                   ),
                 ),
-                SizedBox(width: 56.w),
+                if (_showCenterFab) SizedBox(width: 56.w),
                 Expanded(
                   child: ShellNavItem(
                     tab: HomeShellTab.visit,

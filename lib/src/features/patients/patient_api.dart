@@ -68,6 +68,60 @@ String? _parseVisitId(dynamic root) {
   return _visitIdFromMap(m);
 }
 
+int? _relativeIdFromMap(Map<String, dynamic> map) {
+  const keys = <String>[
+    'relativeId',
+    'RelativeId',
+    'id',
+    'Id',
+  ];
+  for (final k in keys) {
+    final v = map[k];
+    if (v is int && v > 0) return v;
+    if (v is num) {
+      final i = v.toInt();
+      if (i > 0) return i;
+    }
+    if (v is String) {
+      final i = int.tryParse(v.trim());
+      if (i != null && i > 0) return i;
+    }
+  }
+  return null;
+}
+
+int? _parseRelativeId(dynamic root) {
+  if (root is int && root > 0) return root;
+  if (root is num) {
+    final i = root.toInt();
+    if (i > 0) return i;
+  }
+  if (root is String) {
+    final i = int.tryParse(root.trim());
+    if (i != null && i > 0) return i;
+  }
+  if (root is! Map) return null;
+  final m = Map<String, dynamic>.from(root);
+
+  final fromRoot = _relativeIdFromMap(m);
+  if (fromRoot != null) return fromRoot;
+
+  final rawData = m['data'] ?? m['Data'];
+  if (rawData is int && rawData > 0) return rawData;
+  if (rawData is num) {
+    final i = rawData.toInt();
+    if (i > 0) return i;
+  }
+  if (rawData is String) {
+    final i = int.tryParse(rawData.trim());
+    if (i != null && i > 0) return i;
+  }
+  if (rawData is Map) {
+    return _relativeIdFromMap(Map<String, dynamic>.from(rawData));
+  }
+  return null;
+}
+
 /// Patient HTTP API — mirrors `MedicalApi/Controllers/PatientController.cs`.
 ///
 /// **Bundled read:** [getCompleteHistory] calls
@@ -313,6 +367,80 @@ class PatientApi {
   }) async {
     await _client.delete(
       Endpoints.patientDrugHistoryDelete(id),
+      bearerToken: bearerToken,
+    );
+  }
+
+  /// `GET /api/Patient/familyhistory/{patientId}`.
+  Future<PatientFamilyHistoryData?> getFamilyHistory({
+    required String patientId,
+    required String bearerToken,
+  }) async {
+    try {
+      final res = await _client.get(
+        Endpoints.patientFamilyHistory(patientId),
+        bearerToken: bearerToken,
+      );
+      return PatientFamilyHistoryData.tryFromJson(res.data);
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 404) {
+        return const PatientFamilyHistoryData(relatives: []);
+      }
+      rethrow;
+    }
+  }
+
+  /// `POST /api/Patient/familyhistory/relative` — returns new relative id.
+  Future<int> postFamilyRelative({
+    required Map<String, dynamic> body,
+    required String bearerToken,
+  }) async {
+    final res = await _client.post(
+      Endpoints.patientFamilyRelativeCreate,
+      body: body,
+      bearerToken: bearerToken,
+    );
+    final id = _parseRelativeId(res.data);
+    if (id == null) {
+      throw StateError('Invalid create family relative response.');
+    }
+    return id;
+  }
+
+  /// `POST /api/Patient/familyhistory/relative/{relativeId}/conditions`.
+  Future<void> postFamilyRelativeConditions({
+    required int relativeId,
+    required List<Map<String, dynamic>> body,
+    required String bearerToken,
+  }) async {
+    if (body.isEmpty) return;
+    await _client.post(
+      Endpoints.patientFamilyRelativeConditions(relativeId),
+      body: body,
+      bearerToken: bearerToken,
+    );
+  }
+
+  /// `DELETE /api/Patient/familyhistory/relative/{patientId}/{relativeId}`.
+  Future<void> deleteFamilyRelative({
+    required String patientId,
+    required int relativeId,
+    required String bearerToken,
+  }) async {
+    await _client.delete(
+      Endpoints.patientFamilyRelativeDelete(patientId, relativeId),
+      bearerToken: bearerToken,
+    );
+  }
+
+  /// `DELETE /api/Patient/familyhistory/condition/{patientId}/{relativeConditionId}`.
+  Future<void> deleteFamilyCondition({
+    required String patientId,
+    required String relativeConditionId,
+    required String bearerToken,
+  }) async {
+    await _client.delete(
+      Endpoints.patientFamilyConditionDelete(patientId, relativeConditionId),
       bearerToken: bearerToken,
     );
   }
