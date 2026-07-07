@@ -46,6 +46,13 @@ String patientDetailShortVisit(DateTime? d) {
   return '${d.day} ${months[d.month - 1]} ${d.year}';
 }
 
+String _summaryGenderLabel(String gender) {
+  final g = gender.trim().toLowerCase();
+  if (g == 'male' || g == 'm') return 'Male';
+  if (g == 'female' || g == 'f') return 'Female';
+  return gender.trim().isNotEmpty ? gender.trim() : '—';
+}
+
 Color _avatarForCondition(String primary) {
   final p = primary.toLowerCase();
   if (p.contains('antenatal') || p.contains('pregnan')) {
@@ -85,13 +92,42 @@ enum PatientDetailSection {
   visitHistory,
 }
 
-extension on PatientDetailSection {
+extension PatientDetailSectionUi on PatientDetailSection {
   String get label => switch (this) {
         PatientDetailSection.personalInfo => 'Personal Info',
         PatientDetailSection.medicalHistory => 'Medical History',
         PatientDetailSection.familyHistory => 'Family History',
         PatientDetailSection.baselineLifestyle => 'Baseline Lifestyle',
         PatientDetailSection.visitHistory => 'Visit History',
+      };
+
+  String get subtitle => switch (this) {
+        PatientDetailSection.personalInfo =>
+          'Demographics, contact & address',
+        PatientDetailSection.medicalHistory =>
+          'Chronic, surgical, drug & tobacco history',
+        PatientDetailSection.familyHistory =>
+          'Family relatives & hereditary conditions',
+        PatientDetailSection.baselineLifestyle =>
+          'Baseline lifestyle & family HTN/stroke',
+        PatientDetailSection.visitHistory => 'Past visits & follow-ups',
+      };
+
+  IconData get icon => switch (this) {
+        PatientDetailSection.personalInfo => Icons.person_outline_rounded,
+        PatientDetailSection.medicalHistory =>
+          Icons.medical_information_outlined,
+        PatientDetailSection.familyHistory => Icons.family_restroom_outlined,
+        PatientDetailSection.baselineLifestyle => Icons.spa_outlined,
+        PatientDetailSection.visitHistory => Icons.event_note_rounded,
+      };
+
+  Color get accentColor => switch (this) {
+        PatientDetailSection.personalInfo => AppColors.dashboardPrimary,
+        PatientDetailSection.medicalHistory => AppColors.followAccentPurple,
+        PatientDetailSection.familyHistory => AppColors.dashboardWarning,
+        PatientDetailSection.baselineLifestyle => AppColors.followAccentGreen,
+        PatientDetailSection.visitHistory => AppColors.dashboardPrimaryDark,
       };
 }
 
@@ -114,11 +150,17 @@ class PatientDetailTabView extends StatefulWidget {
     required this.summary,
     required this.onBack,
     this.onStartVisit,
+    this.fixedSection,
+    this.showProfileBanner = true,
+    this.showSectionTabs = true,
   });
 
   final HwPatientSummary summary;
   final VoidCallback onBack;
   final ValueChanged<VisitPatientSeed>? onStartVisit;
+  final PatientDetailSection? fixedSection;
+  final bool showProfileBanner;
+  final bool showSectionTabs;
 
   @override
   State<PatientDetailTabView> createState() => _PatientDetailTabViewState();
@@ -194,12 +236,33 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
   final Set<int> _editingDrugIds = {};
   bool _editingTobacco = false;
 
+  /// When opened from the hub as a single section, starts read-only until Edit.
+  bool _sectionReadOnly = false;
+
+  bool get _sectionEditable => widget.fixedSection == null || !_sectionReadOnly;
+
+  void _toggleSectionReadOnly() {
+    setState(() {
+      _sectionReadOnly = !_sectionReadOnly;
+      if (_sectionReadOnly) {
+        _editingChronicIds.clear();
+        _editingSurgicalIds.clear();
+        _editingDrugIds.clear();
+        _editingTobacco = false;
+      }
+    });
+  }
+
   bool _isClinicalRowEditing(int rowId, Set<int> editingIds) =>
       editingIds.contains(rowId);
 
   @override
   void initState() {
     super.initState();
+    if (widget.fixedSection != null) {
+      _section = widget.fixedSection!;
+      _sectionReadOnly = true;
+    }
     final name = widget.summary.fullName.trim();
     final parts =
         name.split(RegExp(r'\s+')).where((s) => s.isNotEmpty).toList();
@@ -1241,6 +1304,139 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
     );
   }
 
+  String _refName(List<({int id, String name})> items, int? id) {
+    if (id == null || id <= 0) return '—';
+    for (final e in items) {
+      if (e.id == id) return e.name;
+    }
+    return '—';
+  }
+
+  String _genderDisplayLabel() => switch (_gender) {
+        _PatientDetailGender.female => 'Female',
+        _PatientDetailGender.male => 'Male',
+        _PatientDetailGender.other => 'Other',
+      };
+
+  Widget _infoGroupCard({
+    required IconData icon,
+    required String title,
+    required List<(String, String)> rows,
+  }) {
+    return Material(
+      elevation: 2.5,
+      shadowColor: Colors.black.withValues(alpha: 0.07),
+      borderRadius: BorderRadius.circular(18.r),
+      color: AppColors.surface,
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(16.w, 14.h, 16.w, 8.h),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: EdgeInsets.all(8.r),
+                  decoration: BoxDecoration(
+                    color: AppColors.dashboardChipBlueBg,
+                    borderRadius: BorderRadius.circular(11.r),
+                  ),
+                  child: Icon(
+                    icon,
+                    size: 18.sp,
+                    color: AppColors.dashboardPrimary,
+                  ),
+                ),
+                SizedBox(width: 10.w),
+                Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 14.sp,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.dashboardPrimaryDark,
+                  ),
+                ),
+              ],
+            ),
+            SizedBox(height: 4.h),
+            for (int i = 0; i < rows.length; i++) ...[
+              Padding(
+                padding: EdgeInsets.symmetric(vertical: 11.h),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      flex: 2,
+                      child: Text(
+                        rows[i].$1,
+                        style: TextStyle(
+                          fontSize: 12.sp,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                    ),
+                    SizedBox(width: 12.w),
+                    Expanded(
+                      flex: 3,
+                      child: Text(
+                        rows[i].$2.trim().isEmpty ? '—' : rows[i].$2.trim(),
+                        textAlign: TextAlign.end,
+                        style: TextStyle(
+                          fontSize: 14.sp,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.textPrimary,
+                          height: 1.35,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (i != rows.length - 1)
+                Divider(height: 1, thickness: 1, color: AppColors.border),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _personalView() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _infoGroupCard(
+          icon: Icons.badge_outlined,
+          title: 'Basic Information',
+          rows: [
+            ('First name', _firstNameController.text),
+            ('Last name', _lastNameController.text),
+            ('Age', '${widget.summary.age}'),
+            ('Date of birth', _dobController.text),
+            ('Gender', _genderDisplayLabel()),
+            ('CNIC', _cnicController.text),
+            if (_maritalStatuses.isNotEmpty)
+              ('Marital status', _refName(_maritalStatuses, _maritalStatusId)),
+          ],
+        ),
+        SizedBox(height: 16.h),
+        _infoGroupCard(
+          icon: Icons.location_on_outlined,
+          title: 'Contact & Location',
+          rows: [
+            ('Phone', _phoneController.text),
+            ('Province', _refName(_provinces, _provinceId)),
+            ('District', _refName(_districts, _districtId)),
+            ('Tehsil', _refName(_tehsils, _tehsilId)),
+            ('Street address', _streetController.text),
+          ],
+        ),
+        SizedBox(height: MediaQuery.paddingOf(context).bottom + 12.h),
+      ],
+    );
+  }
+
   Widget _personalForm() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1476,10 +1672,11 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
             ],
           ),
         ),
-        _primaryCtaButton(
-          onPressed: _savingPersonal ? null : _savePersonal,
-          label: _savingPersonal ? 'Saving…' : 'Save Changes',
-        ),
+        if (_sectionEditable)
+          _primaryCtaButton(
+            onPressed: _savingPersonal ? null : _savePersonal,
+            label: _savingPersonal ? 'Saving…' : 'Save Changes',
+          ),
         SizedBox(height: MediaQuery.paddingOf(context).bottom + 12.h),
       ],
     );
@@ -2588,6 +2785,49 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
     );
   }
 
+  Widget _historyEmptyState({
+    required IconData icon,
+    required String viewMessage,
+    required String addLabel,
+    required VoidCallback onAdd,
+  }) {
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.symmetric(vertical: 22.h, horizontal: 16.w),
+      decoration: BoxDecoration(
+        color: AppColors.registrationFieldFill.withValues(alpha: 0.45),
+        borderRadius: BorderRadius.circular(14.r),
+        border: Border.all(color: AppColors.registrationFieldBorder),
+      ),
+      child: Column(
+        children: [
+          Icon(
+            icon,
+            size: 30.sp,
+            color: AppColors.dashboardPrimary.withValues(alpha: 0.65),
+          ),
+          SizedBox(height: 10.h),
+          Text(
+            _sectionEditable
+                ? 'Nothing added yet. Tap below to create a new entry.'
+                : viewMessage,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 13.sp,
+              fontWeight: FontWeight.w600,
+              color: AppColors.textSecondary,
+              height: 1.35,
+            ),
+          ),
+          if (_sectionEditable) ...[
+            SizedBox(height: 14.h),
+            _historyHeaderAddButton(label: addLabel, onPressed: onAdd),
+          ],
+        ],
+      ),
+    );
+  }
+
   Widget _historyEntryUpdateButton({
     required VoidCallback onPressed,
     String label = 'Update',
@@ -2661,6 +2901,7 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
     required bool isEditing,
     required VoidCallback onUpdate,
     required VoidCallback onDelete,
+    bool showActions = true,
   }) {
     final displayTitle =
         title.trim().isNotEmpty ? title.trim() : (isDraft ? 'New entry' : '—');
@@ -2695,19 +2936,20 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
             ),
           ),
         ),
-        if (isEditing)
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _historyEntryUpdateButton(
-                onPressed: onUpdate,
-                label: 'View',
-              ),
-              _historyEntryDeleteButton(onPressed: onDelete),
-            ],
-          )
-        else
-          _historyEntryViewActions(onUpdate: onUpdate, onDelete: onDelete),
+        if (showActions)
+          if (isEditing)
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _historyEntryUpdateButton(
+                  onPressed: onUpdate,
+                  label: 'View',
+                ),
+                _historyEntryDeleteButton(onPressed: onDelete),
+              ],
+            )
+          else
+            _historyEntryViewActions(onUpdate: onUpdate, onDelete: onDelete),
       ],
     );
   }
@@ -2962,10 +3204,11 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
               ),
             ),
           ),
-          _primaryCtaButton(
-            onPressed: _savingMedical ? null : _saveMedicalAndLifestyle,
-            label: _savingMedical ? 'Saving…' : 'Save Medical History',
-          ),
+          if (_sectionEditable)
+            _primaryCtaButton(
+              onPressed: _savingMedical ? null : _saveMedicalAndLifestyle,
+              label: _savingMedical ? 'Saving…' : 'Save Medical History',
+            ),
           SizedBox(height: MediaQuery.paddingOf(context).bottom + 12.h),
         ],
       );
@@ -2984,14 +3227,11 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 if (_medical.isEmpty)
-                  Text(
-                    'No chronic conditions on file yet. Use “Add condition” to create one.',
-                    style: TextStyle(
-                      fontSize: 13.sp,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.textSecondary,
-                      height: 1.35,
-                    ),
+                  _historyEmptyState(
+                    icon: Icons.monitor_heart_outlined,
+                    viewMessage: 'No chronic conditions recorded.',
+                    addLabel: 'Add condition',
+                    onAdd: _addMedicalDraft,
                   )
                 else
                   ...List.generate(_medical.length, (i) {
@@ -3002,7 +3242,7 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
                       return const SizedBox.shrink();
                     }
                     final isDraft = row.id <= 0;
-                    final isEditing =
+                    final isEditing = _sectionEditable &&
                         _isClinicalRowEditing(row.id, _editingChronicIds);
                     final choices = _conditionChoicesForRow(i);
                     final showCustomField = _isClinicalOtherSelection(
@@ -3027,6 +3267,7 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
                             title: row.displayConditionName,
                             isDraft: isDraft,
                             isEditing: isEditing,
+                            showActions: _sectionEditable,
                             onUpdate: () => setState(() {
                               if (_editingChronicIds.contains(row.id)) {
                                 _editingChronicIds.remove(row.id);
@@ -3219,14 +3460,11 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 if (_surgical.isEmpty)
-                  Text(
-                    'No surgical procedures on file yet. Use “Add procedure” to add one.',
-                    style: TextStyle(
-                      fontSize: 13.sp,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.textSecondary,
-                      height: 1.35,
-                    ),
+                  _historyEmptyState(
+                    icon: Icons.local_hospital_outlined,
+                    viewMessage: 'No surgical procedures recorded.',
+                    addLabel: 'Add procedure',
+                    onAdd: _addSurgicalDraft,
                   )
                 else
                   ...List.generate(_surgical.length, (i) {
@@ -3242,7 +3480,7 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
                       return const SizedBox.shrink();
                     }
                     final isDraft = s.id <= 0;
-                    final isEditing =
+                    final isEditing = _sectionEditable &&
                         _isClinicalRowEditing(s.id, _editingSurgicalIds);
                     final procChoices = _procedureChoicesForRow(i);
                     final showCustomField = _isClinicalOtherSelection(
@@ -3267,6 +3505,7 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
                             title: s.displayProcedureName,
                             isDraft: isDraft,
                             isEditing: isEditing,
+                            showActions: _sectionEditable,
                             onUpdate: () => setState(() {
                               if (_editingSurgicalIds.contains(s.id)) {
                                 _editingSurgicalIds.remove(s.id);
@@ -3411,14 +3650,11 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 if (_drugs.isEmpty)
-                  Text(
-                    'No drug history rows yet. Use “Add category” to add one.',
-                    style: TextStyle(
-                      fontSize: 13.sp,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.textSecondary,
-                      height: 1.35,
-                    ),
+                  _historyEmptyState(
+                    icon: Icons.medication_liquid_outlined,
+                    viewMessage: 'No drug history recorded.',
+                    addLabel: 'Add category',
+                    onAdd: _addDrugDraft,
                   )
                 else
                   ...List.generate(_drugs.length, (i) {
@@ -3429,7 +3665,7 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
                       return const SizedBox.shrink();
                     }
                     final isDraft = d.id <= 0;
-                    final isEditing =
+                    final isEditing = _sectionEditable &&
                         _isClinicalRowEditing(d.id, _editingDrugIds);
                     final catChoices = _categoryChoicesForRow(i);
                     final showCustomField = _isClinicalOtherSelection(
@@ -3454,6 +3690,7 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
                             title: d.displayCategoryName,
                             isDraft: isDraft,
                             isEditing: isEditing,
+                            showActions: _sectionEditable,
                             onUpdate: () => setState(() {
                               if (_editingDrugIds.contains(d.id)) {
                                 _editingDrugIds.remove(d.id);
@@ -3618,7 +3855,8 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
           _historySectionCard(
             icon: Icons.smoking_rooms_outlined,
             title: 'Tobacco history',
-            headerTrailing: (!_baselineLoaded && !_editingTobacco)
+            headerTrailing: _sectionEditable &&
+                    (!_baselineLoaded && !_editingTobacco)
                 ? _historyHeaderAddButton(
                     label: 'Add new',
                     onPressed: () => setState(() => _editingTobacco = true),
@@ -3654,11 +3892,12 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
                             ),
                           ),
                         ),
-                        _historyEntryViewActions(
-                          onUpdate: () =>
-                              setState(() => _editingTobacco = true),
-                          onDelete: () => unawaited(_offerDeleteTobacco()),
-                        ),
+                        if (_sectionEditable)
+                          _historyEntryViewActions(
+                            onUpdate: () =>
+                                setState(() => _editingTobacco = true),
+                            onDelete: () => unawaited(_offerDeleteTobacco()),
+                          ),
                       ],
                     ),
                     SizedBox(height: 8.h),
@@ -3774,23 +4013,24 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
               ],
             ),
           ),
-        if (_medicalTab == _MedicalHistoryTab.tobacco && _editingTobacco)
-          _primaryCtaButton(
-            onPressed: _savingBaseline
-                ? null
-                : () => unawaited(
-                      _saveBaselineLifestyle(
-                        successMessage: 'Tobacco history saved.',
-                        validateTobacco: true,
+        if (_sectionEditable)
+          if (_medicalTab == _MedicalHistoryTab.tobacco && _editingTobacco)
+            _primaryCtaButton(
+              onPressed: _savingBaseline
+                  ? null
+                  : () => unawaited(
+                        _saveBaselineLifestyle(
+                          successMessage: 'Tobacco history saved.',
+                          validateTobacco: true,
+                        ),
                       ),
-                    ),
-            label: _savingBaseline ? 'Saving…' : 'Save Tobacco History',
-          )
-        else
-          _primaryCtaButton(
-            onPressed: _savingMedical ? null : _saveMedicalAndLifestyle,
-            label: _savingMedical ? 'Saving…' : 'Save Medical History',
-          ),
+              label: _savingBaseline ? 'Saving…' : 'Save Tobacco History',
+            )
+          else
+            _primaryCtaButton(
+              onPressed: _savingMedical ? null : _saveMedicalAndLifestyle,
+              label: _savingMedical ? 'Saving…' : 'Save Medical History',
+            ),
         SizedBox(height: MediaQuery.paddingOf(context).bottom + 12.h),
       ],
     );
@@ -3835,6 +4075,7 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
   }
 
   Widget _medicalAddButton() {
+    if (!_sectionEditable) return const SizedBox.shrink();
     final ({VoidCallback onPressed, String label}) action =
         switch (_medicalTab) {
       _MedicalHistoryTab.chronic => (
@@ -3873,15 +4114,32 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
               ),
             ),
           ),
-          _primaryCtaButton(
-            onPressed: _savingBaseline
-                ? null
-                : () => unawaited(
-                      _saveBaselineLifestyle(
-                        successMessage: 'Baseline lifestyle saved.',
+          if (_sectionEditable)
+            _primaryCtaButton(
+              onPressed: _savingBaseline
+                  ? null
+                  : () => unawaited(
+                        _saveBaselineLifestyle(
+                          successMessage: 'Baseline lifestyle saved.',
+                        ),
                       ),
-                    ),
-            label: _savingBaseline ? 'Saving…' : 'Save Baseline Lifestyle',
+              label: _savingBaseline ? 'Saving…' : 'Save Baseline Lifestyle',
+            ),
+          SizedBox(height: MediaQuery.paddingOf(context).bottom + 12.h),
+        ],
+      );
+    }
+    if (!_sectionEditable) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _historySectionCard(
+            icon: Icons.spa_outlined,
+            title: 'Baseline lifestyle',
+            child: _historyViewLine(
+              label: 'Family history of HTN / stroke',
+              value: _familyHtn ? 'Yes' : 'No',
+            ),
           ),
           SizedBox(height: MediaQuery.paddingOf(context).bottom + 12.h),
         ],
@@ -3909,16 +4167,17 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
             ],
           ),
         ),
-        _primaryCtaButton(
-          onPressed: _savingBaseline
-              ? null
-              : () => unawaited(
-                    _saveBaselineLifestyle(
-                      successMessage: 'Baseline lifestyle saved.',
+        if (_sectionEditable)
+          _primaryCtaButton(
+            onPressed: _savingBaseline
+                ? null
+                : () => unawaited(
+                      _saveBaselineLifestyle(
+                        successMessage: 'Baseline lifestyle saved.',
+                      ),
                     ),
-                  ),
-          label: _savingBaseline ? 'Saving…' : 'Save Baseline Lifestyle',
-        ),
+            label: _savingBaseline ? 'Saving…' : 'Save Baseline Lifestyle',
+          ),
         SizedBox(height: MediaQuery.paddingOf(context).bottom + 12.h),
       ],
     );
@@ -4002,10 +4261,12 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
     final bottomInset = SizedBox(
       height: MediaQuery.paddingOf(context).bottom + 12.h,
     );
-    final logVisitCta = _primaryCtaButton(
-      onPressed: _openVisitAssessment,
-      label: 'Log New Visit',
-    );
+    final logVisitCta = _sectionEditable
+        ? _primaryCtaButton(
+            onPressed: _openVisitAssessment,
+            label: 'Log New Visit',
+          )
+        : const SizedBox.shrink();
 
     if (_loadingDetail && _visits.isEmpty) {
       return Column(
@@ -4028,15 +4289,16 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(
-            'No visits found.',
-            style: TextStyle(
-              fontSize: 13.sp,
-              fontWeight: FontWeight.w600,
-              color: AppColors.textSecondary,
-            ),
+          _historyEmptyState(
+            icon: Icons.event_note_rounded,
+            viewMessage: 'No visits recorded yet.',
+            addLabel: 'Log New Visit',
+            onAdd: _openVisitAssessment,
           ),
-          logVisitCta,
+          if (_sectionEditable) ...[
+            SizedBox(height: 16.h),
+            logVisitCta,
+          ],
           bottomInset,
         ],
       );
@@ -4244,13 +4506,16 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
             patientApi: api,
             medicalConditions: _medicalConditions,
             relationDegrees: _relationDegrees,
+            readOnly: !_sectionEditable,
           );
 
     return IndexedStack(
       index: PatientDetailSection.values.indexOf(_section),
       sizing: StackFit.loose,
       children: [
-        _personalForm(),
+        (_section == PatientDetailSection.personalInfo && !_sectionEditable)
+            ? _personalView()
+            : _personalForm(),
         _medicalBody(),
         familySection,
         _baselineBody(),
@@ -4344,7 +4609,7 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
                 ),
                 SizedBox(height: 4.h),
                 Text(
-                  'Age ${s.age} • ${s.gender} • ${s.displayId}',
+                  'Age ${s.age} • ${_summaryGenderLabel(s.gender)}',
                   style: TextStyle(
                     fontSize: 12.sp,
                     fontWeight: FontWeight.w600,
@@ -4431,7 +4696,7 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
         ),
         leadingWidth: 46.w,
         title: Text(
-          s.fullName,
+          widget.fixedSection?.label ?? s.fullName,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           textAlign: TextAlign.center,
@@ -4443,7 +4708,55 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
         ),
         centerTitle: true,
         actions: [
-          SizedBox(width: 46.w),
+          if (widget.fixedSection != null)
+            Padding(
+              padding: EdgeInsets.only(right: 12.w),
+              child: Center(
+                child: Material(
+                  color: _sectionReadOnly
+                      ? AppColors.dashboardPrimary
+                      : AppColors.dashboardChipBlueBg,
+                  borderRadius: BorderRadius.circular(10.r),
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(10.r),
+                    onTap: _toggleSectionReadOnly,
+                    child: Padding(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: 12.w,
+                        vertical: 7.h,
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            _sectionReadOnly
+                                ? Icons.edit_outlined
+                                : Icons.visibility_outlined,
+                            size: 15.sp,
+                            color: _sectionReadOnly
+                                ? AppColors.surface
+                                : AppColors.dashboardPrimary,
+                          ),
+                          SizedBox(width: 5.w),
+                          Text(
+                            _sectionReadOnly ? 'Edit' : 'View',
+                            style: TextStyle(
+                              fontSize: 12.sp,
+                              fontWeight: FontWeight.w800,
+                              color: _sectionReadOnly
+                                  ? AppColors.surface
+                                  : AppColors.dashboardPrimary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            )
+          else
+            SizedBox(width: 46.w),
         ],
       ),
       if (_detailLoadError != null)
@@ -4463,18 +4776,20 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
             ),
           ),
         ),
-      SliverToBoxAdapter(child: _patientDetailHeroBanner(s)),
-      SliverToBoxAdapter(
-        child: ColoredBox(
-          color: AppColors.surface,
-          child: SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
-              children: PatientDetailSection.values.map(_tab).toList(),
+      if (widget.showProfileBanner)
+        SliverToBoxAdapter(child: _patientDetailHeroBanner(s)),
+      if (widget.showSectionTabs)
+        SliverToBoxAdapter(
+          child: ColoredBox(
+            color: AppColors.surface,
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: PatientDetailSection.values.map(_tab).toList(),
+              ),
             ),
           ),
         ),
-      ),
       SliverPadding(
         padding: EdgeInsets.fromLTRB(18.w, 22.h, 18.w, 24.h),
         sliver: SliverToBoxAdapter(
@@ -4483,11 +4798,13 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
       ),
     ];
 
-    return ColoredBox(
+    return Material(
       color: AppColors.registrationScreenBg,
-      child: CustomScrollView(
-        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-        slivers: slivers,
+      child: SafeArea(
+        child: CustomScrollView(
+          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+          slivers: slivers,
+        ),
       ),
     );
   }

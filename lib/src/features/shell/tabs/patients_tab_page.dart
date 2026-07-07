@@ -11,7 +11,7 @@ import 'package:doctor_app/src/core/theme/app_colors.dart';
 import 'package:doctor_app/src/features/home/home_dashboard_controller.dart';
 import 'package:doctor_app/src/features/home/health_worker_dashboard_models.dart';
 import 'package:doctor_app/src/features/patients/new_patient_registration_screen.dart';
-import 'package:doctor_app/src/features/patients/patient_detail_tab_view.dart';
+import 'package:doctor_app/src/features/patients/patient_detail_hub_page.dart';
 import 'package:doctor_app/src/features/shell/tabs/visit_tab_page.dart';
 
 /// Shell index **1** — patient directory from dashboard API + detail + registration.
@@ -205,6 +205,13 @@ extension PatientsDirectoryUi on HwPatientSummary {
   }
 }
 
+String _genderDisplayLabel(String gender) {
+  final g = gender.trim().toLowerCase();
+  if (g == 'male' || g == 'm') return 'Male';
+  if (g == 'female' || g == 'f') return 'Female';
+  return gender.trim().isNotEmpty ? gender.trim() : '—';
+}
+
 String _shortVisit(DateTime? d) {
   if (d == null) return '—';
   const months = [
@@ -324,9 +331,9 @@ class _PatientsTabPageState extends State<PatientsTabPage> {
 
       body = SafeArea(
         bottom: false,
-        child: PatientDetailTabView(
+        child: PatientDetailHubPage(
           key: ValueKey(selected.patientId),
-          summary: selected,
+          summary: match ?? selected,
           onBack: () => setState(() => _selectedPatient = null),
           onStartVisit: widget.onStartVisit,
         ),
@@ -603,31 +610,23 @@ class _PatientsTabPageState extends State<PatientsTabPage> {
                             padding: EdgeInsets.only(bottom: 14.h),
                             child: Material(
                               color: AppColors.surface,
+                              elevation: 2.5,
+                              shadowColor: Colors.black.withValues(alpha: 0.08),
                               borderRadius: BorderRadius.circular(16.r),
                               clipBehavior: Clip.antiAlias,
                               child: InkWell(
                                 onTap: () => _onPatientTap(p),
-                                child: Container(
-                                  decoration: BoxDecoration(
-                                    borderRadius: BorderRadius.circular(16.r),
-                                    border: Border.all(color: AppColors.border),
-                                  ),
+                                child: Padding(
                                   padding: EdgeInsets.symmetric(
-                                    horizontal: 12.w,
-                                    vertical: 12.h,
+                                    horizontal: 14.w,
+                                    vertical: 14.h,
                                   ),
                                   child: Row(
                                     crossAxisAlignment: CrossAxisAlignment.center,
                                     children: [
-                                      Container(
-                                        width: 48.r,
-                                        height: 48.r,
-                                        decoration: BoxDecoration(
-                                          color: pal.avatarBg,
-                                          borderRadius:
-                                              BorderRadius.circular(12.r),
-                                        ),
-                                        alignment: Alignment.center,
+                                      CircleAvatar(
+                                        radius: 26.r,
+                                        backgroundColor: pal.avatarBg,
                                         child: Text(
                                           initials,
                                           style: TextStyle(
@@ -637,7 +636,7 @@ class _PatientsTabPageState extends State<PatientsTabPage> {
                                           ),
                                         ),
                                       ),
-                                      SizedBox(width: 12.w),
+                                      SizedBox(width: 14.w),
                                       Expanded(
                                         child: Column(
                                           crossAxisAlignment:
@@ -654,12 +653,11 @@ class _PatientsTabPageState extends State<PatientsTabPage> {
                                             ),
                                             SizedBox(height: 4.h),
                                             Text(
-                                              'Age ${p.age} • ${p.gender} • ${p.displayId}',
+                                              'Age ${p.age} • ${_genderDisplayLabel(p.gender)}',
                                               style: TextStyle(
-                                                fontSize: 11.sp,
+                                                fontSize: 12.sp,
                                                 fontWeight: FontWeight.w600,
                                                 color: AppColors.textSecondary,
-                                                height: 1.25,
                                               ),
                                             ),
                                             SizedBox(height: 8.h),

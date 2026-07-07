@@ -34,7 +34,9 @@ String _redirectPath(GoRouterState state) {
   return p;
 }
 
-String _sessionDestination(AppSession session) {
+/// Resolves the correct landing route for the current [session].
+/// Used by the splash screen (after its animation) and the router redirect.
+String sessionDestination(AppSession session) {
   if (session.role == UserRole.unknown) {
     return RoleScreen.routePath;
   }
@@ -94,10 +96,9 @@ class _DoctorAppState extends State<DoctorApp> {
 }
 
 GoRouter _buildRouter(SessionController sessionController) {
-  final initial = _sessionDestination(sessionController.state);
   return GoRouter(
     navigatorKey: _rootNavigatorKey,
-    initialLocation: initial,
+    initialLocation: SplashScreen.routePath,
     refreshListenable: sessionController,
     routes: [
       GoRoute(
@@ -141,13 +142,17 @@ GoRouter _buildRouter(SessionController sessionController) {
       final session = sessionController.state;
       final loc = _redirectPath(state);
 
+      // Always let the splash screen show on launch; it self-navigates
+      // to the resolved destination after its animation.
+      if (loc == SplashScreen.routePath) return null;
+
       // If declined: force sign out and show auth with message (auth screen will display it).
       if (session.approvalStatus == ApprovalStatus.declined) {
         sessionController.handleDeclinedOnLaunch();
         return loc == AuthScreen.routePath ? null : AuthScreen.routePath;
       }
 
-      final dest = _sessionDestination(session);
+      final dest = sessionDestination(session);
 
       // Allow `/profile` whenever user is allowed on home (avoid matchedLocation mismatch).
       if (dest == HomeShell.routePath &&

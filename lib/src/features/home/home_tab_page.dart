@@ -11,7 +11,6 @@ import 'package:doctor_app/src/features/home/health_worker_dashboard_models.dart
 import 'package:doctor_app/src/features/home/home_dashboard_controller.dart';
 import 'package:doctor_app/src/features/profile/profile_view_screen.dart';
 import 'package:doctor_app/src/features/shell/tabs/visit_tab_page.dart';
-import 'package:doctor_app/src/widgets/urdu_help_suffix.dart';
 
 class HomeTabPage extends StatelessWidget {
   const HomeTabPage({
@@ -73,11 +72,6 @@ class HomeTabPage extends StatelessWidget {
     return '$h:$mm ${isPm ? 'PM' : 'AM'}';
   }
 
-  static String _dueInUrdu(int days) {
-    if (days <= 0) return 'آج یا گزر چکا۔';
-    return '$days دن بعد مقررہ';
-  }
-
   static String _dueInEnglish(int days) {
     if (days <= 0) return 'Due today';
     if (days == 1) return 'Due in 1 day';
@@ -126,23 +120,24 @@ class HomeTabPage extends StatelessWidget {
     return AppColors.dashboardPrimary;
   }
 
-  static String _topicUrduHint(String condition) {
-    final s = condition.toLowerCase();
-    if (s.contains('diabet')) return 'ذیابیطس / شوگر متعلقہ۔';
-    if (s.contains('antenatal') || s.contains('pregnan')) {
-      return 'حمل کی دیکھ بھال۔';
-    }
-    if (s.contains('blood') || s.contains('bp')) {
-      return 'بلڈ پریشر متعلقہ۔';
-    }
-    return 'کلینکل فالو اپ۔';
-  }
-
   static String _timeGreeting() {
     final h = DateTime.now().hour;
     if (h < 12) return 'Good Morning';
     if (h < 17) return 'Good Afternoon';
     return 'Good Evening';
+  }
+
+  static IconData _greetingIcon() {
+    final h = DateTime.now().hour;
+    if (h < 12) return Icons.wb_sunny_rounded;
+    if (h < 17) return Icons.wb_cloudy_rounded;
+    return Icons.nights_stay_rounded;
+  }
+
+  static String _firstName(String fullName) {
+    final parts =
+        fullName.trim().split(RegExp(r'\s+')).where((s) => s.isNotEmpty);
+    return parts.isEmpty ? '' : parts.first;
   }
 
   static Future<void> _showPatientDirectorySheet(
@@ -311,99 +306,17 @@ class HomeTabPage extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   Padding(
-                    padding: EdgeInsets.fromLTRB(28.w, 0, 16.w, 0),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                fullName.isEmpty
-                                    ? '${_timeGreeting()} 👋'
-                                    : '${_timeGreeting()}, $fullName',
-                                style: TextStyle(
-                                  fontSize: 20.sp,
-                                  fontWeight: FontWeight.w800,
-                                  color: AppColors.dashboardPrimaryDark,
-                                  height: 1.2,
-                                ),
-                                maxLines: 3,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                              SizedBox(height: 6.h),
-                              Text(
-                                _longDate(now),
-                                style: TextStyle(
-                                  fontSize: 13.sp,
-                                  fontWeight: FontWeight.w600,
-                                  color: AppColors.textSecondary,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        SizedBox(width: 14.w),
-                        Stack(
-                          clipBehavior: Clip.none,
-                          children: [
-                            Material(
-                              color: AppColors.dashboardPrimaryDark,
-                              shape: const CircleBorder(),
-                              clipBehavior: Clip.antiAlias,
-                              child: InkWell(
-                                customBorder: const CircleBorder(),
-                                onTap: () =>
-                                    context.push(ProfileViewScreen.routePath),
-                                child: SizedBox(
-                                  width: 52.r,
-                                  height: 52.r,
-                                  child: Center(
-                                    child: avatarLetters.isEmpty
-                                        ? Icon(
-                                            Icons.person_rounded,
-                                            color: Colors.white,
-                                            size: 26.sp,
-                                          )
-                                        : Text(
-                                            avatarLetters,
-                                            style: TextStyle(
-                                              fontSize: 15.sp,
-                                              fontWeight: FontWeight.w800,
-                                              color: Colors.white,
-                                            ),
-                                          ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                            Positioned(
-                              right: 0,
-                              bottom: 0,
-                              child: Container(
-                                width: 13.r,
-                                height: 13.r,
-                                decoration: BoxDecoration(
-                                  color: AppColors.success,
-                                  shape: BoxShape.circle,
-                                  border: Border.all(
-                                      color: AppColors.surface, width: 2),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
+                    padding: EdgeInsets.symmetric(horizontal: 16.w),
+                    child: _HomeWelcomeBanner(
+                      fullName: fullName,
+                      avatarLetters: avatarLetters,
+                      now: now,
+                      isLadyHealthWorker: isLhw,
+                      onProfileTap: () =>
+                          context.push(ProfileViewScreen.routePath),
                     ),
                   ),
-                  SizedBox(height: 20.h),
-                  const Divider(
-                    height: 1,
-                    thickness: 1,
-                    color: AppColors.border,
-                  ),
-                  SizedBox(height: 20.h),
+                  SizedBox(height: 22.h),
                   if (isLhw &&
                       dash.error != null &&
                       dash.error!.trim().isNotEmpty)
@@ -470,9 +383,6 @@ class HomeTabPage extends StatelessWidget {
                                 color: AppColors.textPrimary,
                               ),
                             ),
-                            const UrduHelpSuffix(
-                              urduText: 'آج کے فالو اپ وزٹس کی فہرست۔',
-                            ),
                             Container(
                               padding: EdgeInsets.symmetric(
                                   horizontal: 12.w, vertical: 6.h),
@@ -480,25 +390,15 @@ class HomeTabPage extends StatelessWidget {
                                 color: AppColors.dashboardChipBlueBg,
                                 borderRadius: BorderRadius.circular(999),
                               ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Text(
-                                    isLhw
-                                        ? '${dash.followUps.length} listed'
-                                        : '—',
-                                    style: TextStyle(
-                                      fontSize: 12.sp,
-                                      fontWeight: FontWeight.w700,
-                                      color: AppColors.dashboardPrimary,
-                                    ),
-                                  ),
-                                  SizedBox(width: 4.w),
-                                  const UrduHelpSuffix(
-                                    urduText:
-                                        'فالو اپ فہرست میں موجود اندراجات کی تعداد۔',
-                                  ),
-                                ],
+                              child: Text(
+                                isLhw
+                                    ? '${dash.followUps.length} listed'
+                                    : '—',
+                                style: TextStyle(
+                                  fontSize: 12.sp,
+                                  fontWeight: FontWeight.w700,
+                                  color: AppColors.dashboardPrimary,
+                                ),
                               ),
                             ),
                           ],
@@ -604,37 +504,32 @@ class _StatsGrid extends StatelessWidget {
     );
   }
 
+  Widget _footerText(String text, {Color? color, FontWeight? weight}) {
+    return Text(
+      text,
+      maxLines: 2,
+      overflow: TextOverflow.ellipsis,
+      style: TextStyle(
+        fontSize: 11.sp,
+        fontWeight: weight ?? FontWeight.w600,
+        color: color ?? AppColors.textSecondary,
+        height: 1.3,
+      ),
+    );
+  }
+
   Widget _patientsTodayFooter() {
     if (!isLadyHealthWorker) {
-      return Row(
-        children: [
-          Expanded(
-            child: Text(
-              'Health worker stats only',
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontSize: 11.sp,
-                fontWeight: FontWeight.w600,
-                color: AppColors.textSecondary,
-              ),
-            ),
-          ),
-        ],
-      );
+      return _footerText('Health worker stats only');
     }
     if (stats == null && loading) {
-      return Row(
-        children: [
-          SizedBox(
-            width: 16.r,
-            height: 16.r,
-            child: const CircularProgressIndicator(
-              strokeWidth: 2,
-              color: AppColors.dashboardPrimary,
-            ),
-          ),
-        ],
+      return SizedBox(
+        width: 16.r,
+        height: 16.r,
+        child: const CircularProgressIndicator(
+          strokeWidth: 2,
+          color: AppColors.dashboardPrimary,
+        ),
       );
     }
     final diff = stats?.dailyDifference ?? 0;
@@ -645,19 +540,11 @@ class _StatsGrid extends StatelessWidget {
               size: 14.sp, color: AppColors.success),
           SizedBox(width: 4.w),
           Expanded(
-            child: Text(
-              '↑ $diff from yesterday',
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontSize: 11.sp,
-                fontWeight: FontWeight.w700,
-                color: AppColors.success,
-              ),
+            child: _footerText(
+              '$diff more than yesterday',
+              color: AppColors.success,
+              weight: FontWeight.w700,
             ),
-          ),
-          UrduHelpSuffix(
-            urduText: 'کل کے مقابلے میں آج زیادہ مریض۔',
           ),
         ],
       );
@@ -670,42 +557,16 @@ class _StatsGrid extends StatelessWidget {
               size: 14.sp, color: AppColors.danger),
           SizedBox(width: 4.w),
           Expanded(
-            child: Text(
-              '↓ $down from yesterday',
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontSize: 11.sp,
-                fontWeight: FontWeight.w700,
-                color: AppColors.danger,
-              ),
+            child: _footerText(
+              '$down fewer than yesterday',
+              color: AppColors.danger,
+              weight: FontWeight.w700,
             ),
-          ),
-          UrduHelpSuffix(
-            urduText: 'کل کے مقابلے میں آج کم مریض۔',
           ),
         ],
       );
     }
-    return Row(
-      children: [
-        Expanded(
-          child: Text(
-            'Same as yesterday',
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              fontSize: 11.sp,
-              fontWeight: FontWeight.w600,
-              color: AppColors.textSecondary,
-            ),
-          ),
-        ),
-        UrduHelpSuffix(
-          urduText: 'کل جتنے ہی آج۔',
-        ),
-      ],
-    );
+    return _footerText('Same as yesterday');
   }
 
   @override
@@ -725,37 +586,31 @@ class _StatsGrid extends StatelessWidget {
           children: [
             _tile(
               _StatCard(
-                title: 'PATIENTS TODAY',
-                titleUrdu: 'آج کے مریض',
+                title: 'Patients Today',
                 value: _num(stats?.patientsToday),
-                valueColor: AppColors.textPrimary,
+                accent: AppColors.dashboardPrimary,
+                icon: Icons.today_rounded,
                 footer: _patientsTodayFooter(),
               ),
             ),
             SizedBox(width: 12.w),
             _tile(
               _StatCard(
-                title: 'PENDING FOLLOW-UPS',
-                titleUrdu: 'زیر التواء فالو اپ',
+                title: 'Pending Follow-ups',
                 value: _num(pending),
-                valueColor: AppColors.dashboardWarning,
+                accent: AppColors.dashboardWarning,
+                icon: Icons.pending_actions_rounded,
                 footer: Row(
                   children: [
                     Icon(Icons.warning_amber_rounded,
                         size: 14.sp, color: AppColors.dashboardWarning),
                     SizedBox(width: 4.w),
                     Expanded(
-                      child: Text(
+                      child: _footerText(
                         isLadyHealthWorker ? 'Needs attention' : '—',
-                        style: TextStyle(
-                          fontSize: 11.sp,
-                          fontWeight: FontWeight.w700,
-                          color: AppColors.dashboardWarning,
-                        ),
+                        color: AppColors.dashboardWarning,
+                        weight: FontWeight.w700,
                       ),
-                    ),
-                    const UrduHelpSuffix(
-                      urduText: 'فوری توجہ درکار ہے۔',
                     ),
                   ],
                 ),
@@ -768,47 +623,30 @@ class _StatsGrid extends StatelessWidget {
           children: [
             _tile(
               _StatCard(
-                title: 'TOTAL PATIENTS',
-                titleUrdu: 'کل مریض',
+                title: 'Total Patients',
                 value: _num(total),
-                valueColor: AppColors.dashboardPrimary,
-                border:
-                    Border.all(color: AppColors.dashboardPrimary, width: 1.5),
-                titleColor: AppColors.dashboardPrimary,
+                accent: AppColors.followAccentPurple,
+                icon: Icons.groups_rounded,
                 trailing: Material(
-                  color: AppColors.dashboardPrimaryDark,
+                  color: AppColors.followAccentPurple,
                   borderRadius: BorderRadius.circular(999),
                   child: InkWell(
                     onTap: onOpenPatientsTab,
                     borderRadius: BorderRadius.circular(999),
                     child: Padding(
-                      padding: EdgeInsets.all(8.r),
+                      padding: EdgeInsets.all(7.r),
                       child: Icon(
                         Icons.arrow_forward_rounded,
                         color: Colors.white,
-                        size: 16.sp,
+                        size: 15.sp,
                       ),
                     ),
                   ),
                 ),
-                footer: Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        'Tap card for directory',
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: 11.sp,
-                          fontWeight: FontWeight.w700,
-                          color: AppColors.dashboardPrimary,
-                        ),
-                      ),
-                    ),
-                    UrduHelpSuffix(
-                      urduText: 'فہرست دیکھنے کے لیے کارڈ تھپتھپائیں۔',
-                    ),
-                  ],
+                footer: _footerText(
+                  'Tap card for directory',
+                  color: AppColors.followAccentPurple,
+                  weight: FontWeight.w700,
                 ),
                 onTap: isLadyHealthWorker ? onOpenDirectory : null,
               ),
@@ -816,32 +654,14 @@ class _StatsGrid extends StatelessWidget {
             SizedBox(width: 12.w),
             _tile(
               _StatCard(
-                title: 'THIS MONTH',
-                titleUrdu: 'اس مہینے',
+                title: 'This Month',
                 value: _num(visits),
-                valueColor: AppColors.textPrimary,
-                footer: Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        isLadyHealthWorker && target != null && target > 0
-                            ? 'of $target target'
-                            : (isLadyHealthWorker ? 'Monthly visits' : '—'),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: 11.sp,
-                          fontWeight: FontWeight.w600,
-                          color: AppColors.textSecondary,
-                        ),
-                      ),
-                    ),
-                    UrduHelpSuffix(
-                      urduText: isLadyHealthWorker && target != null && target > 0
-                          ? 'ماہانہ ہدف کے مقابلے میں۔'
-                          : 'ماہانہ وزٹس۔',
-                    ),
-                  ],
+                accent: AppColors.followAccentGreen,
+                icon: Icons.calendar_month_rounded,
+                footer: _footerText(
+                  isLadyHealthWorker && target != null && target > 0
+                      ? 'of $target target'
+                      : (isLadyHealthWorker ? 'Monthly visits' : '—'),
                 ),
               ),
             ),
@@ -855,41 +675,36 @@ class _StatsGrid extends StatelessWidget {
 class _StatCard extends StatelessWidget {
   const _StatCard({
     required this.title,
-    required this.titleUrdu,
     required this.value,
-    required this.valueColor,
+    required this.accent,
+    required this.icon,
     required this.footer,
-    this.border,
-    this.titleColor,
     this.trailing,
     this.onTap,
   });
 
   final String title;
-  final String titleUrdu;
   final String value;
-  final Color valueColor;
+  final Color accent;
+  final IconData icon;
   final Widget footer;
-  final BoxBorder? border;
-  final Color? titleColor;
   final Widget? trailing;
   final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
-    final radius = BorderRadius.circular(16.r);
+    final radius = BorderRadius.circular(18.r);
     final content = Container(
       padding: EdgeInsets.all(14.w),
       decoration: BoxDecoration(
         color: AppColors.surface,
         borderRadius: radius,
-        border: border ??
-            Border.all(color: AppColors.border.withValues(alpha: 0.6)),
+        border: Border.all(color: accent.withValues(alpha: 0.55), width: 1.5),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.06),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
+            color: accent.withValues(alpha: 0.13),
+            blurRadius: 16,
+            offset: const Offset(0, 6),
           ),
         ],
       ),
@@ -899,43 +714,43 @@ class _StatCard extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Expanded(
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: Text(
-                        title,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: 10.sp,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 0.3,
-                          color: titleColor ?? AppColors.textSecondary,
-                          height: 1.2,
-                        ),
-                      ),
-                    ),
-                    SizedBox(width: 4.w),
-                    UrduHelpSuffix(urduText: titleUrdu),
-                  ],
+              Container(
+                width: 38.r,
+                height: 38.r,
+                decoration: BoxDecoration(
+                  color: accent.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(11.r),
                 ),
+                alignment: Alignment.center,
+                child: Icon(icon, size: 20.sp, color: accent),
               ),
+              const Spacer(),
               if (trailing != null) trailing!,
             ],
           ),
-          SizedBox(height: 8.h),
+          SizedBox(height: 10.h),
           Text(
             value,
             style: TextStyle(
-              fontSize: 26.sp,
+              fontSize: 28.sp,
               fontWeight: FontWeight.w800,
-              color: valueColor,
+              color: accent,
               height: 1,
             ),
           ),
-          SizedBox(height: 8.h),
+          SizedBox(height: 3.h),
+          Text(
+            title,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 11.5.sp,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.1,
+              color: AppColors.textPrimary,
+              height: 1.2,
+            ),
+          ),
           const Spacer(),
           footer,
         ],
@@ -962,14 +777,12 @@ enum _FollowVariant { overdue, today, upcoming }
 class _TopicChip extends StatelessWidget {
   const _TopicChip({
     required this.label,
-    required this.urdu,
     required this.icon,
     required this.foreground,
     required this.background,
   });
 
   final String label;
-  final String urdu;
   final IconData icon;
   final Color foreground;
   final Color background;
@@ -996,7 +809,6 @@ class _TopicChip extends StatelessWidget {
               color: foreground,
             ),
           ),
-          UrduHelpSuffix(urduText: urdu),
         ],
       ),
     );
@@ -1077,7 +889,6 @@ class _FollowUpCardApi extends StatelessWidget {
         : data.primaryCondition;
     final topicIcon = HomeTabPage._topicIcon(data.primaryCondition);
     final accent = HomeTabPage._topicAccent(data.primaryCondition);
-    final topicUrdu = HomeTabPage._topicUrduHint(data.primaryCondition);
 
     final now = DateTime.now().toLocal();
     final todayDay = DateTime(now.year, now.month, now.day);
@@ -1087,11 +898,8 @@ class _FollowUpCardApi extends StatelessWidget {
 
     final timeBadge = HomeTabPage._time12h(next);
     final scheduleNote = overdue ? 'Was: $timeBadge' : null;
-    final scheduleUrdu = overdue ? 'مقررہ وقت۔' : null;
     final dueInLabel =
         upcoming ? HomeTabPage._dueInEnglish(dueDays) : null;
-    final dueInUrdu =
-        upcoming ? HomeTabPage._dueInUrdu(dueDays) : null;
 
     late Color bg;
     late Color borderCol;
@@ -1190,23 +998,15 @@ class _FollowUpCardApi extends StatelessWidget {
                     Row(
                       children: [
                         Expanded(
-                          child: Wrap(
-                            crossAxisAlignment: WrapCrossAlignment.center,
-                            spacing: 4.w,
-                            runSpacing: 4.h,
-                            children: [
-                              Text(
-                                data.fullName,
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  fontSize: 16.sp,
-                                  fontWeight: FontWeight.w800,
-                                  color: AppColors.textPrimary,
-                                ),
-                              ),
-                              const UrduHelpSuffix(urduText: 'مریض کا نام۔'),
-                            ],
+                          child: Text(
+                            data.fullName,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 16.sp,
+                              fontWeight: FontWeight.w800,
+                              color: AppColors.textPrimary,
+                            ),
                           ),
                         ),
                         if (overdue)
@@ -1217,21 +1017,13 @@ class _FollowUpCardApi extends StatelessWidget {
                               color: AppColors.danger.withValues(alpha: 0.12),
                               borderRadius: BorderRadius.circular(999),
                             ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Text(
-                                  'Overdue',
-                                  style: TextStyle(
-                                    fontSize: 11.sp,
-                                    fontWeight: FontWeight.w800,
-                                    color: AppColors.danger,
-                                  ),
-                                ),
-                                const UrduHelpSuffix(
-                                  urduText: 'وقت گزر چکا ہے۔',
-                                ),
-                              ],
+                            child: Text(
+                              'Overdue',
+                              style: TextStyle(
+                                fontSize: 11.sp,
+                                fontWeight: FontWeight.w800,
+                                color: AppColors.danger,
+                              ),
                             ),
                           )
                         else if (today)
@@ -1242,26 +1034,16 @@ class _FollowUpCardApi extends StatelessWidget {
                               color: accent.withValues(alpha: 0.12),
                               borderRadius: BorderRadius.circular(999),
                             ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Text(
-                                  timeBadge,
-                                  style: TextStyle(
-                                    fontSize: 11.sp,
-                                    fontWeight: FontWeight.w800,
-                                    color: accent,
-                                  ),
-                                ),
-                                UrduHelpSuffix(
-                                  urduText: 'آج کا مقررہ وقت۔',
-                                ),
-                              ],
+                            child: Text(
+                              timeBadge,
+                              style: TextStyle(
+                                fontSize: 11.sp,
+                                fontWeight: FontWeight.w800,
+                                color: accent,
+                              ),
                             ),
                           )
-                        else if (upcoming &&
-                            dueInLabel != null &&
-                            dueInUrdu != null)
+                        else if (upcoming && dueInLabel != null)
                           Container(
                             padding: EdgeInsets.symmetric(
                                 horizontal: 8.w, vertical: 4.h),
@@ -1269,19 +1051,13 @@ class _FollowUpCardApi extends StatelessWidget {
                               color: accent.withValues(alpha: 0.14),
                               borderRadius: BorderRadius.circular(999),
                             ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Text(
-                                  dueInLabel,
-                                  style: TextStyle(
-                                    fontSize: 11.sp,
-                                    fontWeight: FontWeight.w800,
-                                    color: accent,
-                                  ),
-                                ),
-                                UrduHelpSuffix(urduText: dueInUrdu),
-                              ],
+                            child: Text(
+                              dueInLabel,
+                              style: TextStyle(
+                                fontSize: 11.sp,
+                                fontWeight: FontWeight.w800,
+                                color: accent,
+                              ),
                             ),
                           ),
                       ],
@@ -1308,38 +1084,23 @@ class _FollowUpCardApi extends StatelessWidget {
             children: [
               _TopicChip(
                 label: topic,
-                urdu: topicUrdu,
                 icon: topicIcon,
                 foreground: chipFg,
                 background: chipBg,
               ),
               if (scheduleNote != null)
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      scheduleNote,
-                      style: TextStyle(
-                        fontSize: 11.sp,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.textSecondary,
-                      ),
-                    ),
-                    UrduHelpSuffix(urduText: scheduleUrdu!),
-                  ],
+                Text(
+                  scheduleNote,
+                  style: TextStyle(
+                    fontSize: 11.sp,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textSecondary,
+                  ),
                 ),
             ],
           ),
           SizedBox(height: 10.h),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: _lastVisitRichText(),
-              ),
-              const UrduHelpSuffix(urduText: 'پچھلا وزٹ (سرور ڈیٹا)۔'),
-            ],
-          ),
+          _lastVisitRichText(),
           if (overdue) ...[
             SizedBox(height: 12.h),
             SizedBox(
@@ -1356,22 +1117,12 @@ class _FollowUpCardApi extends StatelessWidget {
                   ),
                 ),
                 icon: Icon(Icons.play_arrow_rounded, size: 22.sp),
-                label: Wrap(
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  spacing: 4.w,
-                  children: [
-                    Text(
-                      'Start Visit Now',
-                      style: TextStyle(
-                        fontSize: 14.sp,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                    UrduHelpSuffix(
-                      urduText: 'اب وزٹ شروع کریں۔',
-                      foregroundColor: Colors.white,
-                    ),
-                  ],
+                label: Text(
+                  'Start Visit Now',
+                  style: TextStyle(
+                    fontSize: 14.sp,
+                    fontWeight: FontWeight.w800,
+                  ),
                 ),
               ),
             ),
@@ -1428,6 +1179,236 @@ class _FollowUpCardApi extends StatelessWidget {
             ),
           ],
         ],
+      ),
+    );
+  }
+}
+
+class _HomeWelcomeBanner extends StatelessWidget {
+  const _HomeWelcomeBanner({
+    required this.fullName,
+    required this.avatarLetters,
+    required this.now,
+    required this.isLadyHealthWorker,
+    required this.onProfileTap,
+  });
+
+  final String fullName;
+  final String avatarLetters;
+  final DateTime now;
+  final bool isLadyHealthWorker;
+  final VoidCallback onProfileTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final greeting = HomeTabPage._timeGreeting();
+    final greetingIcon = HomeTabPage._greetingIcon();
+    final displayName = fullName.trim().isEmpty
+        ? 'Welcome back'
+        : HomeTabPage._firstName(fullName);
+    final dateLine = HomeTabPage._longDate(now);
+
+    return Material(
+      elevation: 3.5,
+      shadowColor: AppColors.dashboardPrimary.withValues(alpha: 0.2),
+      borderRadius: BorderRadius.circular(24.r),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onProfileTap,
+        child: Container(
+          padding: EdgeInsets.fromLTRB(18.w, 18.h, 16.w, 18.h),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(24.r),
+            gradient: const LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                AppColors.dashboardChipBlueBg,
+                AppColors.surface,
+              ],
+              stops: [0.0, 0.85],
+            ),
+            border: Border.all(color: AppColors.registrationFieldBorder),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          padding: EdgeInsets.all(7.r),
+                          decoration: BoxDecoration(
+                            color: AppColors.surface,
+                            shape: BoxShape.circle,
+                            boxShadow: [
+                              BoxShadow(
+                                color: AppColors.dashboardPrimary
+                                    .withValues(alpha: 0.12),
+                                blurRadius: 6,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: Icon(
+                            greetingIcon,
+                            size: 16.sp,
+                            color: AppColors.dashboardPrimary,
+                          ),
+                        ),
+                        SizedBox(width: 8.w),
+                        Text(
+                          greeting,
+                          style: TextStyle(
+                            fontSize: 13.sp,
+                            fontWeight: FontWeight.w800,
+                            color: AppColors.dashboardPrimary,
+                            letterSpacing: 0.2,
+                          ),
+                        ),
+                      ],
+                    ),
+                    SizedBox(height: 10.h),
+                    Text(
+                      displayName,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 26.sp,
+                        fontWeight: FontWeight.w900,
+                        color: AppColors.dashboardPrimaryDark,
+                        height: 1.1,
+                        letterSpacing: -0.3,
+                      ),
+                    ),
+                    SizedBox(height: 10.h),
+                    Wrap(
+                      spacing: 8.w,
+                      runSpacing: 6.h,
+                      children: [
+                        Container(
+                          padding: EdgeInsets.symmetric(
+                            horizontal: 10.w,
+                            vertical: 5.h,
+                          ),
+                          decoration: BoxDecoration(
+                            color: AppColors.surface.withValues(alpha: 0.85),
+                            borderRadius: BorderRadius.circular(999),
+                            border: Border.all(
+                              color: AppColors.registrationFieldBorder,
+                            ),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.calendar_today_rounded,
+                                size: 12.sp,
+                                color: AppColors.textSecondary,
+                              ),
+                              SizedBox(width: 5.w),
+                              Text(
+                                dateLine,
+                                style: TextStyle(
+                                  fontSize: 11.sp,
+                                  fontWeight: FontWeight.w700,
+                                  color: AppColors.textSecondary,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        if (isLadyHealthWorker)
+                          Container(
+                            padding: EdgeInsets.symmetric(
+                              horizontal: 10.w,
+                              vertical: 5.h,
+                            ),
+                            decoration: BoxDecoration(
+                              color: AppColors.dashboardPrimary
+                                  .withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(999),
+                              border: Border.all(
+                                color: AppColors.dashboardPrimary
+                                    .withValues(alpha: 0.25),
+                              ),
+                            ),
+                            child: Text(
+                              'LHW',
+                              style: TextStyle(
+                                fontSize: 10.sp,
+                                fontWeight: FontWeight.w900,
+                                color: AppColors.dashboardPrimary,
+                                letterSpacing: 0.5,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              SizedBox(width: 12.w),
+              Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  Container(
+                    padding: EdgeInsets.all(3.r),
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: AppColors.surface,
+                      boxShadow: [
+                        BoxShadow(
+                          color: AppColors.dashboardPrimary
+                              .withValues(alpha: 0.18),
+                          blurRadius: 10,
+                          offset: const Offset(0, 3),
+                        ),
+                      ],
+                    ),
+                    child: CircleAvatar(
+                      radius: 28.r,
+                      backgroundColor: AppColors.dashboardPrimary,
+                      child: avatarLetters.isEmpty
+                          ? Icon(
+                              Icons.person_rounded,
+                              color: AppColors.surface,
+                              size: 28.sp,
+                            )
+                          : Text(
+                              avatarLetters,
+                              style: TextStyle(
+                                fontSize: 15.sp,
+                                fontWeight: FontWeight.w900,
+                                color: AppColors.surface,
+                              ),
+                            ),
+                    ),
+                  ),
+                  Positioned(
+                    right: 2.w,
+                    bottom: 2.h,
+                    child: Container(
+                      width: 12.r,
+                      height: 12.r,
+                      decoration: BoxDecoration(
+                        color: AppColors.success,
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: AppColors.surface,
+                          width: 2,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

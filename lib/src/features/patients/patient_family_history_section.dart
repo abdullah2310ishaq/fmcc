@@ -24,12 +24,14 @@ class PatientFamilyHistorySection extends StatefulWidget {
     required this.patientApi,
     required this.medicalConditions,
     required this.relationDegrees,
+    this.readOnly = false,
   });
 
   final String patientId;
   final PatientApi patientApi;
   final List<NamedReferenceItem> medicalConditions;
   final List<NamedReferenceItem> relationDegrees;
+  final bool readOnly;
 
   @override
   State<PatientFamilyHistorySection> createState() =>
@@ -976,7 +978,9 @@ class _PatientFamilyHistorySectionState
           children: [
             Expanded(
               child: Text(
-                'Add relatives and their illnesses by degree (1st / 2nd / 3rd).',
+                widget.readOnly
+                    ? 'Relatives and illnesses by degree (1st / 2nd / 3rd).'
+                    : 'Add relatives and their illnesses by degree (1st / 2nd / 3rd).',
                 style: TextStyle(
                   fontSize: 12.sp,
                   fontWeight: FontWeight.w600,
@@ -985,44 +989,101 @@ class _PatientFamilyHistorySectionState
                 ),
               ),
             ),
-            Material(
-              color: AppColors.dashboardPrimary,
-              borderRadius: BorderRadius.circular(999),
-              child: InkWell(
+            if (!widget.readOnly)
+              Material(
+                color: AppColors.dashboardPrimary,
                 borderRadius: BorderRadius.circular(999),
-                onTap: _addRelative,
-                child: Padding(
-                  padding:
-                      EdgeInsets.symmetric(horizontal: 12.w, vertical: 8.h),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.add_rounded,
-                          size: 16.sp, color: AppColors.surface),
-                      SizedBox(width: 4.w),
-                      Text(
-                        'Add relative',
-                        style: TextStyle(
-                          fontSize: 12.sp,
-                          fontWeight: FontWeight.w800,
-                          color: AppColors.surface,
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(999),
+                  onTap: _addRelative,
+                  child: Padding(
+                    padding:
+                        EdgeInsets.symmetric(horizontal: 12.w, vertical: 8.h),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.add_rounded,
+                            size: 16.sp, color: AppColors.surface),
+                        SizedBox(width: 4.w),
+                        Text(
+                          'Add relative',
+                          style: TextStyle(
+                            fontSize: 12.sp,
+                            fontWeight: FontWeight.w800,
+                            color: AppColors.surface,
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               ),
-            ),
           ],
         ),
         SizedBox(height: 14.h),
         if (visible.isEmpty)
-          Text(
-            'No relatives in this degree yet. Tap “Add relative”.',
-            style: TextStyle(
-              fontSize: 13.sp,
-              fontWeight: FontWeight.w600,
-              color: AppColors.textSecondary,
+          Container(
+            width: double.infinity,
+            padding: EdgeInsets.symmetric(vertical: 22.h, horizontal: 16.w),
+            decoration: BoxDecoration(
+              color: AppColors.registrationFieldFill.withValues(alpha: 0.45),
+              borderRadius: BorderRadius.circular(14.r),
+              border: Border.all(color: AppColors.registrationFieldBorder),
+            ),
+            child: Column(
+              children: [
+                Icon(
+                  Icons.family_restroom_outlined,
+                  size: 30.sp,
+                  color: AppColors.dashboardPrimary.withValues(alpha: 0.65),
+                ),
+                SizedBox(height: 10.h),
+                Text(
+                  widget.readOnly
+                      ? 'No relatives recorded for this degree.'
+                      : 'No relatives in this degree yet. Tap below to add one.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 13.sp,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textSecondary,
+                    height: 1.35,
+                  ),
+                ),
+                if (!widget.readOnly) ...[
+                  SizedBox(height: 14.h),
+                  Material(
+                    color: AppColors.dashboardPrimary,
+                    borderRadius: BorderRadius.circular(999),
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(999),
+                      onTap: _addRelative,
+                      child: Padding(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: 14.w,
+                          vertical: 9.h,
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.add_rounded,
+                                size: 16.sp, color: AppColors.surface),
+                            SizedBox(width: 4.w),
+                            Text(
+                              'Add relative',
+                              style: TextStyle(
+                                fontSize: 12.sp,
+                                fontWeight: FontWeight.w800,
+                                color: AppColors.surface,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ],
             ),
           )
         else
@@ -1086,10 +1147,11 @@ class _PatientFamilyHistorySectionState
                             ),
                           ),
                         ),
-                      _entryDeleteButton(
-                        onPressed: () =>
-                            unawaited(_deleteRelative(globalIndex)),
-                      ),
+                      if (!widget.readOnly)
+                        _entryDeleteButton(
+                          onPressed: () =>
+                              unawaited(_deleteRelative(globalIndex)),
+                        ),
                     ],
                   ),
                   SizedBox(height: 8.h),
@@ -1126,46 +1188,49 @@ class _PatientFamilyHistorySectionState
                                 ),
                               ),
                             ),
-                            _entryDeleteButton(
-                              size: 20,
-                              onPressed: () => unawaited(
-                                _deleteCondition(globalIndex, ci),
+                            if (!widget.readOnly)
+                              _entryDeleteButton(
+                                size: 20,
+                                onPressed: () => unawaited(
+                                  _deleteCondition(globalIndex, ci),
+                                ),
                               ),
-                            ),
                           ],
                         ),
                       );
                     }),
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: TextButton.icon(
-                      onPressed: () => unawaited(_addCondition(globalIndex)),
-                      icon: const Icon(Icons.add_rounded),
-                      label: const Text('Add condition'),
+                  if (!widget.readOnly)
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: TextButton.icon(
+                        onPressed: () => unawaited(_addCondition(globalIndex)),
+                        icon: const Icon(Icons.add_rounded),
+                        label: const Text('Add condition'),
+                      ),
                     ),
-                  ),
                 ],
               ),
             );
           }),
-        Padding(
-          padding: EdgeInsets.only(top: 20.h),
-          child: FilledButton(
-            onPressed: _saving ? null : _save,
-            style: FilledButton.styleFrom(
-              backgroundColor: AppColors.registrationSaveBlue,
-              foregroundColor: AppColors.surface,
-              minimumSize: Size(double.infinity, 52.h),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(14.r),
+        if (!widget.readOnly)
+          Padding(
+            padding: EdgeInsets.only(top: 20.h),
+            child: FilledButton(
+              onPressed: _saving ? null : _save,
+              style: FilledButton.styleFrom(
+                backgroundColor: AppColors.registrationSaveBlue,
+                foregroundColor: AppColors.surface,
+                minimumSize: Size(double.infinity, 52.h),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14.r),
+                ),
+              ),
+              child: Text(
+                _saving ? 'Saving…' : 'Save Family History',
+                style: TextStyle(fontSize: 15.sp, fontWeight: FontWeight.w800),
               ),
             ),
-            child: Text(
-              _saving ? 'Saving…' : 'Save Family History',
-              style: TextStyle(fontSize: 15.sp, fontWeight: FontWeight.w800),
-            ),
           ),
-        ),
         bottomInset,
       ],
     );
