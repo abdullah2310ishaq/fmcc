@@ -19,6 +19,7 @@ import 'package:doctor_app/src/features/home/health_worker_dashboard_models.dart
 import 'package:doctor_app/src/features/patients/patient_api.dart';
 import 'package:doctor_app/src/features/patients/patient_api_models.dart';
 import 'package:doctor_app/src/features/patients/patient_family_history_section.dart';
+import 'package:doctor_app/src/features/patients/patient_detail_cache.dart';
 import 'package:doctor_app/src/features/patients/patient_directory_coordinator.dart';
 import 'package:doctor_app/src/features/patients/visit_detail_screen.dart';
 import 'package:doctor_app/src/features/shell/tabs/visit_tab_page.dart';
@@ -213,7 +214,12 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
 
   bool _loadingRefs = false;
   bool _loadingDetail = false;
+  bool _bundleReady = false;
   String? _detailLoadError;
+
+  List<PatientFamilyRelativeRow>? _cachedFamilyRelatives;
+  PatientProfileData? _cachedProfile;
+  PatientCompleteHistoryData? _cachedHistory;
 
   List<PatientMedicalHistoryRow> _medical = const [];
   List<PatientSurgicalHistoryRow> _surgical = const [];
@@ -240,6 +246,19 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
   bool _sectionReadOnly = false;
 
   bool get _sectionEditable => widget.fixedSection == null || !_sectionReadOnly;
+
+  bool get _initialLoading => _loadingDetail && !_bundleReady;
+
+  PatientDetailCache get _cache => context.read<PatientDetailCache>();
+
+  void _invalidatePatientCache() {
+    _cache.invalidatePatient(widget.summary.patientId);
+  }
+
+  Future<void> _refreshFromNetwork({bool invalidate = true}) async {
+    if (invalidate) _invalidatePatientCache();
+    await _bootstrap(forceRefresh: true);
+  }
 
   void _toggleSectionReadOnly() {
     setState(() {
@@ -299,22 +318,50 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
         _PatientDetailGender.other => 'Other',
       };
 
-  Future<void> _bootstrap() async {
+  Future<void> _bootstrap({bool forceRefresh = false}) async {
     final session = context.read<SessionController>();
     final token = session.state.accessToken?.trim();
     if (token == null || token.isEmpty) return;
 
-    setState(() {
-      _loadingRefs = true;
-      _loadingDetail = true;
-      _detailLoadError = null;
-    });
+    final pid = widget.summary.patientId;
+    final cache = _cache;
+
+    if (!forceRefresh && cache.hasPatient(pid)) {
+      final bundle = cache.bundleFor(pid)!;
+      if (cache.hasReferences) {
+        _applyReferences(cache.references!);
+      }
+      _hydrateFromBundle(bundle);
+      if (mounted) {
+        setState(() {
+          _bundleReady = true;
+          _loadingDetail = false;
+          _loadingRefs = false;
+          _detailLoadError = null;
+        });
+      }
+      if (!cache.hasReferences) {
+        unawaited(_fetchAndCacheReferences(session, token));
+      }
+      return;
+    }
+
+    if (mounted) {
+      setState(() {
+        _loadingRefs = true;
+        _loadingDetail = true;
+        _bundleReady = false;
+        _detailLoadError = null;
+      });
+    }
 
     try {
-      await _loadReference(session, token);
-      await _loadClinicalDropdownRefs(session, token);
-      await _loadProfileAndCascadeLocation(session, token);
-      await _loadClinical(session, token);
+      if (cache.hasReferences) {
+        _applyReferences(cache.references!);
+      } else {
+        await _fetchAndCacheReferences(session, token);
+      }
+      await _fetchAndCachePatientBundle(session, token);
     } on Object catch (e) {
       if (!mounted) return;
       if (e is SessionEndedFailure) return;
@@ -329,6 +376,136 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
         });
       }
     }
+  }
+
+  void _applyReferences(PatientDetailReferences refs) {
+    _provinces = refs.provinces;
+    _maritalStatuses = refs.maritalStatuses;
+    _complianceLevels = refs.complianceLevels;
+    _adherenceLevels = refs.adherenceLevels;
+    _medicalConditions = refs.medicalConditions;
+    _surgicalProcedures = refs.surgicalProcedures;
+    _medicineCategories = refs.medicineCategories;
+    _relationDegrees = refs.relationDegrees;
+  }
+
+  void _hydrateFromBundle(PatientDetailBundle bundle) {
+    _cachedProfile = bundle.profile;
+    _cachedHistory = bundle.history;
+    _applyProfileToForm(bundle.profile);
+    _districts = bundle.districts;
+    _tehsils = bundle.tehsils;
+    _cachedFamilyRelatives = bundle.familyRelatives;
+
+    _editingChronicIds.clear();
+    _editingSurgicalIds.clear();
+    _editingDrugIds.clear();
+    _editingTobacco = false;
+
+    final history = bundle.history;
+    if (history != null) {
+      _medical = List<PatientMedicalHistoryRow>.from(history.medical);
+      _surgical = List<PatientSurgicalHistoryRow>.from(history.surgical);
+      _drugs = List<PatientDrugHistoryRow>.from(history.drugs);
+      _clinicalBundleResolved = true;
+      final baseline = history.baseline;
+      if (baseline != null) {
+        _familyHtn = baseline.familyHistoryOfHtnOrStroke;
+        _tobaccoUse = baseline.tobaccoUse;
+        _tobaccoTypeController.text = baseline.tobaccoType?.trim() ?? '';
+        _tobaccoQuantityController.text =
+            baseline.tobaccoQuantityPerDay?.toString() ?? '';
+        _tobaccoDurationStart = baseline.tobaccoDurationStart;
+        _tobaccoDurationEnd = baseline.tobaccoDurationEnd;
+        _baselineLoaded = true;
+      } else {
+        _familyHtn = false;
+        _tobaccoUse = false;
+        _tobaccoTypeController.clear();
+        _tobaccoQuantityController.clear();
+        _tobaccoDurationStart = null;
+        _tobaccoDurationEnd = null;
+        _baselineLoaded = false;
+      }
+    } else if (!_clinicalBundleResolved) {
+      _medical = const [];
+      _surgical = const [];
+      _drugs = const [];
+      _familyHtn = false;
+      _tobaccoUse = false;
+      _tobaccoTypeController.clear();
+      _tobaccoQuantityController.clear();
+      _tobaccoDurationStart = null;
+      _tobaccoDurationEnd = null;
+      _baselineLoaded = false;
+      _clinicalBundleResolved = true;
+    }
+
+    _visits = List<PatientVisitRow>.from(bundle.visits)
+      ..sort((a, b) => b.visitDate.compareTo(a.visitDate));
+    _rebuildClinicalTextControllers();
+    _bundleReady = true;
+  }
+
+  Future<void> _fetchAndCacheReferences(
+    SessionController session,
+    String token,
+  ) async {
+    await _loadReference(session, token);
+    final ref = _referenceApi;
+    if (ref == null) return;
+    await _loadClinicalDropdownRefs(session, token);
+    _cache.setReferences(
+      PatientDetailReferences(
+        provinces: _provinces,
+        maritalStatuses: _maritalStatuses,
+        complianceLevels: _complianceLevels,
+        adherenceLevels: _adherenceLevels,
+        medicalConditions: _medicalConditions,
+        surgicalProcedures: _surgicalProcedures,
+        medicineCategories: _medicineCategories,
+        relationDegrees: _relationDegrees,
+      ),
+    );
+  }
+
+  Future<void> _fetchAndCachePatientBundle(
+    SessionController session,
+    String token,
+  ) async {
+    final pid = widget.summary.patientId;
+    await _loadProfileAndCascadeLocation(session, token);
+    await _loadClinical(session, token);
+
+    List<PatientFamilyRelativeRow>? familyRelatives;
+    try {
+      final family = await _patientApi!.getFamilyHistory(
+        patientId: pid,
+        bearerToken: token,
+      );
+      familyRelatives = family?.relatives;
+    } on Object catch (e) {
+      if (!mounted || e is SessionEndedFailure) return;
+      _toast(session.apiClient.mapError(e).message);
+    }
+
+    if (!mounted) return;
+
+    final profile = _cachedProfile;
+    if (profile == null) return;
+
+    final bundle = PatientDetailBundle(
+      profile: profile,
+      districts: _districts,
+      tehsils: _tehsils,
+      history: _cachedHistory,
+      visits: _visits,
+      familyRelatives: familyRelatives,
+    );
+
+    _cachedFamilyRelatives = familyRelatives;
+    _cache.setPatientBundle(pid, bundle);
+    if (mounted) setState(() => _bundleReady = true);
   }
 
   void _applyProfileToForm(PatientProfileData p) {
@@ -393,6 +570,7 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
       bearerToken: token,
     );
     if (!mounted) return;
+    _cachedProfile = profile;
     setState(() => _applyProfileToForm(profile));
     await _cascadeDistrictsAndTehsils(session);
   }
@@ -571,6 +749,7 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
     }
 
     if (!mounted) return;
+    _cachedHistory = history;
     setState(() {
       _editingChronicIds.clear();
       _editingSurgicalIds.clear();
@@ -617,6 +796,23 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
         ..sort((a, b) => b.visitDate.compareTo(a.visitDate));
     });
     _rebuildClinicalTextControllers();
+    _updateCacheFromState();
+  }
+
+  void _updateCacheFromState() {
+    final profile = _cachedProfile;
+    if (profile == null) return;
+    _cache.setPatientBundle(
+      widget.summary.patientId,
+      PatientDetailBundle(
+        profile: profile,
+        districts: _districts,
+        tehsils: _tehsils,
+        history: _cachedHistory,
+        visits: _visits,
+        familyRelatives: _cachedFamilyRelatives,
+      ),
+    );
   }
 
   Future<void> _onProvinceChanged(int? id) async {
@@ -799,6 +995,8 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
       if (!mounted) return;
       _toast('Patient updated successfully.');
       context.read<PatientDirectoryCoordinator>().requestDashboardReload();
+      await _loadProfileAndCascadeLocation(session, token);
+      _updateCacheFromState();
     } on Object catch (e) {
       if (!mounted || e is SessionEndedFailure) return;
       _toast(session.apiClient.mapError(e).message);
@@ -2077,6 +2275,9 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
       _medical = [..._medical, row];
     });
     _rebuildClinicalTextControllers();
+    if (!_sectionEditable) {
+      unawaited(_saveMedicalAndLifestyle());
+    }
   }
 
   Future<void> _showAddSurgicalDialog(
@@ -2263,6 +2464,9 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
       _surgical = [..._surgical, row];
     });
     _rebuildClinicalTextControllers();
+    if (!_sectionEditable) {
+      unawaited(_saveMedicalAndLifestyle());
+    }
   }
 
   Future<void> _showAddDrugDialog(
@@ -2468,6 +2672,9 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
       _drugs = [..._drugs, row];
     });
     _rebuildClinicalTextControllers();
+    if (!_sectionEditable) {
+      unawaited(_saveMedicalAndLifestyle());
+    }
   }
 
   Widget _historyModalHeader({
@@ -2808,9 +3015,7 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
           ),
           SizedBox(height: 10.h),
           Text(
-            _sectionEditable
-                ? 'Nothing added yet. Tap below to create a new entry.'
-                : viewMessage,
+            viewMessage,
             textAlign: TextAlign.center,
             style: TextStyle(
               fontSize: 13.sp,
@@ -2819,10 +3024,8 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
               height: 1.35,
             ),
           ),
-          if (_sectionEditable) ...[
-            SizedBox(height: 14.h),
-            _historyHeaderAddButton(label: addLabel, onPressed: onAdd),
-          ],
+          SizedBox(height: 14.h),
+          _historyHeaderAddButton(label: addLabel, onPressed: onAdd),
         ],
       ),
     );
@@ -2857,6 +3060,76 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
         _historyEntryUpdateButton(onPressed: onUpdate),
         _historyEntryDeleteButton(onPressed: onDelete),
       ],
+    );
+  }
+
+  String _formatOptionalMonths(int? months, String controllerText) {
+    final raw = months?.toString() ?? controllerText.trim();
+    if (raw.isEmpty) return '';
+    return '$raw mo';
+  }
+
+  Widget _historyMetaPill({
+    required String label,
+    required String value,
+    Color? accent,
+  }) {
+    final text = value.trim();
+    if (text.isEmpty) return const SizedBox.shrink();
+    final color = accent ?? AppColors.dashboardPrimary;
+    return Container(
+      padding: EdgeInsets.symmetric(horizontal: 11.w, vertical: 7.h),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: color.withValues(alpha: 0.28)),
+      ),
+      child: Text.rich(
+        TextSpan(
+          children: [
+            TextSpan(
+              text: '$label  ',
+              style: TextStyle(
+                fontSize: 10.sp,
+                fontWeight: FontWeight.w700,
+                color: AppColors.textSecondary,
+              ),
+            ),
+            TextSpan(
+              text: text,
+              style: TextStyle(
+                fontSize: 11.sp,
+                fontWeight: FontWeight.w900,
+                color: AppColors.textPrimary,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _historyEntryCardShell({
+    required Key key,
+    required Widget child,
+  }) {
+    return Padding(
+      padding: EdgeInsets.only(bottom: 12.h),
+      child: Material(
+        key: key,
+        color: AppColors.surface,
+        elevation: 2.5,
+        shadowColor: AppColors.dashboardPrimary.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(18.r),
+        child: Container(
+          padding: EdgeInsets.all(14.r),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(18.r),
+            border: Border.all(color: AppColors.registrationFieldBorder),
+          ),
+          child: child,
+        ),
+      ),
     );
   }
 
@@ -3190,28 +3463,11 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
 
   Widget _medicalBody() {
     if (_loadingDetail &&
+        !_bundleReady &&
         _medical.isEmpty &&
         _surgical.isEmpty &&
         _drugs.isEmpty) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Padding(
-            padding: EdgeInsets.all(24.r),
-            child: Center(
-              child: CircularProgressIndicator(
-                color: AppColors.dashboardPrimary,
-              ),
-            ),
-          ),
-          if (_sectionEditable)
-            _primaryCtaButton(
-              onPressed: _savingMedical ? null : _saveMedicalAndLifestyle,
-              label: _savingMedical ? 'Saving…' : 'Save Medical History',
-            ),
-          SizedBox(height: MediaQuery.paddingOf(context).bottom + 12.h),
-        ],
-      );
+      return const SizedBox.shrink();
     }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -3249,17 +3505,8 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
                       refId: row.conditionId,
                       customName: customNameCtl.text,
                     );
-                    return Container(
+                    return _historyEntryCardShell(
                       key: ValueKey('chronic-${row.id}'),
-                      margin: EdgeInsets.only(bottom: 12.h),
-                      padding: EdgeInsets.all(12.r),
-                      decoration: BoxDecoration(
-                        color: AppColors.registrationFieldFill
-                            .withValues(alpha: 0.45),
-                        borderRadius: BorderRadius.circular(13.r),
-                        border: Border.all(
-                            color: AppColors.registrationFieldBorder),
-                      ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
@@ -3429,19 +3676,32 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
                               ),
                             ],
                           ] else ...[
-                            SizedBox(height: 8.h),
-                            _historyViewLine(
-                              label: 'On medication',
-                              value: row.isOnMedication ? 'Yes' : 'No',
-                            ),
-                            _historyViewLine(
-                              label: 'Duration on treatment (months)',
-                              value: row.durationInMonths?.toString() ??
-                                  durCtl.text.trim(),
-                            ),
-                            _historyViewLine(
-                              label: 'Compliance level',
-                              value: row.complianceLevelName,
+                            SizedBox(height: 10.h),
+                            Wrap(
+                              spacing: 8.w,
+                              runSpacing: 8.h,
+                              children: [
+                                _historyMetaPill(
+                                  label: 'Medication',
+                                  value: row.isOnMedication
+                                      ? 'On medication'
+                                      : 'Not on medication',
+                                  accent: row.isOnMedication
+                                      ? AppColors.followAccentGreen
+                                      : AppColors.textSecondary,
+                                ),
+                                _historyMetaPill(
+                                  label: 'Duration',
+                                  value: _formatOptionalMonths(
+                                    row.durationInMonths,
+                                    durCtl.text,
+                                  ),
+                                ),
+                                _historyMetaPill(
+                                  label: 'Compliance',
+                                  value: row.complianceLevelName,
+                                ),
+                              ],
                             ),
                           ],
                         ],
@@ -3487,17 +3747,8 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
                       refId: s.procedureId,
                       customName: customNameCtl.text,
                     );
-                    return Container(
+                    return _historyEntryCardShell(
                       key: ValueKey('surgical-${s.id}'),
-                      margin: EdgeInsets.only(bottom: 12.h),
-                      padding: EdgeInsets.all(12.r),
-                      decoration: BoxDecoration(
-                        color: AppColors.registrationFieldFill
-                            .withValues(alpha: 0.45),
-                        borderRadius: BorderRadius.circular(13.r),
-                        border: Border.all(
-                            color: AppColors.registrationFieldBorder),
-                      ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
@@ -3624,14 +3875,20 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
                               ],
                             ),
                           ] else ...[
-                            SizedBox(height: 8.h),
-                            _historyViewLine(
-                              label: 'Notes',
-                              value: s.notes,
-                            ),
-                            _historyViewLine(
-                              label: 'Approximate date',
-                              value: _formatSurgicalApproxDate(s),
+                            SizedBox(height: 10.h),
+                            Wrap(
+                              spacing: 8.w,
+                              runSpacing: 8.h,
+                              children: [
+                                _historyMetaPill(
+                                  label: 'Approx. date',
+                                  value: _formatSurgicalApproxDate(s),
+                                ),
+                                _historyMetaPill(
+                                  label: 'Notes',
+                                  value: s.notes,
+                                ),
+                              ],
                             ),
                           ],
                         ],
@@ -3672,17 +3929,8 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
                       refId: d.medicineCategoryId,
                       customName: customNameCtl.text,
                     );
-                    return Container(
+                    return _historyEntryCardShell(
                       key: ValueKey('drug-${d.id}'),
-                      margin: EdgeInsets.only(bottom: 12.h),
-                      padding: EdgeInsets.all(12.r),
-                      decoration: BoxDecoration(
-                        color: AppColors.registrationFieldFill
-                            .withValues(alpha: 0.45),
-                        borderRadius: BorderRadius.circular(13.r),
-                        border: Border.all(
-                            color: AppColors.registrationFieldBorder),
-                      ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
@@ -3834,14 +4082,20 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
                               ),
                             ),
                           ] else ...[
-                            SizedBox(height: 8.h),
-                            _historyViewLine(
-                              label: 'Adherence level',
-                              value: d.adherenceLevelName,
-                            ),
-                            _historyViewLine(
-                              label: 'Side effects / notes',
-                              value: d.sideEffects,
+                            SizedBox(height: 10.h),
+                            Wrap(
+                              spacing: 8.w,
+                              runSpacing: 8.h,
+                              children: [
+                                _historyMetaPill(
+                                  label: 'Adherence',
+                                  value: d.adherenceLevelName,
+                                ),
+                                _historyMetaPill(
+                                  label: 'Side effects',
+                                  value: d.sideEffects,
+                                ),
+                              ],
                             ),
                           ],
                         ],
@@ -3855,8 +4109,7 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
           _historySectionCard(
             icon: Icons.smoking_rooms_outlined,
             title: 'Tobacco history',
-            headerTrailing: _sectionEditable &&
-                    (!_baselineLoaded && !_editingTobacco)
+            headerTrailing: (!_baselineLoaded && !_editingTobacco)
                 ? _historyHeaderAddButton(
                     label: 'Add new',
                     onPressed: () => setState(() => _editingTobacco = true),
@@ -3867,14 +4120,11 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
               children: [
                 if (!_editingTobacco) ...[
                   if (!_baselineLoaded)
-                    Text(
-                      'Not recorded yet',
-                      style: TextStyle(
-                        fontSize: 13.sp,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.textSecondary,
-                        height: 1.35,
-                      ),
+                    _historyEmptyState(
+                      icon: Icons.smoking_rooms_outlined,
+                      viewMessage: 'No tobacco history recorded yet.',
+                      addLabel: 'Add new',
+                      onAdd: () => setState(() => _editingTobacco = true),
                     )
                   else ...[
                     Row(
@@ -3901,32 +4151,41 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
                       ],
                     ),
                     SizedBox(height: 8.h),
-                    _historyViewLine(
-                      label: 'Tobacco use',
-                      value: _tobaccoUse ? 'Yes' : 'No',
+                    Wrap(
+                      spacing: 8.w,
+                      runSpacing: 8.h,
+                      children: [
+                        _historyMetaPill(
+                          label: 'Tobacco use',
+                          value: _tobaccoUse ? 'Yes' : 'No',
+                          accent: _tobaccoUse
+                              ? AppColors.dashboardWarning
+                              : AppColors.followAccentGreen,
+                        ),
+                        if (_tobaccoUse) ...[
+                          _historyMetaPill(
+                            label: 'Type',
+                            value: _tobaccoTypeController.text,
+                          ),
+                          _historyMetaPill(
+                            label: 'Qty/day',
+                            value: _tobaccoQuantityController.text,
+                          ),
+                          _historyMetaPill(
+                            label: 'Start',
+                            value: _tobaccoDurationStart != null
+                                ? _displayDate(_tobaccoDurationStart)
+                                : '',
+                          ),
+                          _historyMetaPill(
+                            label: 'End',
+                            value: _tobaccoDurationEnd != null
+                                ? _displayDate(_tobaccoDurationEnd)
+                                : '',
+                          ),
+                        ],
+                      ],
                     ),
-                    if (_tobaccoUse) ...[
-                      _historyViewLine(
-                        label: 'Tobacco type',
-                        value: _tobaccoTypeController.text,
-                      ),
-                      _historyViewLine(
-                        label: 'Quantity per day',
-                        value: _tobaccoQuantityController.text,
-                      ),
-                      _historyViewLine(
-                        label: 'Duration start',
-                        value: _tobaccoDurationStart != null
-                            ? _displayDate(_tobaccoDurationStart)
-                            : '',
-                      ),
-                      _historyViewLine(
-                        label: 'Duration end',
-                        value: _tobaccoDurationEnd != null
-                            ? _displayDate(_tobaccoDurationEnd)
-                            : '',
-                      ),
-                    ],
                   ],
                 ] else ...[
                   Row(
@@ -4013,24 +4272,23 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
               ],
             ),
           ),
-        if (_sectionEditable)
-          if (_medicalTab == _MedicalHistoryTab.tobacco && _editingTobacco)
-            _primaryCtaButton(
-              onPressed: _savingBaseline
-                  ? null
-                  : () => unawaited(
-                        _saveBaselineLifestyle(
-                          successMessage: 'Tobacco history saved.',
-                          validateTobacco: true,
-                        ),
+        if (_medicalTab == _MedicalHistoryTab.tobacco && _editingTobacco)
+          _primaryCtaButton(
+            onPressed: _savingBaseline
+                ? null
+                : () => unawaited(
+                      _saveBaselineLifestyle(
+                        successMessage: 'Tobacco history saved.',
+                        validateTobacco: true,
                       ),
-              label: _savingBaseline ? 'Saving…' : 'Save Tobacco History',
-            )
-          else
-            _primaryCtaButton(
-              onPressed: _savingMedical ? null : _saveMedicalAndLifestyle,
-              label: _savingMedical ? 'Saving…' : 'Save Medical History',
-            ),
+                    ),
+            label: _savingBaseline ? 'Saving…' : 'Save Tobacco History',
+          )
+        else if (_sectionEditable)
+          _primaryCtaButton(
+            onPressed: _savingMedical ? null : _saveMedicalAndLifestyle,
+            label: _savingMedical ? 'Saving…' : 'Save Medical History',
+          ),
         SizedBox(height: MediaQuery.paddingOf(context).bottom + 12.h),
       ],
     );
@@ -4075,7 +4333,6 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
   }
 
   Widget _medicalAddButton() {
-    if (!_sectionEditable) return const SizedBox.shrink();
     final ({VoidCallback onPressed, String label}) action =
         switch (_medicalTab) {
       _MedicalHistoryTab.chronic => (
@@ -4102,45 +4359,54 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
   }
 
   Widget _baselineBody() {
-    if (_loadingDetail && !_baselineLoaded) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Padding(
-            padding: EdgeInsets.all(24.r),
-            child: Center(
-              child: CircularProgressIndicator(
-                color: AppColors.dashboardPrimary,
-              ),
-            ),
-          ),
-          if (_sectionEditable)
-            _primaryCtaButton(
-              onPressed: _savingBaseline
-                  ? null
-                  : () => unawaited(
-                        _saveBaselineLifestyle(
-                          successMessage: 'Baseline lifestyle saved.',
-                        ),
-                      ),
-              label: _savingBaseline ? 'Saving…' : 'Save Baseline Lifestyle',
-            ),
-          SizedBox(height: MediaQuery.paddingOf(context).bottom + 12.h),
-        ],
-      );
+    if (_loadingDetail && !_bundleReady && !_baselineLoaded) {
+      return const SizedBox.shrink();
     }
     if (!_sectionEditable) {
+      final hasBaselineData =
+          _baselineLoaded || _familyHtn || _tobaccoUse;
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _historySectionCard(
-            icon: Icons.spa_outlined,
-            title: 'Baseline lifestyle',
-            child: _historyViewLine(
-              label: 'Family history of HTN / stroke',
-              value: _familyHtn ? 'Yes' : 'No',
+          if (!hasBaselineData)
+            _historyEmptyState(
+              icon: Icons.spa_outlined,
+              viewMessage:
+                  'No baseline lifestyle recorded for this patient yet.',
+              addLabel: 'Record baseline',
+              onAdd: _toggleSectionReadOnly,
+            )
+          else
+            _infoGroupCard(
+              icon: Icons.spa_outlined,
+              title: 'Baseline Lifestyle',
+              rows: [
+                (
+                  'Family history of HTN / stroke',
+                  _familyHtn ? 'Yes' : 'No',
+                ),
+                (
+                  'Tobacco use',
+                  _tobaccoUse ? 'Yes' : 'No',
+                ),
+                if (_tobaccoUse) ...[
+                  ('Tobacco type', _tobaccoTypeController.text),
+                  ('Quantity per day', _tobaccoQuantityController.text),
+                  (
+                    'Duration start',
+                    _tobaccoDurationStart != null
+                        ? _displayDate(_tobaccoDurationStart)
+                        : '',
+                  ),
+                  (
+                    'Duration end',
+                    _tobaccoDurationEnd != null
+                        ? _displayDate(_tobaccoDurationEnd)
+                        : '',
+                  ),
+                ],
+              ],
             ),
-          ),
           SizedBox(height: MediaQuery.paddingOf(context).bottom + 12.h),
         ],
       );
@@ -4261,29 +4527,13 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
     final bottomInset = SizedBox(
       height: MediaQuery.paddingOf(context).bottom + 12.h,
     );
-    final logVisitCta = _sectionEditable
-        ? _primaryCtaButton(
-            onPressed: _openVisitAssessment,
-            label: 'Log New Visit',
-          )
-        : const SizedBox.shrink();
+    final logVisitCta = _primaryCtaButton(
+      onPressed: _openVisitAssessment,
+      label: 'Log New Visit',
+    );
 
-    if (_loadingDetail && _visits.isEmpty) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Padding(
-            padding: EdgeInsets.symmetric(vertical: 24.h),
-            child: Center(
-              child: CircularProgressIndicator(
-                color: AppColors.dashboardPrimary,
-              ),
-            ),
-          ),
-          logVisitCta,
-          bottomInset,
-        ],
-      );
+    if (_loadingDetail && !_bundleReady && _visits.isEmpty) {
+      return const SizedBox.shrink();
     }
     if (_visits.isEmpty) {
       return Column(
@@ -4295,10 +4545,8 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
             addLabel: 'Log New Visit',
             onAdd: _openVisitAssessment,
           ),
-          if (_sectionEditable) ...[
-            SizedBox(height: 16.h),
-            logVisitCta,
-          ],
+          SizedBox(height: 16.h),
+          logVisitCta,
           bottomInset,
         ],
       );
@@ -4370,40 +4618,29 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
           ),
         ),
         if (shown.isEmpty)
-          Padding(
-            padding: EdgeInsets.symmetric(vertical: 14.h),
-            child: Text(
-              switch (_visitHistorySegment) {
-                _VisitHistorySegment.followUps =>
-                  'No follow-up visits in history yet.\nابھی فالو اپ کا کوئی ریکارڈ نہیں۔',
-                _VisitHistorySegment.routine =>
-                  'No routine / other visits in this filter.\nاس فلٹر میں معمول وزٹ نہیں۔',
-                _VisitHistorySegment.all =>
-                  'No visits in this view.\nاس فہرست میں کوئی وزٹ نہیں۔',
-              },
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 13.sp,
-                fontWeight: FontWeight.w600,
-                color: AppColors.textSecondary,
-                height: 1.35,
-              ),
-            ),
+          _historyEmptyState(
+            icon: Icons.event_note_rounded,
+            viewMessage: switch (_visitHistorySegment) {
+              _VisitHistorySegment.followUps =>
+                'No follow-up visits in this filter.',
+              _VisitHistorySegment.routine =>
+                'No routine visits in this filter.',
+              _VisitHistorySegment.all => 'No visits in this view.',
+            },
+            addLabel: 'Log New Visit',
+            onAdd: _openVisitAssessment,
           )
         else
           ...shown.map(
             (v) => Padding(
-              padding: EdgeInsets.only(bottom: 10.h),
+              padding: EdgeInsets.only(bottom: 12.h),
               child: Material(
                 color: AppColors.surface,
-                elevation: 0,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14.r),
-                  side: const BorderSide(
-                      color: AppColors.registrationFieldBorder),
-                ),
+                elevation: 3,
+                shadowColor: AppColors.dashboardPrimary.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(18.r),
+                clipBehavior: Clip.antiAlias,
                 child: InkWell(
-                  borderRadius: BorderRadius.circular(14.r),
                   onTap: () {
                     Navigator.of(context).push(
                       MaterialPageRoute<void>(
@@ -4414,76 +4651,99 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
                       ),
                     );
                   },
-                  child: Padding(
-                    padding: EdgeInsets.all(14.r),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Expanded(
-                              child: Text(
-                                patientDetailShortVisit(v.visitDate),
-                                style: TextStyle(
-                                  fontSize: 13.sp,
-                                  fontWeight: FontWeight.w900,
-                                  color: AppColors.dashboardPrimaryDark,
-                                ),
-                              ),
-                            ),
-                            Container(
-                              padding: EdgeInsets.symmetric(
-                                horizontal: 9.w,
-                                vertical: 4.h,
-                              ),
-                              decoration: BoxDecoration(
-                                color: AppColors.followUpcomingBg,
-                                borderRadius: BorderRadius.circular(999),
-                              ),
-                              child: Text(
-                                v.visitStatusName.isNotEmpty
-                                    ? v.visitStatusName
-                                    : '—',
-                                style: TextStyle(
-                                  fontSize: 10.sp,
-                                  fontWeight: FontWeight.w800,
-                                  color: AppColors.followAccentGreen,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        SizedBox(height: 8.h),
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Expanded(
-                              child: Text(
-                                v.visitTypeName,
-                                style: TextStyle(
-                                  fontSize: 13.sp,
-                                  fontWeight: FontWeight.w800,
-                                  color: AppColors.textPrimary,
-                                ),
-                              ),
-                            ),
-                            if (v.isFollowUpVisit)
-                              Padding(
-                                padding: EdgeInsets.only(left: 6.w),
-                                child: Text(
-                                  'فالو اپ',
-                                  style: TextStyle(
-                                    fontSize: 10.sp,
-                                    fontWeight: FontWeight.w800,
-                                    color: AppColors.dashboardWarning,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(18.r),
+                      border: Border.all(color: AppColors.registrationFieldBorder),
+                    ),
+                    child: IntrinsicHeight(
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Container(
+                            width: 4.w,
+                            color: AppColors.dashboardPrimary
+                                .withValues(alpha: 0.7),
+                          ),
+                          Expanded(
+                            child: Padding(
+                              padding: EdgeInsets.all(14.r),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child: Text(
+                                          patientDetailShortVisit(v.visitDate),
+                                          style: TextStyle(
+                                            fontSize: 14.sp,
+                                            fontWeight: FontWeight.w900,
+                                            color:
+                                                AppColors.dashboardPrimaryDark,
+                                          ),
+                                        ),
+                                      ),
+                                      Container(
+                                        padding: EdgeInsets.symmetric(
+                                          horizontal: 9.w,
+                                          vertical: 4.h,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: AppColors.followUpcomingBg,
+                                          borderRadius:
+                                              BorderRadius.circular(999),
+                                        ),
+                                        child: Text(
+                                          v.visitStatusName.isNotEmpty
+                                              ? v.visitStatusName
+                                              : '—',
+                                          style: TextStyle(
+                                            fontSize: 10.sp,
+                                            fontWeight: FontWeight.w800,
+                                            color: AppColors.followAccentGreen,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
                                   ),
-                                ),
+                                  SizedBox(height: 8.h),
+                                  Row(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Expanded(
+                                        child: Text(
+                                          v.visitTypeName,
+                                          style: TextStyle(
+                                            fontSize: 13.sp,
+                                            fontWeight: FontWeight.w800,
+                                            color: AppColors.textPrimary,
+                                          ),
+                                        ),
+                                      ),
+                                      if (v.isFollowUpVisit)
+                                        Padding(
+                                          padding: EdgeInsets.only(left: 6.w),
+                                          child: Text(
+                                            'فالو اپ',
+                                            style: TextStyle(
+                                              fontSize: 10.sp,
+                                              fontWeight: FontWeight.w800,
+                                              color: AppColors.dashboardWarning,
+                                            ),
+                                          ),
+                                        ),
+                                    ],
+                                  ),
+                                  SizedBox(height: 6.h),
+                                  _visitHistoryMetaLine(v),
+                                ],
                               ),
-                          ],
-                        ),
-                        SizedBox(height: 6.h),
-                        _visitHistoryMetaLine(v),
-                      ],
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),
@@ -4507,6 +4767,12 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
             medicalConditions: _medicalConditions,
             relationDegrees: _relationDegrees,
             readOnly: !_sectionEditable,
+            allowAdd: true,
+            initialRelatives: _cachedFamilyRelatives,
+            onRelativesChanged: (relatives) {
+              _cachedFamilyRelatives = relatives;
+              _updateCacheFromState();
+            },
           );
 
     return IndexedStack(
@@ -4790,20 +5056,94 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
             ),
           ),
         ),
-      SliverPadding(
-        padding: EdgeInsets.fromLTRB(18.w, 22.h, 18.w, 24.h),
-        sliver: SliverToBoxAdapter(
-          child: _sectionBody(),
+      if (_initialLoading)
+        SliverFillRemaining(
+          hasScrollBody: false,
+          child: _PatientDetailLoadingView(
+            label: widget.fixedSection?.label ?? 'Patient details',
+          ),
+        )
+      else
+        SliverPadding(
+          padding: EdgeInsets.fromLTRB(18.w, 22.h, 18.w, 24.h),
+          sliver: SliverToBoxAdapter(
+            child: _sectionBody(),
+          ),
         ),
-      ),
     ];
+
+    final scroll = CustomScrollView(
+      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+      slivers: slivers,
+    );
 
     return Material(
       color: AppColors.registrationScreenBg,
       child: SafeArea(
-        child: CustomScrollView(
-          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-          slivers: slivers,
+        child: widget.fixedSection != null
+            ? RefreshIndicator(
+                color: AppColors.dashboardPrimary,
+                onRefresh: () => _refreshFromNetwork(),
+                child: scroll,
+              )
+            : scroll,
+      ),
+    );
+  }
+}
+
+class _PatientDetailLoadingView extends StatelessWidget {
+  const _PatientDetailLoadingView({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: EdgeInsets.symmetric(horizontal: 32.w),
+        child: Material(
+          elevation: 3,
+          shadowColor: AppColors.dashboardPrimary.withValues(alpha: 0.15),
+          borderRadius: BorderRadius.circular(24.r),
+          color: AppColors.surface,
+          child: Padding(
+            padding: EdgeInsets.symmetric(horizontal: 28.w, vertical: 32.h),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SizedBox(
+                  width: 44.r,
+                  height: 44.r,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 3.5,
+                    color: AppColors.dashboardPrimary,
+                  ),
+                ),
+                SizedBox(height: 18.h),
+                Text(
+                  'Loading $label',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 16.sp,
+                    fontWeight: FontWeight.w900,
+                    color: AppColors.dashboardPrimaryDark,
+                  ),
+                ),
+                SizedBox(height: 6.h),
+                Text(
+                  'Please wait while we fetch patient records…',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 12.sp,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textSecondary,
+                    height: 1.35,
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );

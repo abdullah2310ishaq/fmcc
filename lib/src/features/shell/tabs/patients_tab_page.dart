@@ -3,7 +3,6 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
-import 'package:doctor_app/src/core/format/name_initials.dart';
 import 'package:doctor_app/src/core/input_format/cnic_input_formatter.dart';
 import 'package:doctor_app/src/core/session/app_session.dart';
 import 'package:doctor_app/src/core/session/session_controller.dart';
@@ -11,6 +10,7 @@ import 'package:doctor_app/src/core/theme/app_colors.dart';
 import 'package:doctor_app/src/features/home/home_dashboard_controller.dart';
 import 'package:doctor_app/src/features/home/health_worker_dashboard_models.dart';
 import 'package:doctor_app/src/features/patients/new_patient_registration_screen.dart';
+import 'package:doctor_app/src/features/patients/patient_directory_list_card.dart';
 import 'package:doctor_app/src/features/patients/patient_detail_hub_page.dart';
 import 'package:doctor_app/src/features/shell/tabs/visit_tab_page.dart';
 
@@ -137,11 +137,6 @@ extension PatientsDirectoryUi on HwPatientSummary {
     return g == 'female' || g == 'f';
   }
 
-  bool _isAntenatalCondition() {
-    final p = primaryCondition.toLowerCase();
-    return p.contains('antenatal') || p.contains('pregnan');
-  }
-
   bool matchesSearch(String q) {
     final raw = q.trim();
     if (raw.isEmpty) return true;
@@ -164,71 +159,6 @@ extension PatientsDirectoryUi on HwPatientSummary {
     }
     return false;
   }
-
-  ({Color fg, Color bg, Color avatarBg}) get directoryPalette {
-    final p = primaryCondition.toLowerCase();
-    if (_isAntenatalCondition()) {
-      return (
-        fg: AppColors.dashboardPrimary,
-        bg: AppColors.dashboardChipBlueBg,
-        avatarBg: AppColors.patientAvatarBlue,
-      );
-    }
-    if (p.contains('diabet')) {
-      return (
-        fg: AppColors.followAccentPurple,
-        bg: const Color(0xFFF3E8FF),
-        avatarBg: AppColors.patientAvatarPurple,
-      );
-    }
-    if (p.contains('post') || p.contains('surg')) {
-      return (
-        fg: AppColors.followAccentGreen,
-        bg: AppColors.followUpcomingBg,
-        avatarBg: AppColors.patientAvatarGreen,
-      );
-    }
-    if (p.contains('hypertension') ||
-        p.contains('pressure') ||
-        p.contains('asthma')) {
-      return (
-        fg: AppColors.dashboardWarning,
-        bg: AppColors.dashboardPeach,
-        avatarBg: AppColors.patientAvatarOrange,
-      );
-    }
-    return (
-      fg: AppColors.dashboardPrimaryDark,
-      bg: AppColors.dashboardChipBlueBg,
-      avatarBg: AppColors.patientAvatarBlue,
-    );
-  }
-}
-
-String _genderDisplayLabel(String gender) {
-  final g = gender.trim().toLowerCase();
-  if (g == 'male' || g == 'm') return 'Male';
-  if (g == 'female' || g == 'f') return 'Female';
-  return gender.trim().isNotEmpty ? gender.trim() : '—';
-}
-
-String _shortVisit(DateTime? d) {
-  if (d == null) return '—';
-  const months = [
-    'Jan',
-    'Feb',
-    'Mar',
-    'Apr',
-    'May',
-    'Jun',
-    'Jul',
-    'Aug',
-    'Sep',
-    'Oct',
-    'Nov',
-    'Dec',
-  ];
-  return '${d.day} ${months[d.month - 1]}';
 }
 
 class _PatientsTabPageState extends State<PatientsTabPage> {
@@ -377,65 +307,46 @@ class _PatientsTabPageState extends State<PatientsTabPage> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Padding(
-            padding: EdgeInsets.fromLTRB(16.w, 10.h, 16.w, 12.h),
+            padding: EdgeInsets.fromLTRB(8.w, 4.h, 8.w, 0),
             child: Row(
               children: [
-                Material(
-                  color: AppColors.dashboardChipBlueBg,
-                  borderRadius: BorderRadius.circular(12.r),
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(12.r),
-                    onTap: () {
-                      final h = widget.onLeaveToHomeTab;
-                      if (h != null) {
-                        h();
-                      } else {
-                        Navigator.maybePop(context);
-                      }
-                    },
-                    child: SizedBox(
-                      width: 42.r,
-                      height: 42.r,
-                      child: Icon(
-                        Icons.arrow_back_ios_new_rounded,
-                        size: 18.sp,
-                        color: AppColors.dashboardPrimaryDark,
-                      ),
-                    ),
+                IconButton(
+                  onPressed: () {
+                    final h = widget.onLeaveToHomeTab;
+                    if (h != null) {
+                      h();
+                    } else {
+                      Navigator.maybePop(context);
+                    }
+                  },
+                  splashRadius: 22.r,
+                  icon: Icon(
+                    Icons.arrow_back_ios_new_rounded,
+                    size: 19.sp,
+                    color: AppColors.dashboardPrimary,
                   ),
                 ),
-                Expanded(
-                  child: Text(
-                    'All Patients',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 17.sp,
-                      fontWeight: FontWeight.w800,
-                      color: AppColors.dashboardPrimaryDark,
-                    ),
-                  ),
-                ),
+                const Spacer(),
                 if (!_searchChromeActive)
-                  Material(
-                    color: AppColors.dashboardPrimaryDark,
-                    borderRadius: BorderRadius.circular(12.r),
-                    child: InkWell(
-                      borderRadius: BorderRadius.circular(12.r),
-                      onTap: _onCreatePatient,
-                      child: SizedBox(
-                        width: 42.r,
-                        height: 42.r,
-                        child: Icon(
-                          Icons.add_rounded,
-                          size: 26.sp,
-                          color: Colors.white,
-                        ),
-                      ),
+                  IconButton(
+                    onPressed: _onCreatePatient,
+                    splashRadius: 22.r,
+                    icon: Icon(
+                      Icons.person_add_alt_1_rounded,
+                      size: 24.sp,
+                      color: AppColors.dashboardPrimary,
                     ),
                   )
                 else
-                  SizedBox(width: 42.r, height: 42.r),
+                  SizedBox(width: 48.w),
               ],
+            ),
+          ),
+          Padding(
+            padding: EdgeInsets.fromLTRB(16.w, 4.h, 16.w, 12.h),
+            child: PatientDirectoryHeaderBanner(
+              totalCount: patients.length,
+              visibleCount: visible.length,
             ),
           ),
           if (dash.error != null)
@@ -601,124 +512,11 @@ class _PatientsTabPageState extends State<PatientsTabPage> {
                         itemCount: visible.length,
                         itemBuilder: (context, index) {
                           final p = visible[index];
-                          final initials = p.initials.trim().isNotEmpty
-                              ? p.initials
-                              : NameInitials.fromFullName(p.fullName);
-                          final pal = p.directoryPalette;
-
                           return Padding(
-                            padding: EdgeInsets.only(bottom: 14.h),
-                            child: Material(
-                              color: AppColors.surface,
-                              elevation: 2.5,
-                              shadowColor: Colors.black.withValues(alpha: 0.08),
-                              borderRadius: BorderRadius.circular(16.r),
-                              clipBehavior: Clip.antiAlias,
-                              child: InkWell(
-                                onTap: () => _onPatientTap(p),
-                                child: Padding(
-                                  padding: EdgeInsets.symmetric(
-                                    horizontal: 14.w,
-                                    vertical: 14.h,
-                                  ),
-                                  child: Row(
-                                    crossAxisAlignment: CrossAxisAlignment.center,
-                                    children: [
-                                      CircleAvatar(
-                                        radius: 26.r,
-                                        backgroundColor: pal.avatarBg,
-                                        child: Text(
-                                          initials,
-                                          style: TextStyle(
-                                            fontSize: 14.sp,
-                                            fontWeight: FontWeight.w800,
-                                            color: pal.fg,
-                                          ),
-                                        ),
-                                      ),
-                                      SizedBox(width: 14.w),
-                                      Expanded(
-                                        child: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          children: [
-                                            Text(
-                                              p.fullName,
-                                              style: TextStyle(
-                                                fontSize: 15.sp,
-                                                fontWeight: FontWeight.w800,
-                                                color: AppColors
-                                                    .dashboardPrimaryDark,
-                                              ),
-                                            ),
-                                            SizedBox(height: 4.h),
-                                            Text(
-                                              'Age ${p.age} • ${_genderDisplayLabel(p.gender)}',
-                                              style: TextStyle(
-                                                fontSize: 12.sp,
-                                                fontWeight: FontWeight.w600,
-                                                color: AppColors.textSecondary,
-                                              ),
-                                            ),
-                                            SizedBox(height: 8.h),
-                                            Row(
-                                              children: [
-                                                Flexible(
-                                                  child: Container(
-                                                    padding:
-                                                        EdgeInsets.symmetric(
-                                                      horizontal: 8.w,
-                                                      vertical: 4.h,
-                                                    ),
-                                                    decoration: BoxDecoration(
-                                                      color: pal.bg,
-                                                      borderRadius:
-                                                          BorderRadius.circular(
-                                                              999),
-                                                    ),
-                                                    child: Text(
-                                                      p.primaryCondition
-                                                              .trim()
-                                                              .isEmpty
-                                                          ? '—'
-                                                          : p.primaryCondition,
-                                                      overflow:
-                                                          TextOverflow.ellipsis,
-                                                      style: TextStyle(
-                                                        fontSize: 10.sp,
-                                                        fontWeight:
-                                                            FontWeight.w800,
-                                                        color: pal.fg,
-                                                      ),
-                                                    ),
-                                                  ),
-                                                ),
-                                                SizedBox(width: 8.w),
-                                                Text(
-                                                  'Last: ${_shortVisit(p.lastVisitDate)}',
-                                                  style: TextStyle(
-                                                    fontSize: 11.sp,
-                                                    fontWeight: FontWeight.w600,
-                                                    color: AppColors
-                                                        .textSecondary
-                                                        .withValues(alpha: 0.9),
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                      Icon(
-                                        Icons.chevron_right_rounded,
-                                        color: AppColors.textSecondary
-                                            .withValues(alpha: 0.55),
-                                        size: 26.sp,
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
+                            padding: EdgeInsets.only(bottom: 12.h),
+                            child: PatientDirectoryListCard(
+                              patient: p,
+                              onTap: () => _onPatientTap(p),
                             ),
                           );
                         },

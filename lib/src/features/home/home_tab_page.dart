@@ -9,6 +9,7 @@ import 'package:doctor_app/src/core/session/session_controller.dart';
 import 'package:doctor_app/src/core/theme/app_colors.dart';
 import 'package:doctor_app/src/features/home/health_worker_dashboard_models.dart';
 import 'package:doctor_app/src/features/home/home_dashboard_controller.dart';
+import 'package:doctor_app/src/features/patients/patient_directory_list_card.dart';
 import 'package:doctor_app/src/features/profile/profile_view_screen.dart';
 import 'package:doctor_app/src/features/shell/tabs/visit_tab_page.dart';
 
@@ -179,14 +180,10 @@ class HomeTabPage extends StatelessWidget {
                     ),
                   ),
                   Padding(
-                    padding: EdgeInsets.fromLTRB(20.w, 16.h, 20.w, 8.h),
-                    child: Text(
-                      'All patients (${patients.length})',
-                      style: TextStyle(
-                        fontSize: 17.sp,
-                        fontWeight: FontWeight.w800,
-                        color: AppColors.textPrimary,
-                      ),
+                    padding: EdgeInsets.fromLTRB(16.w, 12.h, 16.w, 8.h),
+                    child: PatientDirectoryHeaderBanner(
+                      totalCount: patients.length,
+                      visibleCount: patients.length,
                     ),
                   ),
                   if (patients.isEmpty)
@@ -203,43 +200,16 @@ class HomeTabPage extends StatelessWidget {
                     )
                   else
                     Expanded(
-                      child: ListView.builder(
+                      child: ListView.separated(
                         controller: scroll,
                         padding: EdgeInsets.fromLTRB(16.w, 0, 16.w, 12.h),
                         itemCount: patients.length,
+                        separatorBuilder: (_, __) => SizedBox(height: 10.h),
                         itemBuilder: (c, i) {
                           final p = patients[i];
-                          return ListTile(
-                            contentPadding: EdgeInsets.symmetric(vertical: 4.h),
-                            leading: CircleAvatar(
-                              backgroundColor:
-                                  AppColors.dashboardPrimary.withValues(alpha: 0.12),
-                              child: Text(
-                                p.initials,
-                                style: TextStyle(
-                                  fontSize: 12.sp,
-                                  fontWeight: FontWeight.w800,
-                                  color: AppColors.dashboardPrimary,
-                                ),
-                              ),
-                            ),
-                            title: Text(
-                              p.fullName,
-                              style: TextStyle(
-                                fontSize: 14.sp,
-                                fontWeight: FontWeight.w700,
-                                color: AppColors.textPrimary,
-                              ),
-                            ),
-                            subtitle: Text(
-                              '${p.age} yrs • ${p.gender} • ${p.displayId}\n${p.primaryCondition}',
-                              style: TextStyle(
-                                fontSize: 11.sp,
-                                color: AppColors.textSecondary,
-                                height: 1.3,
-                              ),
-                            ),
-                            isThreeLine: true,
+                          return PatientDirectoryListCard(
+                            patient: p,
+                            onTap: () => Navigator.pop(ctx),
                           );
                         },
                       ),
@@ -931,253 +901,285 @@ class _FollowUpCardApi extends StatelessWidget {
       chipBg = accent.withValues(alpha: 0.12);
     }
 
-    final subtitle =
-        'Age ${data.age} • ${data.gender} • ID: ${data.displayId}';
+    final accentBar = overdue ? AppColors.dashboardWarning : accent;
 
+    return Material(
+      color: bg,
+      elevation: overdue ? 1.5 : 3,
+      shadowColor: accentBar.withValues(alpha: 0.18),
+      borderRadius: BorderRadius.circular(20.r),
+      clipBehavior: Clip.antiAlias,
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(20.r),
+          border: Border.all(color: borderCol),
+        ),
+        child: IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Container(width: 5.w, color: accentBar),
+              Expanded(
+                child: Padding(
+                  padding: EdgeInsets.all(14.w),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Stack(
+                            clipBehavior: Clip.none,
+                            children: [
+                              Container(
+                                padding: EdgeInsets.all(2.5.r),
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: AppColors.surface,
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color:
+                                          avatarFg.withValues(alpha: 0.18),
+                                      blurRadius: 6,
+                                      offset: const Offset(0, 2),
+                                    ),
+                                  ],
+                                ),
+                                child: CircleAvatar(
+                                  radius: 24.r,
+                                  backgroundColor: avatarBg,
+                                  child: Text(
+                                    data.initials,
+                                    style: TextStyle(
+                                      fontSize: 14.sp,
+                                      fontWeight: FontWeight.w900,
+                                      color: avatarFg,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              if (overdue)
+                                Positioned(
+                                  top: -2,
+                                  right: -2,
+                                  child: Container(
+                                    width: 12.r,
+                                    height: 12.r,
+                                    decoration: BoxDecoration(
+                                      color: AppColors.danger,
+                                      shape: BoxShape.circle,
+                                      border: Border.all(
+                                        color: AppColors.surface,
+                                        width: 2,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
+                          SizedBox(width: 12.w),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  data.fullName,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    fontSize: 16.sp,
+                                    fontWeight: FontWeight.w900,
+                                    color: AppColors.dashboardPrimaryDark,
+                                  ),
+                                ),
+                                SizedBox(height: 3.h),
+                                Text(
+                                  'Age ${data.age} • ${data.gender}',
+                                  style: TextStyle(
+                                    fontSize: 12.sp,
+                                    fontWeight: FontWeight.w600,
+                                    color: AppColors.textSecondary,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          SizedBox(width: 8.w),
+                          if (overdue)
+                            _statusBadge(
+                              label: 'Overdue',
+                              fg: AppColors.danger,
+                              bg: AppColors.danger.withValues(alpha: 0.12),
+                              icon: Icons.error_outline_rounded,
+                            )
+                          else if (today)
+                            _statusBadge(
+                              label: timeBadge,
+                              fg: accent,
+                              bg: accent.withValues(alpha: 0.12),
+                              icon: Icons.schedule_rounded,
+                            )
+                          else if (upcoming && dueInLabel != null)
+                            _statusBadge(
+                              label: dueInLabel,
+                              fg: accent,
+                              bg: accent.withValues(alpha: 0.14),
+                              icon: Icons.event_available_rounded,
+                            ),
+                        ],
+                      ),
+                      SizedBox(height: 12.h),
+                      Wrap(
+                        spacing: 8.w,
+                        runSpacing: 8.h,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          _TopicChip(
+                            label: topic,
+                            icon: topicIcon,
+                            foreground: chipFg,
+                            background: chipBg,
+                          ),
+                          if (scheduleNote != null)
+                            Text(
+                              scheduleNote,
+                              style: TextStyle(
+                                fontSize: 11.sp,
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.textSecondary,
+                              ),
+                            ),
+                        ],
+                      ),
+                      SizedBox(height: 10.h),
+                      Container(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: 12.w,
+                          vertical: 10.h,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppColors.surface.withValues(alpha: 0.6),
+                          borderRadius: BorderRadius.circular(12.r),
+                          border: Border.all(
+                            color: borderCol.withValues(alpha: 0.7),
+                          ),
+                        ),
+                        child: _lastVisitRichText(),
+                      ),
+                      if (overdue) ...[
+                        SizedBox(height: 12.h),
+                        SizedBox(
+                          width: double.infinity,
+                          height: 46.h,
+                          child: FilledButton.icon(
+                            onPressed: _openVisit,
+                            style: FilledButton.styleFrom(
+                              backgroundColor: AppColors.dashboardActionRed,
+                              foregroundColor: Colors.white,
+                              elevation: 0,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12.r),
+                              ),
+                            ),
+                            icon: Icon(Icons.play_arrow_rounded, size: 22.sp),
+                            label: Text(
+                              'Start Visit Now',
+                              style: TextStyle(
+                                fontSize: 14.sp,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                      if (today) ...[
+                        SizedBox(height: 12.h),
+                        SizedBox(
+                          width: double.infinity,
+                          height: 46.h,
+                          child: FilledButton.icon(
+                            onPressed: _openVisit,
+                            style: FilledButton.styleFrom(
+                              backgroundColor: accent,
+                              foregroundColor: Colors.white,
+                              elevation: 0,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12.r),
+                              ),
+                            ),
+                            icon: Icon(Icons.play_arrow_rounded, size: 22.sp),
+                            label: Text(
+                              'Start Visit',
+                              style: TextStyle(
+                                fontSize: 14.sp,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                      if (upcoming) ...[
+                        SizedBox(height: 12.h),
+                        SizedBox(
+                          width: double.infinity,
+                          height: 46.h,
+                          child: OutlinedButton.icon(
+                            onPressed: _openVisit,
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: accent,
+                              side: BorderSide(
+                                  color: accent.withValues(alpha: 0.65)),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12.r),
+                              ),
+                            ),
+                            icon: Icon(Icons.play_arrow_rounded, size: 22.sp),
+                            label: Text(
+                              'Start Visit',
+                              style: TextStyle(
+                                fontSize: 14.sp,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _statusBadge({
+    required String label,
+    required Color fg,
+    required Color bg,
+    required IconData icon,
+  }) {
     return Container(
-      padding: EdgeInsets.all(14.w),
+      padding: EdgeInsets.symmetric(horizontal: 9.w, vertical: 5.h),
       decoration: BoxDecoration(
         color: bg,
-        borderRadius: BorderRadius.circular(16.r),
-        border: Border.all(color: borderCol),
-        boxShadow: [
-          if (!overdue)
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.05),
-              blurRadius: 8,
-              offset: const Offset(0, 3),
-            ),
-        ],
+        borderRadius: BorderRadius.circular(999),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  Container(
-                    width: 44.r,
-                    height: 44.r,
-                    decoration: BoxDecoration(
-                      color: avatarBg,
-                      borderRadius: BorderRadius.circular(12.r),
-                    ),
-                    alignment: Alignment.center,
-                    child: Text(
-                      data.initials,
-                      style: TextStyle(
-                        fontSize: 14.sp,
-                        fontWeight: FontWeight.w800,
-                        color: avatarFg,
-                      ),
-                    ),
-                  ),
-                  if (overdue)
-                    Positioned(
-                      top: -4,
-                      right: -4,
-                      child: Container(
-                        width: 10.r,
-                        height: 10.r,
-                        decoration: const BoxDecoration(
-                          color: AppColors.danger,
-                          shape: BoxShape.circle,
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-              SizedBox(width: 12.w),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            data.fullName,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontSize: 16.sp,
-                              fontWeight: FontWeight.w800,
-                              color: AppColors.textPrimary,
-                            ),
-                          ),
-                        ),
-                        if (overdue)
-                          Container(
-                            padding: EdgeInsets.symmetric(
-                                horizontal: 8.w, vertical: 4.h),
-                            decoration: BoxDecoration(
-                              color: AppColors.danger.withValues(alpha: 0.12),
-                              borderRadius: BorderRadius.circular(999),
-                            ),
-                            child: Text(
-                              'Overdue',
-                              style: TextStyle(
-                                fontSize: 11.sp,
-                                fontWeight: FontWeight.w800,
-                                color: AppColors.danger,
-                              ),
-                            ),
-                          )
-                        else if (today)
-                          Container(
-                            padding: EdgeInsets.symmetric(
-                                horizontal: 8.w, vertical: 4.h),
-                            decoration: BoxDecoration(
-                              color: accent.withValues(alpha: 0.12),
-                              borderRadius: BorderRadius.circular(999),
-                            ),
-                            child: Text(
-                              timeBadge,
-                              style: TextStyle(
-                                fontSize: 11.sp,
-                                fontWeight: FontWeight.w800,
-                                color: accent,
-                              ),
-                            ),
-                          )
-                        else if (upcoming && dueInLabel != null)
-                          Container(
-                            padding: EdgeInsets.symmetric(
-                                horizontal: 8.w, vertical: 4.h),
-                            decoration: BoxDecoration(
-                              color: accent.withValues(alpha: 0.14),
-                              borderRadius: BorderRadius.circular(999),
-                            ),
-                            child: Text(
-                              dueInLabel,
-                              style: TextStyle(
-                                fontSize: 11.sp,
-                                fontWeight: FontWeight.w800,
-                                color: accent,
-                              ),
-                            ),
-                          ),
-                      ],
-                    ),
-                    SizedBox(height: 4.h),
-                    Text(
-                      subtitle,
-                      style: TextStyle(
-                        fontSize: 12.sp,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.textSecondary,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
+          Icon(icon, size: 12.sp, color: fg),
+          SizedBox(width: 4.w),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 11.sp,
+              fontWeight: FontWeight.w800,
+              color: fg,
+            ),
           ),
-          SizedBox(height: 10.h),
-          Wrap(
-            spacing: 8.w,
-            runSpacing: 8.h,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            children: [
-              _TopicChip(
-                label: topic,
-                icon: topicIcon,
-                foreground: chipFg,
-                background: chipBg,
-              ),
-              if (scheduleNote != null)
-                Text(
-                  scheduleNote,
-                  style: TextStyle(
-                    fontSize: 11.sp,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.textSecondary,
-                  ),
-                ),
-            ],
-          ),
-          SizedBox(height: 10.h),
-          _lastVisitRichText(),
-          if (overdue) ...[
-            SizedBox(height: 12.h),
-            SizedBox(
-              width: double.infinity,
-              height: 46.h,
-              child: FilledButton.icon(
-                onPressed: _openVisit,
-                style: FilledButton.styleFrom(
-                  backgroundColor: AppColors.dashboardActionRed,
-                  foregroundColor: Colors.white,
-                  elevation: 0,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12.r),
-                  ),
-                ),
-                icon: Icon(Icons.play_arrow_rounded, size: 22.sp),
-                label: Text(
-                  'Start Visit Now',
-                  style: TextStyle(
-                    fontSize: 14.sp,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-              ),
-            ),
-          ],
-          if (today) ...[
-            SizedBox(height: 12.h),
-            SizedBox(
-              width: double.infinity,
-              height: 46.h,
-              child: FilledButton.icon(
-                onPressed: _openVisit,
-                style: FilledButton.styleFrom(
-                  backgroundColor: accent,
-                  foregroundColor: Colors.white,
-                  elevation: 0,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12.r),
-                  ),
-                ),
-                icon: Icon(Icons.play_arrow_rounded, size: 22.sp),
-                label: Text(
-                  'Start Visit',
-                  style: TextStyle(
-                    fontSize: 14.sp,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-              ),
-            ),
-          ],
-          if (upcoming) ...[
-            SizedBox(height: 12.h),
-            SizedBox(
-              width: double.infinity,
-              height: 46.h,
-              child: OutlinedButton.icon(
-                onPressed: _openVisit,
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: accent,
-                  side: BorderSide(color: accent.withValues(alpha: 0.65)),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12.r),
-                  ),
-                ),
-                icon: Icon(Icons.play_arrow_rounded, size: 22.sp),
-                label: Text(
-                  'Start Visit',
-                  style: TextStyle(
-                    fontSize: 14.sp,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-              ),
-            ),
-          ],
         ],
       ),
     );

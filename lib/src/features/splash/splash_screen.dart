@@ -16,6 +16,9 @@ class SplashScreen extends StatefulWidget {
 
   static const routePath = '/';
 
+  /// Total time on splash before navigating (3.5 s).
+  static const Duration splashDuration = Duration(milliseconds: 3500);
+
   @override
   State<SplashScreen> createState() => _SplashScreenState();
 }
@@ -25,6 +28,7 @@ class _SplashScreenState extends State<SplashScreen>
   late final AnimationController _controller;
   late final Animation<double> _fade;
   late final Animation<double> _scale;
+  late final Animation<Offset> _slide;
   Timer? _navTimer;
 
   @override
@@ -32,13 +36,28 @@ class _SplashScreenState extends State<SplashScreen>
     super.initState();
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 850),
+      duration: const Duration(milliseconds: 1000),
     )..forward();
-    _fade = CurvedAnimation(parent: _controller, curve: Curves.easeOut);
-    _scale = Tween<double>(begin: 0.82, end: 1).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeOutBack),
+    _fade = CurvedAnimation(
+      parent: _controller,
+      curve: const Interval(0, 0.75, curve: Curves.easeOut),
     );
-    _navTimer = Timer(const Duration(milliseconds: 2200), _goNext);
+    _scale = Tween<double>(begin: 0.78, end: 1).animate(
+      CurvedAnimation(
+        parent: _controller,
+        curve: const Interval(0, 0.85, curve: Curves.easeOutBack),
+      ),
+    );
+    _slide = Tween<Offset>(
+      begin: const Offset(0, 0.12),
+      end: Offset.zero,
+    ).animate(
+      CurvedAnimation(
+        parent: _controller,
+        curve: const Interval(0.15, 1, curve: Curves.easeOutCubic),
+      ),
+    );
+    _navTimer = Timer(SplashScreen.splashDuration, _goNext);
   }
 
   void _goNext() {
@@ -58,14 +77,18 @@ class _SplashScreenState extends State<SplashScreen>
   Widget build(BuildContext context) {
     return Scaffold(
       body: Container(
+        width: double.infinity,
+        height: double.infinity,
         decoration: const BoxDecoration(
           gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
             colors: [
+              AppColors.dashboardChipBlueBg,
+              AppColors.registrationScreenBg,
               AppColors.surface,
-              AppColors.dashboardBackground,
             ],
+            stops: [0, 0.55, 1],
           ),
         ),
         child: SafeArea(
@@ -75,60 +98,85 @@ class _SplashScreenState extends State<SplashScreen>
                 child: Center(
                   child: FadeTransition(
                     opacity: _fade,
-                    child: ScaleTransition(
-                      scale: _scale,
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Container(
-                            padding: EdgeInsets.all(22.r),
-                            decoration: BoxDecoration(
-                              color: AppColors.surface,
-                              borderRadius: BorderRadius.circular(28.r),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: AppColors.dashboardPrimary
-                                      .withValues(alpha: 0.18),
-                                  blurRadius: 30,
-                                  offset: const Offset(0, 12),
+                    child: SlideTransition(
+                      position: _slide,
+                      child: ScaleTransition(
+                        scale: _scale,
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Container(
+                              padding: EdgeInsets.all(24.r),
+                              decoration: BoxDecoration(
+                                color: AppColors.surface,
+                                shape: BoxShape.circle,
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: AppColors.dashboardPrimary
+                                        .withValues(alpha: 0.2),
+                                    blurRadius: 32,
+                                    offset: const Offset(0, 14),
+                                  ),
+                                ],
+                                border: Border.all(
+                                  color: AppColors.registrationFieldBorder,
+                                  width: 1.5,
                                 ),
-                              ],
+                              ),
+                              child: SvgPicture.asset(
+                                'assets/images/medical_logo.svg',
+                                width: 76.r,
+                                height: 76.r,
+                              ),
                             ),
-                            child: SvgPicture.asset(
-                              'assets/images/medical_logo.svg',
-                              width: 82.r,
-                              height: 82.r,
+                            SizedBox(height: 28.h),
+                            Text(
+                              'Careho Provider',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                fontSize: 32.sp,
+                                fontWeight: FontWeight.w900,
+                                color: AppColors.dashboardPrimaryDark,
+                                letterSpacing: -0.4,
+                                height: 1.1,
+                              ),
                             ),
-                          ),
-                          SizedBox(height: 22.h),
-                          Text(
-                            'Medical App',
-                            style: TextStyle(
-                              fontSize: 30.sp,
-                              fontWeight: FontWeight.w800,
-                              color: AppColors.dashboardPrimaryDark,
-                              letterSpacing: 0.2,
+                            SizedBox(height: 10.h),
+                            Text(
+                              'Community Health Worker Portal',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                fontSize: 14.sp,
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.textSecondary,
+                                letterSpacing: 0.2,
+                              ),
                             ),
-                          ),
-                          SizedBox(height: 8.h),
-                          Text(
-                            'Care, simplified.',
-                            style: TextStyle(
-                              fontSize: 13.sp,
-                              fontWeight: FontWeight.w600,
-                              color: AppColors.textSecondary,
-                              letterSpacing: 0.3,
-                            ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                     ),
                   ),
                 ),
               ),
               Padding(
-                padding: EdgeInsets.only(bottom: 44.h),
-                child: const _BouncingDots(color: AppColors.dashboardPrimary),
+                padding: EdgeInsets.only(bottom: 48.h),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const _BouncingDots(color: AppColors.dashboardPrimary),
+                    SizedBox(height: 18.h),
+                    Text(
+                      'Loading…',
+                      style: TextStyle(
+                        fontSize: 12.sp,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.dashboardPrimary.withValues(alpha: 0.65),
+                        letterSpacing: 0.4,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ],
           ),

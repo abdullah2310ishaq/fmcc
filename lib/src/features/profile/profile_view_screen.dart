@@ -22,9 +22,9 @@ class ProfileViewScreen extends StatefulWidget {
 
   static const routePath = '/profile';
 
-  /// Same strip as [_HeroCard] — header + hero read as one band.
+  /// Soft light-blue → white band used by the hero card.
   static const LinearGradient headerGradient = LinearGradient(
-    colors: [Color(0xFF1F6FAB), Color(0xFF0E947E)],
+    colors: [AppColors.dashboardChipBlueBg, AppColors.surface],
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
   );
@@ -76,69 +76,84 @@ class _ProfileViewScreenState extends State<ProfileViewScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
-      body: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          DecoratedBox(
-            decoration: const BoxDecoration(
-              gradient: ProfileViewScreen.headerGradient,
-            ),
-            child: SafeArea(
-              bottom: false,
-              child: SizedBox(
-                height: 52.h,
-                child: Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    if (widget.showBackButton)
-                      Align(
-                        alignment: Alignment.centerLeft,
-                        child: IconButton(
-                          visualDensity: VisualDensity.compact,
-                          icon: Icon(
-                            Icons.arrow_back_ios_new_rounded,
-                            color: AppColors.surface,
-                            size: 18.sp,
-                          ),
-                          onPressed: () => context.pop(),
-                        ),
+      backgroundColor: AppColors.registrationScreenBg,
+      body: SafeArea(
+        bottom: false,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: EdgeInsets.fromLTRB(6.w, 8.h, 12.w, 6.h),
+              child: Row(
+                children: [
+                  if (widget.showBackButton)
+                    IconButton(
+                      visualDensity: VisualDensity.compact,
+                      icon: Icon(
+                        Icons.arrow_back_ios_new_rounded,
+                        color: AppColors.dashboardPrimaryDark,
+                        size: 18.sp,
                       ),
-                    Text(
+                      onPressed: () => context.pop(),
+                    )
+                  else
+                    SizedBox(width: 8.w),
+                  Expanded(
+                    child: Text(
                       'My Profile',
                       style: TextStyle(
-                        fontSize: 17.sp,
+                        fontSize: 20.sp,
                         fontWeight: FontWeight.w900,
-                        color: AppColors.textPrimary,
+                        color: AppColors.dashboardPrimaryDark,
                       ),
                     ),
-                    Align(
-                      alignment: Alignment.centerRight,
-                      child: TextButton(
-                        onPressed: _confirmLogout,
-                        child: Text(
-                          'Logout',
-                          style: TextStyle(
-                            fontSize: 14.sp,
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.textPrimary,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
+                  ),
+                  _logoutChip(),
+                ],
               ),
             ),
-          ),
-          Expanded(
-            child: RefreshIndicator(
-              color: AppColors.blue,
-              onRefresh: _load,
-              child: _buildBody(),
+            Expanded(
+              child: RefreshIndicator(
+                color: AppColors.dashboardPrimary,
+                onRefresh: _load,
+                child: _buildBody(),
+              ),
             ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _logoutChip() {
+    return Material(
+      color: AppColors.danger.withValues(alpha: 0.1),
+      borderRadius: BorderRadius.circular(999),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(999),
+        onTap: _confirmLogout,
+        child: Padding(
+          padding: EdgeInsets.symmetric(horizontal: 14.w, vertical: 8.h),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.logout_rounded,
+                size: 15.sp,
+                color: AppColors.danger,
+              ),
+              SizedBox(width: 6.w),
+              Text(
+                'Logout',
+                style: TextStyle(
+                  fontSize: 12.sp,
+                  fontWeight: FontWeight.w900,
+                  color: AppColors.danger,
+                ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
@@ -264,7 +279,11 @@ class _ProfileViewScreenState extends State<ProfileViewScreen> {
         physics: const AlwaysScrollableScrollPhysics(),
         children: [
           SizedBox(height: 0.35.sh),
-          const Center(child: CircularProgressIndicator(color: AppColors.blue)),
+          const Center(
+            child: CircularProgressIndicator(
+              color: AppColors.dashboardPrimary,
+            ),
+          ),
         ],
       );
     }
@@ -289,7 +308,7 @@ class _ProfileViewScreenState extends State<ProfileViewScreen> {
             icon: const Icon(Icons.refresh_rounded),
             label: const Text('Retry • دوبارہ کوشش'),
             style: FilledButton.styleFrom(
-              backgroundColor: AppColors.blue,
+              backgroundColor: AppColors.dashboardPrimary,
               foregroundColor: Colors.white,
             ),
           ),
@@ -317,96 +336,94 @@ class _ProfileViewScreenState extends State<ProfileViewScreen> {
 
     return ListView(
       physics: const AlwaysScrollableScrollPhysics(),
-      padding: EdgeInsets.zero,
+      padding: EdgeInsets.fromLTRB(16.w, 6.h, 16.w, 28.h),
       children: [
         _HeroCard(
           profile: p,
           fullName: fullName.isEmpty ? '—' : fullName,
           onEditPressed: () => unawaited(_openEditProfile()),
         ),
-        Transform.translate(
-          offset: Offset(0, -18.h),
-          child: Container(
-            padding: EdgeInsets.fromLTRB(20.w, 18.h, 20.w, 28.h),
-            decoration: BoxDecoration(
-              color: AppColors.registrationScreenBg,
-              borderRadius: BorderRadius.vertical(top: Radius.circular(26.r)),
+        SizedBox(height: 16.h),
+        if (session.state.role == UserRole.ladyHealthWorker) ...[
+          _lhwVisitsGuideCard(),
+          SizedBox(height: 16.h),
+        ],
+        _SectionCard(
+          icon: Icons.badge_outlined,
+          title: 'Personal Details',
+          rows: [
+            (Icons.credit_card_rounded, 'CNIC', _val(p.cnic)),
+            (Icons.phone_rounded, 'Phone', _val(p.phoneNumber)),
+            (
+              Icons.school_outlined,
+              'Education',
+              _preferLabel(p.educationLevelLabel, p.educationLevelId),
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                if (session.state.role == UserRole.ladyHealthWorker) ...[
-                  _lhwVisitsGuideCard(),
-                  SizedBox(height: 14.h),
-                ],
-                _SectionCard(
-                  title: 'PERSONAL DETAILS',
-                  children: [
-                    _FieldRow(label: 'CNIC', value: _val(p.cnic)),
-                    _FieldRow(label: 'Phone', value: _val(p.phoneNumber)),
-                    _FieldRow(
-                      label: 'Education',
-                      value: _preferLabel(
-                        p.educationLevelLabel,
-                        p.educationLevelId,
-                      ),
-                    ),
-                    _FieldRow(
-                      label: 'Certificate ID',
-                      value: _val(p.lhwTrainingCertificate),
-                    ),
-                  ],
-                ),
-                SizedBox(height: 14.h),
-                _SectionCard(
-                  title: 'ASSIGNED TERRITORY',
-                  children: [
-                    _FieldRow(
-                      label: 'Province',
-                      value: _preferLabel(p.provinceLabel, p.provinceId),
-                    ),
-                    _FieldRow(
-                      label: 'District',
-                      value: _preferLabel(p.districtLabel, p.districtId),
-                    ),
-                    _FieldRow(
-                      label: 'Tehsil',
-                      value: _preferLabel(p.tehsilLabel, p.tehsilId),
-                    ),
-                    _FieldRow(label: 'Address', value: _val(p.address)),
-                  ],
-                ),
-                SizedBox(height: 14.h),
-                _SectionCard(
-                  title: 'ACCOUNT SUMMARY',
-                  children: [
-                    _FieldRow(
-                      label: 'Health Worker ID',
-                      value: _val(p.healthWorkerId),
-                    ),
-                    _FieldRow(label: 'Gender', value: _genderLabel(p.gender)),
-                    _FieldRow(
-                      label: 'Date of Birth',
-                      value: _dobLabel(p.dateOfBirth),
-                    ),
-                    _FieldRow(label: 'Age', value: _ageLabel(p.ageYears)),
-                    _FieldRow(
-                        label: 'Joined', value: _joinedLabel(p.joinedDate)),
-                    if (p.approxPatientsPerDay != null)
-                      _FieldRow(
-                        label: 'Patients / Day',
-                        value: '${p.approxPatientsPerDay}',
-                      ),
-                    if (p.salary != null)
-                      _FieldRow(
-                        label: 'Salary',
-                        value: _SalaryFmt.format(p.salary!),
-                      ),
-                  ],
-                ),
-              ],
+            (
+              Icons.verified_outlined,
+              'Certificate ID',
+              _val(p.lhwTrainingCertificate),
             ),
-          ),
+          ],
+        ),
+        SizedBox(height: 16.h),
+        _SectionCard(
+          icon: Icons.location_on_outlined,
+          title: 'Assigned Territory',
+          rows: [
+            (
+              Icons.public_rounded,
+              'Province',
+              _preferLabel(p.provinceLabel, p.provinceId),
+            ),
+            (
+              Icons.map_outlined,
+              'District',
+              _preferLabel(p.districtLabel, p.districtId),
+            ),
+            (
+              Icons.place_outlined,
+              'Tehsil',
+              _preferLabel(p.tehsilLabel, p.tehsilId),
+            ),
+            (Icons.home_outlined, 'Address', _val(p.address)),
+          ],
+        ),
+        SizedBox(height: 16.h),
+        _SectionCard(
+          icon: Icons.assignment_ind_outlined,
+          title: 'Account Summary',
+          rows: [
+            (
+              Icons.fingerprint_rounded,
+              'Health Worker ID',
+              _val(p.healthWorkerId),
+            ),
+            (Icons.wc_rounded, 'Gender', _genderLabel(p.gender)),
+            (
+              Icons.cake_outlined,
+              'Date of Birth',
+              _dobLabel(p.dateOfBirth),
+            ),
+            (Icons.calendar_today_rounded, 'Age', _ageLabel(p.ageYears)),
+            (
+              Icons.event_available_rounded,
+              'Joined',
+              _joinedLabel(p.joinedDate),
+            ),
+            if (p.approxPatientsPerDay != null)
+              (
+                Icons.groups_rounded,
+                'Patients / Day',
+                '${p.approxPatientsPerDay}',
+              ),
+            if (p.salary != null)
+              (
+                Icons.payments_outlined,
+                'Salary',
+                _SalaryFmt.format(p.salary!),
+              ),
+          ],
         ),
       ],
     );
@@ -493,48 +510,60 @@ class _ProfileViewScreenState extends State<ProfileViewScreen> {
   }
 
   Widget _lhwVisitsGuideCard() {
-    return Container(
-      padding: EdgeInsets.fromLTRB(16.w, 14.h, 16.w, 14.h),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(16.r),
-        border: Border.all(color: AppColors.registrationFieldBorder),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(
-                Icons.health_and_safety_outlined,
-                size: 22.sp,
-                color: AppColors.dashboardPrimary,
-              ),
-              SizedBox(width: 10.w),
-              Expanded(
-                child: Text(
-                  'Visits & history',
-                  style: TextStyle(
-                    fontSize: 14.sp,
-                    fontWeight: FontWeight.w900,
-                    color: AppColors.dashboardPrimaryDark,
+    return Material(
+      elevation: 2.5,
+      shadowColor: AppColors.dashboardPrimary.withValues(alpha: 0.1),
+      borderRadius: BorderRadius.circular(18.r),
+      color: AppColors.surface,
+      child: Container(
+        padding: EdgeInsets.fromLTRB(16.w, 15.h, 16.w, 15.h),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(18.r),
+          border: Border.all(color: AppColors.registrationFieldBorder),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: EdgeInsets.all(8.r),
+                  decoration: BoxDecoration(
+                    color: AppColors.dashboardChipBlueBg,
+                    borderRadius: BorderRadius.circular(11.r),
+                  ),
+                  child: Icon(
+                    Icons.health_and_safety_outlined,
+                    size: 18.sp,
+                    color: AppColors.dashboardPrimary,
                   ),
                 ),
-              ),
-            ],
-          ),
-          SizedBox(height: 10.h),
-          Text(
-            'Home shows patients who need follow-up checks. On the Visit tab, pick Follow-ups for that queue or All patients for anyone in your directory.\n\n'
-            'After you save a visit, open Patients, choose a person, then Visit History to see the list. Tap a row for full details.',
-            style: TextStyle(
-              fontSize: 12.5.sp,
-              fontWeight: FontWeight.w600,
-              color: AppColors.textSecondary,
-              height: 1.45,
+                SizedBox(width: 10.w),
+                Expanded(
+                  child: Text(
+                    'Visits & history',
+                    style: TextStyle(
+                      fontSize: 14.sp,
+                      fontWeight: FontWeight.w900,
+                      color: AppColors.dashboardPrimaryDark,
+                    ),
+                  ),
+                ),
+              ],
             ),
-          ),
-        ],
+            SizedBox(height: 12.h),
+            Text(
+              'Home shows patients who need follow-up checks. On the Visit tab, pick Follow-ups for that queue or All patients for anyone in your directory.\n\n'
+              'After you save a visit, open Patients, choose a person, then Visit History to see the list. Tap a row for full details.',
+              style: TextStyle(
+                fontSize: 12.5.sp,
+                fontWeight: FontWeight.w600,
+                color: AppColors.textSecondary,
+                height: 1.45,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -570,104 +599,148 @@ class _HeroCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final initials = NameInitials.fromFullName(fullName);
     final email = profile.email?.trim();
-    return Container(
-      decoration: const BoxDecoration(
-        gradient: ProfileViewScreen.headerGradient,
-      ),
-      padding: EdgeInsets.fromLTRB(20.w, 28.h, 20.w, 44.h),
-      child: Column(
-        children: [
-          Container(
-            width: 88.r,
-            height: 88.r,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: AppColors.surface.withValues(alpha: 0.18),
-              borderRadius: BorderRadius.circular(24.r),
-              border: Border.all(
-                color: AppColors.surface.withValues(alpha: 0.5),
-                width: 2.2,
-              ),
-            ),
-            child: Text(
-              initials,
-              style: TextStyle(
-                fontSize: 31.sp,
-                fontWeight: FontWeight.w900,
+    final verified = profile.isVerified;
+    return Material(
+      elevation: 4,
+      shadowColor: AppColors.dashboardPrimary.withValues(alpha: 0.2),
+      borderRadius: BorderRadius.circular(26.r),
+      clipBehavior: Clip.antiAlias,
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(26.r),
+          gradient: ProfileViewScreen.headerGradient,
+          border: Border.all(color: AppColors.registrationFieldBorder),
+        ),
+        padding: EdgeInsets.fromLTRB(20.w, 24.h, 20.w, 20.h),
+        child: Column(
+          children: [
+            Container(
+              padding: EdgeInsets.all(4.r),
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
                 color: AppColors.surface,
+                boxShadow: [
+                  BoxShadow(
+                    color: AppColors.dashboardPrimary.withValues(alpha: 0.18),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
               ),
-            ),
-          ),
-          SizedBox(height: 16.h),
-          Text(
-            fullName,
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 20.sp,
-              fontWeight: FontWeight.w900,
-              color: AppColors.surface,
-              height: 1.1,
-            ),
-          ),
-          SizedBox(height: 5.h),
-          Text(
-            email == null || email.isEmpty ? '—' : email,
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 13.sp,
-              fontWeight: FontWeight.w600,
-              color: AppColors.surface.withValues(alpha: 0.9),
-            ),
-          ),
-          SizedBox(height: 12.h),
-          Container(
-            padding: EdgeInsets.symmetric(horizontal: 14.w, vertical: 7.h),
-            decoration: BoxDecoration(
-              color: AppColors.surface.withValues(alpha: 0.18),
-              borderRadius: BorderRadius.circular(999),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  profile.isVerified
-                      ? Icons.verified_user_rounded
-                      : Icons.pending_rounded,
-                  size: 14.sp,
-                  color: AppColors.surface,
-                ),
-                SizedBox(width: 6.w),
-                Text(
-                  profile.isVerified
-                      ? 'Verified Health Worker'
-                      : 'Pending Verification',
+              child: CircleAvatar(
+                radius: 42.r,
+                backgroundColor: AppColors.dashboardChipBlueBg,
+                child: Text(
+                  initials,
                   style: TextStyle(
-                    fontSize: 11.sp,
+                    fontSize: 30.sp,
                     fontWeight: FontWeight.w900,
-                    color: AppColors.surface,
+                    color: AppColors.dashboardPrimary,
                   ),
                 ),
-              ],
-            ),
-          ),
-          SizedBox(height: 12.h),
-          OutlinedButton.icon(
-            onPressed: onEditPressed,
-            label: Text(
-              'Edit Profile',
-              style: TextStyle(fontSize: 20.sp, fontWeight: FontWeight.w900),
-            ),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: AppColors.surface,
-              side: BorderSide(
-                color: AppColors.surface.withValues(alpha: 0.65),
-              ),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
               ),
             ),
-          ),
-        ],
+            SizedBox(height: 14.h),
+            Text(
+              fullName,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 21.sp,
+                fontWeight: FontWeight.w900,
+                color: AppColors.dashboardPrimaryDark,
+                height: 1.1,
+              ),
+            ),
+            if (email != null && email.isNotEmpty) ...[
+              SizedBox(height: 5.h),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.mail_outline_rounded,
+                    size: 13.sp,
+                    color: AppColors.textSecondary,
+                  ),
+                  SizedBox(width: 5.w),
+                  Flexible(
+                    child: Text(
+                      email,
+                      textAlign: TextAlign.center,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 12.5.sp,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+            SizedBox(height: 12.h),
+            Container(
+              padding: EdgeInsets.symmetric(horizontal: 14.w, vertical: 8.h),
+              decoration: BoxDecoration(
+                color: verified
+                    ? AppColors.followAccentGreen.withValues(alpha: 0.12)
+                    : AppColors.dashboardPeach,
+                borderRadius: BorderRadius.circular(999),
+                border: Border.all(
+                  color: verified
+                      ? AppColors.followAccentGreen.withValues(alpha: 0.35)
+                      : AppColors.dashboardPeachBorder,
+                ),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    verified
+                        ? Icons.verified_user_rounded
+                        : Icons.pending_rounded,
+                    size: 14.sp,
+                    color: verified
+                        ? AppColors.followAccentGreen
+                        : AppColors.dashboardWarning,
+                  ),
+                  SizedBox(width: 6.w),
+                  Text(
+                    verified
+                        ? 'Verified Health Worker'
+                        : 'Pending Verification',
+                    style: TextStyle(
+                      fontSize: 11.sp,
+                      fontWeight: FontWeight.w900,
+                      color: verified
+                          ? AppColors.followAccentGreen
+                          : AppColors.dashboardWarning,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            SizedBox(height: 16.h),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                onPressed: onEditPressed,
+                icon: Icon(Icons.edit_rounded, size: 17.sp),
+                label: Text(
+                  'Edit Profile',
+                  style: TextStyle(fontSize: 14.sp, fontWeight: FontWeight.w900),
+                ),
+                style: FilledButton.styleFrom(
+                  backgroundColor: AppColors.dashboardPrimary,
+                  foregroundColor: AppColors.surface,
+                  minimumSize: Size(double.infinity, 48.h),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14.r),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -675,93 +748,126 @@ class _HeroCard extends StatelessWidget {
 
 class _SectionCard extends StatelessWidget {
   const _SectionCard({
+    required this.icon,
     required this.title,
-    required this.children,
+    required this.rows,
   });
 
+  final IconData icon;
   final String title;
-  final List<Widget> children;
+
+  /// (leadingIcon, label, value)
+  final List<(IconData, String, String)> rows;
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Padding(
-          padding: EdgeInsets.only(bottom: 10.h),
-          child: Text(
-            title,
-            style: TextStyle(
-              fontSize: 13.sp,
-              fontWeight: FontWeight.w900,
-              letterSpacing: 0.4,
-              color: AppColors.registrationSectionLabel,
-            ),
-          ),
+    return Material(
+      elevation: 2.5,
+      shadowColor: AppColors.dashboardPrimary.withValues(alpha: 0.1),
+      borderRadius: BorderRadius.circular(18.r),
+      color: AppColors.surface,
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(18.r),
+          border: Border.all(color: AppColors.registrationFieldBorder),
         ),
-        Container(
-          padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 12.h),
-          decoration: BoxDecoration(
-            color: AppColors.surface,
-            borderRadius: BorderRadius.circular(16.r),
-            border: Border.all(color: AppColors.registrationFieldBorder),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              for (var i = 0; i < children.length; i++) ...[
-                children[i],
-                if (i != children.length - 1)
-                  Divider(height: 18.h, color: AppColors.border),
+        padding: EdgeInsets.fromLTRB(16.w, 14.h, 16.w, 6.h),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: EdgeInsets.all(8.r),
+                  decoration: BoxDecoration(
+                    color: AppColors.dashboardChipBlueBg,
+                    borderRadius: BorderRadius.circular(11.r),
+                  ),
+                  child: Icon(
+                    icon,
+                    size: 18.sp,
+                    color: AppColors.dashboardPrimary,
+                  ),
+                ),
+                SizedBox(width: 10.w),
+                Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 14.sp,
+                    fontWeight: FontWeight.w900,
+                    color: AppColors.dashboardPrimaryDark,
+                  ),
+                ),
               ],
+            ),
+            SizedBox(height: 4.h),
+            for (var i = 0; i < rows.length; i++) ...[
+              _FieldRow(
+                icon: rows[i].$1,
+                label: rows[i].$2,
+                value: rows[i].$3,
+              ),
+              if (i != rows.length - 1)
+                Divider(height: 1, thickness: 1, color: AppColors.border),
             ],
-          ),
+          ],
         ),
-      ],
+      ),
     );
   }
 }
 
 class _FieldRow extends StatelessWidget {
   const _FieldRow({
+    required this.icon,
     required this.label,
     required this.value,
   });
 
+  final IconData icon;
   final String label;
   final String value;
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Expanded(
-          flex: 4,
-          child: Text(
-            label,
-            style: TextStyle(
-              fontSize: 13.sp,
-              fontWeight: FontWeight.w600,
-              color: AppColors.dashboardPrimaryDark.withValues(alpha: 0.8),
+    return Padding(
+      padding: EdgeInsets.symmetric(vertical: 11.h),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Icon(
+            icon,
+            size: 16.sp,
+            color: AppColors.dashboardPrimary.withValues(alpha: 0.7),
+          ),
+          SizedBox(width: 10.w),
+          Expanded(
+            flex: 4,
+            child: Text(
+              label,
+              style: TextStyle(
+                fontSize: 12.5.sp,
+                fontWeight: FontWeight.w600,
+                color: AppColors.textSecondary,
+              ),
             ),
           ),
-        ),
-        SizedBox(width: 12.w),
-        Expanded(
-          flex: 5,
-          child: Text(
-            value,
-            textAlign: TextAlign.right,
-            style: TextStyle(
-              fontSize: 13.sp,
-              fontWeight: FontWeight.w900,
-              color: AppColors.textPrimary,
-              height: 1.25,
+          SizedBox(width: 12.w),
+          Expanded(
+            flex: 5,
+            child: Text(
+              value,
+              textAlign: TextAlign.right,
+              style: TextStyle(
+                fontSize: 13.sp,
+                fontWeight: FontWeight.w800,
+                color: AppColors.textPrimary,
+                height: 1.3,
+              ),
             ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }
