@@ -328,13 +328,46 @@ class _PatientsTabPageState extends State<PatientsTabPage> {
                 ),
                 const Spacer(),
                 if (!_searchChromeActive)
-                  IconButton(
-                    onPressed: _onCreatePatient,
-                    splashRadius: 22.r,
-                    icon: Icon(
-                      Icons.person_add_alt_1_rounded,
-                      size: 24.sp,
-                      color: AppColors.dashboardPrimary,
+                  Material(
+                    color: Colors.transparent,
+                    borderRadius: BorderRadius.circular(999),
+                    child: InkWell(
+                      onTap: _onCreatePatient,
+                      borderRadius: BorderRadius.circular(999),
+                      child: Container(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: 14.w,
+                          vertical: 8.h,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.transparent,
+                          borderRadius: BorderRadius.circular(999),
+                          border: Border.all(
+                            color: AppColors.dashboardPrimary
+                                .withValues(alpha: 0.45),
+                            width: 1.3,
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.person_add_alt_1_rounded,
+                              size: 18.sp,
+                              color: AppColors.dashboardPrimary,
+                            ),
+                            SizedBox(width: 6.w),
+                            Text(
+                              'Add new patient',
+                              style: TextStyle(
+                                fontSize: 12.5.sp,
+                                fontWeight: FontWeight.w800,
+                                color: AppColors.dashboardPrimary,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
                   )
                 else

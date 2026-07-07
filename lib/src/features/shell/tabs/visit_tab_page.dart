@@ -418,11 +418,11 @@ class _VisitAssessmentView extends StatefulWidget {
 
 class _VisitAssessmentViewState extends State<_VisitAssessmentView> {
   final _formKey = GlobalKey<FormState>();
-  final _systolic1Controller = TextEditingController(text: '120');
-  final _diastolic1Controller = TextEditingController(text: '80');
-  final _systolic2Controller = TextEditingController(text: '120');
-  final _diastolic2Controller = TextEditingController(text: '80');
-  final _pulseController = TextEditingController(text: '78');
+  final _systolic1Controller = TextEditingController();
+  final _diastolic1Controller = TextEditingController();
+  final _systolic2Controller = TextEditingController();
+  final _diastolic2Controller = TextEditingController();
+  final _pulseController = TextEditingController();
   final _temperatureController = TextEditingController();
   final _respiratoryRateController = TextEditingController();
   final _reasonController = TextEditingController();

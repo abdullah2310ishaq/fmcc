@@ -171,7 +171,8 @@ class _SplashScreenState extends State<SplashScreen>
                       style: TextStyle(
                         fontSize: 12.sp,
                         fontWeight: FontWeight.w700,
-                        color: AppColors.dashboardPrimary.withValues(alpha: 0.65),
+                        color:
+                            AppColors.dashboardPrimary.withValues(alpha: 0.65),
                         letterSpacing: 0.4,
                       ),
                     ),

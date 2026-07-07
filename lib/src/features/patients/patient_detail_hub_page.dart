@@ -40,41 +40,50 @@ class PatientDetailHubPage extends StatelessWidget {
   Widget build(BuildContext context) {
     return ColoredBox(
       color: AppColors.registrationScreenBg,
-      child: CustomScrollView(
-        slivers: [
-          SliverAppBar(
-            primary: false,
-            pinned: true,
-            elevation: 0,
-            scrolledUnderElevation: 0.5,
-            backgroundColor: AppColors.surface,
+      child: Column(
+        children: [
+          // Static top bar — stays fixed while cards scroll.
+          Material(
+            color: AppColors.surface,
+            elevation: 0.5,
+            shadowColor: AppColors.dashboardPrimaryDark.withValues(alpha: 0.08),
             surfaceTintColor: Colors.transparent,
-            toolbarHeight: 52.h,
-            leading: IconButton(
-              onPressed: onBack,
-              splashRadius: 22.r,
-              icon: Icon(
-                Icons.arrow_back_ios_new_rounded,
-                size: 19.sp,
-                color: AppColors.dashboardPrimary,
+            child: SizedBox(
+              height: 52.h,
+              child: Row(
+                children: [
+                  SizedBox(width: 6.w),
+                  IconButton(
+                    onPressed: onBack,
+                    splashRadius: 22.r,
+                    icon: Icon(
+                      Icons.arrow_back_ios_new_rounded,
+                      size: 19.sp,
+                      color: AppColors.dashboardPrimary,
+                    ),
+                  ),
+                  Expanded(
+                    child: Text(
+                      'Patient profile',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 16.sp,
+                        fontWeight: FontWeight.w800,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                  ),
+                  SizedBox(width: 52.w),
+                ],
               ),
             ),
-            leadingWidth: 52.w,
-            title: Text(
-              'Patient profile',
-              style: TextStyle(
-                fontSize: 16.sp,
-                fontWeight: FontWeight.w800,
-                color: AppColors.textPrimary,
-              ),
-            ),
-            centerTitle: true,
-            actions: [SizedBox(width: 46.w)],
           ),
-          SliverToBoxAdapter(child: PatientDetailProfileBanner(summary: summary)),
-          SliverPadding(
-            padding: EdgeInsets.fromLTRB(18.w, 20.h, 18.w, 28.h),
-            sliver: SliverList.separated(
+          // Static profile area — does not scroll away.
+          PatientDetailProfileBanner(summary: summary),
+          // Only the section cards scroll.
+          Expanded(
+            child: ListView.separated(
+              padding: EdgeInsets.fromLTRB(18.w, 20.h, 18.w, 28.h),
               itemCount: PatientDetailSection.values.length,
               separatorBuilder: (_, __) => SizedBox(height: 12.h),
               itemBuilder: (context, index) {
