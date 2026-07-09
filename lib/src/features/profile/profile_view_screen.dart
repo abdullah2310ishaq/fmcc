@@ -8,6 +8,7 @@ import 'package:provider/provider.dart';
 import 'package:doctor_app/src/core/format/name_initials.dart';
 import 'package:doctor_app/src/core/network/api_failure.dart';
 import 'package:doctor_app/src/core/session/app_session.dart';
+import 'package:doctor_app/src/core/session/logout_flow.dart';
 import 'package:doctor_app/src/core/session/session_controller.dart';
 import 'package:doctor_app/src/core/theme/app_colors.dart';
 import 'package:doctor_app/src/features/profile/edit_profile_screen.dart';
@@ -189,21 +190,6 @@ class _ProfileViewScreenState extends State<ProfileViewScreen> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Container(
-                  width: 46.r,
-                  height: 46.r,
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    color: AppColors.danger.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(14.r),
-                  ),
-                  child: Icon(
-                    Icons.logout_rounded,
-                    color: AppColors.danger,
-                    size: 25.sp,
-                  ),
-                ),
-                SizedBox(height: 14.h),
                 Text(
                   'Log out?',
                   style: TextStyle(
@@ -270,7 +256,7 @@ class _ProfileViewScreenState extends State<ProfileViewScreen> {
     );
 
     if (shouldLogout != true || !mounted) return;
-    await context.read<SessionController>().logout(keepRole: true);
+    await LogoutFlow.run(context);
   }
 
   Widget _buildBody() {

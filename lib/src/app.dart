@@ -14,6 +14,7 @@ import 'package:doctor_app/src/features/profile/profile_view_screen.dart';
 import 'package:doctor_app/src/features/patients/new_patient_registration_screen.dart';
 import 'package:doctor_app/src/features/patients/patient_directory_coordinator.dart';
 import 'package:doctor_app/src/features/patients/patient_detail_cache.dart';
+import 'package:doctor_app/src/features/visits/visit_instructions_cache.dart';
 import 'package:doctor_app/src/features/profile/registration_details_screen.dart';
 import 'package:doctor_app/src/features/role/role_screen.dart';
 import 'package:doctor_app/src/features/splash/splash_screen.dart';
@@ -79,6 +80,7 @@ class _DoctorAppState extends State<DoctorApp> {
         ChangeNotifierProvider.value(value: widget.sessionController),
         ChangeNotifierProvider(create: (_) => PatientDirectoryCoordinator()),
         ChangeNotifierProvider(create: (_) => PatientDetailCache()),
+        ChangeNotifierProvider(create: (_) => VisitInstructionsCache()),
       ],
       child: ScreenUtilInit(
         designSize: const Size(375, 812),

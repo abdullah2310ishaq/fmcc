@@ -8,6 +8,7 @@ import 'package:provider/provider.dart';
 import 'package:doctor_app/src/core/auth/google_sign_in_config.dart';
 import 'package:doctor_app/src/core/logging/app_logger.dart';
 import 'package:doctor_app/src/core/session/app_session.dart';
+import 'package:doctor_app/src/core/session/logout_flow.dart';
 import 'package:doctor_app/src/core/session/session_controller.dart';
 import 'package:doctor_app/src/core/theme/app_colors.dart';
 
@@ -88,7 +89,7 @@ class _WaitingScreenState extends State<WaitingScreen> {
   }
 
   Future<void> _logout() async {
-    await context.read<SessionController>().logout(keepRole: true);
+    await LogoutFlow.run(context);
   }
 
   @override

@@ -115,4 +115,5 @@ class Endpoints {
 
   static const String patientVisitCreate = '/api/Patient/visit';
   static const String patientVisitUpdate = '/api/Patient/visit';
+  static const String patientVisitInstructions = '/api/Patient/instructions';
 }

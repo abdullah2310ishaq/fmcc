@@ -17,6 +17,7 @@ import 'package:doctor_app/src/features/shell/shell_nav_item.dart';
 import 'package:doctor_app/src/features/shell/tabs/patients_tab_page.dart';
 import 'package:doctor_app/src/features/shell/tabs/profile_tab_page.dart';
 import 'package:doctor_app/src/features/shell/tabs/visit_tab_page.dart';
+import 'package:doctor_app/src/features/visits/visit_instructions_cache.dart';
 
 /// Main signed-in shell: four tabs + center FAB (`HomeShellTab.index` ↔ body).
 class HomeShell extends StatefulWidget {
@@ -39,7 +40,10 @@ class _HomeShellState extends State<HomeShell> {
 
   void _onVisitAssessmentActiveChanged(bool open) {
     if (_visitAssessmentOpen == open) return;
-    setState(() => _visitAssessmentOpen = open);
+    setState(() {
+      _visitAssessmentOpen = open;
+      if (!open) _visitPatient = null;
+    });
   }
 
   Future<void> _onFab() async {
@@ -111,6 +115,7 @@ class _HomeShellState extends State<HomeShell> {
           Future.microtask(() async {
             await s.hydrateLhwHealthWorkerIdIfNeeded();
             await ctrl.refreshFromSession(s.state);
+            await context.read<VisitInstructionsCache>().ensureLoaded(s);
           }),
         );
         return ctrl;

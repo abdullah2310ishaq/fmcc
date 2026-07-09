@@ -12,8 +12,13 @@ import 'package:doctor_app/src/core/reference/reference_models.dart';
 import 'package:doctor_app/src/core/session/app_session.dart';
 import 'package:doctor_app/src/core/session/session_controller.dart';
 import 'package:doctor_app/src/core/theme/app_colors.dart';
+import 'package:doctor_app/src/features/home/health_worker_dashboard_models.dart';
 import 'package:doctor_app/src/features/home/home_dashboard_controller.dart';
+import 'package:doctor_app/src/features/patients/patient_directory_list_card.dart';
 import 'package:doctor_app/src/features/patients/patient_api.dart';
+import 'package:doctor_app/src/features/visits/visit_instructions_bottom_sheet.dart';
+import 'package:doctor_app/src/features/visits/visit_instructions_cache.dart';
+import 'package:doctor_app/src/features/visits/visit_instructions_prefs.dart';
 
 /// Visual severity tier for the auto-recommended visit action.
 enum _RecommendedActionSeverity { controlled, uncontrolled, severe, emergency }
@@ -34,8 +39,10 @@ class VisitTabPage extends StatefulWidget {
 
   final VisitPatientSeed? initialPatient;
   final int openRequestId;
+
   /// System back from visit list (not assessment) → Home tab.
   final VoidCallback? onLeaveToHomeTab;
+
   /// `true` while the visit assessment form is on screen (hide shell center FAB).
   final ValueChanged<bool>? onVisitAssessmentActiveChanged;
 
@@ -53,6 +60,7 @@ class VisitPatientSeed {
     required this.gender,
     required this.lastVisit,
     this.openedFromFollowUpList = false,
+    this.showInstructions = false,
   });
 
   final String name;
@@ -65,6 +73,10 @@ class VisitPatientSeed {
   /// True when the user picked this patient from the dashboard **follow-up** queue
   /// (Home or Visit tab). Pre-ticks "Follow-up visit" on the assessment form.
   final bool openedFromFollowUpList;
+
+  /// When true, show the pre-visit instruction carousel before the assessment form.
+  /// Only set from the Visit tab patient list — not when routed from Home/Patients.
+  final bool showInstructions;
 }
 
 enum _VisitPatientListKind { followUps, directory }
@@ -72,15 +84,56 @@ enum _VisitPatientListKind { followUps, directory }
 class _VisitTabPageState extends State<VisitTabPage> {
   VisitPatientSeed? _selectedPatient;
   _VisitPatientListKind _listKind = _VisitPatientListKind.directory;
+  bool _startingVisit = false;
 
   @override
   void initState() {
     super.initState();
-    _selectedPatient = widget.initialPatient;
-    if (_selectedPatient != null) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        widget.onVisitAssessmentActiveChanged?.call(true);
-      });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      unawaited(_prefetchInstructions());
+      final seed = widget.initialPatient;
+      if (seed != null) {
+        _setSelectedPatient(seed);
+      }
+    });
+  }
+
+  Future<void> _prefetchInstructions() async {
+    if (!mounted) return;
+    final session = context.read<SessionController>();
+    await context.read<VisitInstructionsCache>().ensureLoaded(session);
+  }
+
+  Future<void> _startVisitWithInstructions(VisitPatientSeed seed) async {
+    if (_startingVisit || !mounted) return;
+    _startingVisit = true;
+    try {
+      if (!seed.showInstructions) {
+        _setSelectedPatient(seed);
+        return;
+      }
+
+      final session = context.read<SessionController>();
+      final cache = context.read<VisitInstructionsCache>();
+      await cache.ensureLoaded(session);
+      await cache.prefetchImages();
+
+      final skip = await VisitInstructionsPrefs.shouldSkip();
+      if (!skip && cache.hasInstructions && mounted) {
+        final dontShowAgain = await showVisitInstructionsBottomSheet(
+          context,
+          instructions: cache.instructions,
+        );
+        if (!mounted) return;
+        if (dontShowAgain == true) {
+          await VisitInstructionsPrefs.setSkip(true);
+        }
+      }
+
+      if (!mounted) return;
+      _setSelectedPatient(seed);
+    } finally {
+      _startingVisit = false;
     }
   }
 
@@ -105,8 +158,7 @@ class _VisitTabPageState extends State<VisitTabPage> {
     if (next != null &&
         (next.apiPatientId != oldWidget.initialPatient?.apiPatientId ||
             widget.openRequestId != oldWidget.openRequestId)) {
-      setState(() => _selectedPatient = next);
-      widget.onVisitAssessmentActiveChanged?.call(true);
+      _setSelectedPatient(next);
     }
   }
 
@@ -152,104 +204,107 @@ class _VisitTabPageState extends State<VisitTabPage> {
         page = SafeArea(
           bottom: false,
           child: ColoredBox(
-            color: AppColors.registrationScreenBg,
+            color: AppColors.dashboardBackground,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Padding(
-                  padding: EdgeInsets.fromLTRB(18.w, 10.h, 18.w, 8.h),
-                  child: Text(
-                    'Select Patient for Visit',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 17.sp,
-                      fontWeight: FontWeight.w900,
-                      color: AppColors.textPrimary,
-                    ),
+                  padding: EdgeInsets.fromLTRB(16.w, 12.h, 16.w, 10.h),
+                  child: _VisitPatientPickerHeader(
+                    listKind: _listKind,
+                    followUpCount: followUps.length,
+                    patientCount: patients.length,
                   ),
                 ),
                 Padding(
-                  padding: EdgeInsets.fromLTRB(16.w, 0, 16.w, 10.h),
-                  child: SegmentedButton<_VisitPatientListKind>(
-                    segments: [
-                      ButtonSegment(
-                        value: _VisitPatientListKind.followUps,
-                        label: Text(
-                          'Follow-ups',
-                          style: TextStyle(
-                            fontSize: 12.sp,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                        icon: Icon(Icons.event_repeat_rounded, size: 18.sp),
-                      ),
-                      ButtonSegment(
-                        value: _VisitPatientListKind.directory,
-                        label: Text(
-                          'All patients',
-                          style: TextStyle(
-                            fontSize: 12.sp,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                        icon: Icon(Icons.people_outline_rounded, size: 18.sp),
-                      ),
-                    ],
-                    selected: {_listKind},
-                    onSelectionChanged: (next) {
-                      setState(() => _listKind = next.single);
-                    },
+                  padding: EdgeInsets.symmetric(horizontal: 16.w),
+                  child: _VisitListKindToggle(
+                    selected: _listKind,
+                    followUpCount: followUps.length,
+                    patientCount: patients.length,
+                    onChanged: (next) => setState(() => _listKind = next),
                   ),
                 ),
                 if (dash.error != null)
                   Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 16.w),
-                    child: Text(
-                      dash.error!,
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 12.sp,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.dashboardWarning,
+                    padding: EdgeInsets.fromLTRB(16.w, 10.h, 16.w, 0),
+                    child: Container(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: 12.w,
+                        vertical: 10.h,
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppColors.dashboardPeach.withValues(alpha: 0.55),
+                        borderRadius: BorderRadius.circular(14.r),
+                        border: Border.all(
+                          color: AppColors.dashboardPeachBorder,
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.info_outline_rounded,
+                            size: 18.sp,
+                            color: AppColors.dashboardWarning,
+                          ),
+                          SizedBox(width: 8.w),
+                          Expanded(
+                            child: Text(
+                              dash.error!,
+                              style: TextStyle(
+                                fontSize: 12.sp,
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.dashboardWarning,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ),
+                SizedBox(height: 10.h),
                 Expanded(
                   child: listLoading
                       ? Center(
-                          child: CircularProgressIndicator(
-                            color: AppColors.dashboardPrimary,
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              SizedBox(
+                                width: 36.r,
+                                height: 36.r,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 3,
+                                  color: AppColors.dashboardPrimary,
+                                ),
+                              ),
+                              SizedBox(height: 14.h),
+                              Text(
+                                'Loading patients…',
+                                style: TextStyle(
+                                  fontSize: 13.sp,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.textSecondary,
+                                ),
+                              ),
+                            ],
                           ),
                         )
                       : listEmpty
-                          ? Center(
-                              child: Padding(
-                                padding: EdgeInsets.all(24.w),
-                                child: Text(
-                                  useFollowUps
-                                      ? 'No pending follow-ups right now. Switch to All patients to log a visit for anyone in your directory.'
-                                      : 'No patients in your directory yet. Open Home or Patients — data loads automatically.',
-                                  textAlign: TextAlign.center,
-                                  style: TextStyle(
-                                    fontSize: 14.sp,
-                                    fontWeight: FontWeight.w600,
-                                    color: AppColors.textSecondary,
-                                  ),
-                                ),
-                              ),
+                          ? _VisitPatientPickerEmptyState(
+                              useFollowUps: useFollowUps,
                             )
                           : ListView.separated(
-                              padding: EdgeInsets.fromLTRB(16.w, 4.h, 16.w, 96.h),
+                              padding:
+                                  EdgeInsets.fromLTRB(16.w, 4.h, 16.w, 96.h),
                               itemCount: useFollowUps
                                   ? followUps.length
                                   : patients.length,
                               separatorBuilder: (_, __) =>
-                                  SizedBox(height: 10.h),
+                                  SizedBox(height: 12.h),
                               itemBuilder: (context, index) {
-                                final VisitPatientSeed seed;
                                 if (useFollowUps) {
                                   final f = followUps[index];
-                                  seed = VisitPatientSeed(
+                                  final seed = VisitPatientSeed(
                                     name: f.fullName,
                                     id: f.displayId,
                                     apiPatientId: f.patientId,
@@ -257,21 +312,31 @@ class _VisitTabPageState extends State<VisitTabPage> {
                                     gender: f.gender,
                                     lastVisit: _shortVisit(f.lastVisitDate),
                                     openedFromFollowUpList: true,
+                                    showInstructions: true,
                                   );
-                                } else {
-                                  final p = patients[index];
-                                  seed = VisitPatientSeed(
-                                    name: p.fullName,
-                                    id: p.displayId,
-                                    apiPatientId: p.patientId,
-                                    age: p.age,
-                                    gender: p.gender,
-                                    lastVisit: _shortVisit(p.lastVisitDate),
+                                  return _VisitFollowUpPickCard(
+                                    followUp: f,
+                                    onTap: () => unawaited(
+                                      _startVisitWithInstructions(seed),
+                                    ),
                                   );
                                 }
-                                return _VisitPatientCard(
-                                  patient: seed,
-                                  onTap: () => _setSelectedPatient(seed),
+
+                                final p = patients[index];
+                                final seed = VisitPatientSeed(
+                                  name: p.fullName,
+                                  id: p.displayId,
+                                  apiPatientId: p.patientId,
+                                  age: p.age,
+                                  gender: p.gender,
+                                  lastVisit: _shortVisit(p.lastVisitDate),
+                                  showInstructions: true,
+                                );
+                                return PatientDirectoryListCard(
+                                  patient: p,
+                                  onTap: () => unawaited(
+                                    _startVisitWithInstructions(seed),
+                                  ),
                                 );
                               },
                             ),
@@ -317,87 +382,559 @@ class _VisitTabPageState extends State<VisitTabPage> {
   }
 }
 
-class _VisitPatientCard extends StatelessWidget {
-  const _VisitPatientCard({
-    required this.patient,
+class _VisitPatientPickerHeader extends StatelessWidget {
+  const _VisitPatientPickerHeader({
+    required this.listKind,
+    required this.followUpCount,
+    required this.patientCount,
+  });
+
+  final _VisitPatientListKind listKind;
+  final int followUpCount;
+  final int patientCount;
+
+  @override
+  Widget build(BuildContext context) {
+    final useFollowUps = listKind == _VisitPatientListKind.followUps;
+    final count = useFollowUps ? followUpCount : patientCount;
+    final subtitle = useFollowUps
+        ? 'Patients scheduled for a follow-up visit'
+        : 'Anyone in your directory — tap to log a new visit';
+
+    return Material(
+      elevation: 3.5,
+      shadowColor: AppColors.dashboardPrimary.withValues(alpha: 0.16),
+      borderRadius: BorderRadius.circular(24.r),
+      clipBehavior: Clip.antiAlias,
+      child: Container(
+        padding: EdgeInsets.fromLTRB(16.w, 16.h, 16.w, 16.h),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(24.r),
+          gradient: const LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              AppColors.dashboardChipBlueBg,
+              AppColors.surface,
+            ],
+            stops: [0.0, 0.92],
+          ),
+          border: Border.all(color: AppColors.registrationFieldBorder),
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: EdgeInsets.all(3.r),
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: AppColors.surface,
+                boxShadow: [
+                  BoxShadow(
+                    color: AppColors.dashboardPrimary.withValues(alpha: 0.14),
+                    blurRadius: 10,
+                    offset: const Offset(0, 3),
+                  ),
+                ],
+              ),
+              child: CircleAvatar(
+                radius: 26.r,
+                backgroundColor: AppColors.dashboardPrimary,
+                child: Icon(
+                  Icons.assignment_rounded,
+                  size: 26.sp,
+                  color: AppColors.surface,
+                ),
+              ),
+            ),
+            SizedBox(width: 14.w),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Select patient for visit',
+                    style: TextStyle(
+                      fontSize: 18.sp,
+                      fontWeight: FontWeight.w900,
+                      color: AppColors.dashboardPrimaryDark,
+                      letterSpacing: -0.2,
+                      height: 1.2,
+                    ),
+                  ),
+                  SizedBox(height: 5.h),
+                  Text(
+                    subtitle,
+                    style: TextStyle(
+                      fontSize: 12.sp,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textSecondary,
+                      height: 1.35,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Container(
+              padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 8.h),
+              decoration: BoxDecoration(
+                color: AppColors.dashboardPrimary.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(14.r),
+                border: Border.all(
+                  color: AppColors.dashboardPrimary.withValues(alpha: 0.22),
+                ),
+              ),
+              child: Text(
+                '$count',
+                style: TextStyle(
+                  fontSize: 18.sp,
+                  fontWeight: FontWeight.w900,
+                  color: AppColors.dashboardPrimary,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _VisitListKindToggle extends StatelessWidget {
+  const _VisitListKindToggle({
+    required this.selected,
+    required this.followUpCount,
+    required this.patientCount,
+    required this.onChanged,
+  });
+
+  final _VisitPatientListKind selected;
+  final int followUpCount;
+  final int patientCount;
+  final ValueChanged<_VisitPatientListKind> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: EdgeInsets.all(4.r),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(16.r),
+        border: Border.all(color: AppColors.registrationFieldBorder),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.dashboardPrimary.withValues(alpha: 0.06),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: _togglePill(
+              label: 'Follow-ups',
+              count: followUpCount,
+              icon: Icons.event_repeat_rounded,
+              active: selected == _VisitPatientListKind.followUps,
+              onTap: () => onChanged(_VisitPatientListKind.followUps),
+            ),
+          ),
+          SizedBox(width: 6.w),
+          Expanded(
+            child: _togglePill(
+              label: 'All patients',
+              count: patientCount,
+              icon: Icons.people_alt_rounded,
+              active: selected == _VisitPatientListKind.directory,
+              onTap: () => onChanged(_VisitPatientListKind.directory),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _togglePill({
+    required String label,
+    required int count,
+    required IconData icon,
+    required bool active,
+    required VoidCallback onTap,
+  }) {
+    return Material(
+      color: active
+          ? AppColors.dashboardPrimary
+          : Colors.transparent,
+      borderRadius: BorderRadius.circular(12.r),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 11.h),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                icon,
+                size: 17.sp,
+                color: active ? AppColors.surface : AppColors.textSecondary,
+              ),
+              SizedBox(width: 6.w),
+              Flexible(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 12.sp,
+                    fontWeight: FontWeight.w800,
+                    color: active
+                        ? AppColors.surface
+                        : AppColors.dashboardPrimaryDark,
+                  ),
+                ),
+              ),
+              if (count > 0) ...[
+                SizedBox(width: 5.w),
+                Container(
+                  padding: EdgeInsets.symmetric(horizontal: 6.w, vertical: 2.h),
+                  decoration: BoxDecoration(
+                    color: active
+                        ? AppColors.surface.withValues(alpha: 0.22)
+                        : AppColors.dashboardChipBlueBg,
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    '$count',
+                    style: TextStyle(
+                      fontSize: 10.sp,
+                      fontWeight: FontWeight.w900,
+                      color: active
+                          ? AppColors.surface
+                          : AppColors.dashboardPrimary,
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _VisitPatientPickerEmptyState extends StatelessWidget {
+  const _VisitPatientPickerEmptyState({required this.useFollowUps});
+
+  final bool useFollowUps;
+
+  @override
+  Widget build(BuildContext context) {
+    final title = useFollowUps
+        ? 'No follow-ups right now'
+        : 'No patients yet';
+    final body = useFollowUps
+        ? 'Switch to All patients to log a visit for anyone in your directory.'
+        : 'Register a patient from the + button, or open Home — your list loads automatically.';
+
+    return Center(
+      child: Padding(
+        padding: EdgeInsets.symmetric(horizontal: 28.w),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: EdgeInsets.all(18.r),
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: AppColors.dashboardChipBlueBg,
+                border: Border.all(
+                  color: AppColors.dashboardPrimary.withValues(alpha: 0.15),
+                ),
+              ),
+              child: Icon(
+                useFollowUps
+                    ? Icons.event_available_rounded
+                    : Icons.people_outline_rounded,
+                size: 40.sp,
+                color: AppColors.dashboardPrimary.withValues(alpha: 0.75),
+              ),
+            ),
+            SizedBox(height: 18.h),
+            Text(
+              title,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 17.sp,
+                fontWeight: FontWeight.w900,
+                color: AppColors.dashboardPrimaryDark,
+              ),
+            ),
+            SizedBox(height: 8.h),
+            Text(
+              body,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 13.sp,
+                fontWeight: FontWeight.w600,
+                color: AppColors.textSecondary,
+                height: 1.45,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _VisitFollowUpPickCard extends StatelessWidget {
+  const _VisitFollowUpPickCard({
+    required this.followUp,
     required this.onTap,
   });
 
-  final VisitPatientSeed patient;
+  final HwFollowUpPatient followUp;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    final initials = NameInitials.fromFullName(patient.name);
+    final f = followUp;
+    final overdue = f.isOverdue;
+    final initials = f.initials.trim().isNotEmpty
+        ? f.initials
+        : NameInitials.fromFullName(f.fullName);
+    final condition = f.primaryCondition.trim().isEmpty
+        ? 'Follow-up'
+        : f.primaryCondition.trim();
+
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final next = DateTime(
+      f.nextVisitDate.year,
+      f.nextVisitDate.month,
+      f.nextVisitDate.day,
+    );
+    final dueDays = next.difference(today).inDays;
+
+    late Color accent;
+    late Color bg;
+    late Color borderCol;
+    late Color avatarBg;
+    late String statusLabel;
+
+    if (overdue) {
+      accent = AppColors.dashboardWarning;
+      bg = AppColors.dashboardPeach;
+      borderCol = AppColors.dashboardPeachBorder;
+      avatarBg = AppColors.patientAvatarOrange;
+      statusLabel = 'Overdue';
+    } else if (dueDays == 0) {
+      accent = AppColors.dashboardPrimary;
+      bg = AppColors.surface;
+      borderCol = AppColors.registrationFieldBorder;
+      avatarBg = AppColors.patientAvatarBlue;
+      statusLabel = 'Due today';
+    } else {
+      accent = AppColors.followAccentGreen;
+      bg = AppColors.followUpcomingBg;
+      borderCol = AppColors.followUpcomingBorder;
+      avatarBg = AppColors.patientAvatarGreen;
+      statusLabel = dueDays == 1 ? 'Due tomorrow' : 'Due in $dueDays days';
+    }
 
     return Material(
-      color: AppColors.surface,
-      borderRadius: BorderRadius.circular(16.r),
+      color: bg,
+      elevation: overdue ? 2 : 3,
+      shadowColor: accent.withValues(alpha: 0.16),
+      borderRadius: BorderRadius.circular(20.r),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onTap,
         child: Container(
-          padding: EdgeInsets.all(14.r),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(16.r),
-            border: Border.all(color: AppColors.registrationFieldBorder),
+            borderRadius: BorderRadius.circular(20.r),
+            border: Border.all(color: borderCol),
           ),
-          child: Row(
-            children: [
-              CircleAvatar(
-                radius: 22.r,
-                backgroundColor: AppColors.dashboardPrimary,
-                child: Text(
-                  initials,
-                  style: TextStyle(
-                    fontSize: 13.sp,
-                    fontWeight: FontWeight.w900,
-                    color: AppColors.surface,
+          child: IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Container(width: 4.w, color: accent),
+                Expanded(
+                  child: Padding(
+                    padding: EdgeInsets.fromLTRB(14.w, 14.h, 12.w, 14.h),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        Container(
+                          padding: EdgeInsets.all(2.5.r),
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: AppColors.surface,
+                            boxShadow: [
+                              BoxShadow(
+                                color: accent.withValues(alpha: 0.16),
+                                blurRadius: 8,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: CircleAvatar(
+                            radius: 24.r,
+                            backgroundColor: avatarBg,
+                            child: Text(
+                              initials,
+                              style: TextStyle(
+                                fontSize: 13.sp,
+                                fontWeight: FontWeight.w900,
+                                color: accent,
+                              ),
+                            ),
+                          ),
+                        ),
+                        SizedBox(width: 12.w),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      f.fullName,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        fontSize: 15.sp,
+                                        fontWeight: FontWeight.w900,
+                                        color: AppColors.dashboardPrimaryDark,
+                                      ),
+                                    ),
+                                  ),
+                                  Container(
+                                    padding: EdgeInsets.symmetric(
+                                      horizontal: 8.w,
+                                      vertical: 4.h,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: accent.withValues(alpha: 0.12),
+                                      borderRadius: BorderRadius.circular(999),
+                                      border: Border.all(
+                                        color: accent.withValues(alpha: 0.28),
+                                      ),
+                                    ),
+                                    child: Text(
+                                      statusLabel,
+                                      style: TextStyle(
+                                        fontSize: 9.sp,
+                                        fontWeight: FontWeight.w900,
+                                        color: accent,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              SizedBox(height: 6.h),
+                              Wrap(
+                                spacing: 6.w,
+                                runSpacing: 4.h,
+                                children: [
+                                  _visitMetaPill(
+                                    icon: Icons.cake_outlined,
+                                    label: '${f.age} yrs',
+                                  ),
+                                  _visitMetaPill(
+                                    icon: Icons.badge_outlined,
+                                    label: f.displayId,
+                                  ),
+                                ],
+                              ),
+                              SizedBox(height: 8.h),
+                              Row(
+                                children: [
+                                  Flexible(
+                                    child: Container(
+                                      padding: EdgeInsets.symmetric(
+                                        horizontal: 9.w,
+                                        vertical: 4.h,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: accent.withValues(alpha: 0.1),
+                                        borderRadius:
+                                            BorderRadius.circular(999),
+                                      ),
+                                      child: Text(
+                                        condition,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(
+                                          fontSize: 10.sp,
+                                          fontWeight: FontWeight.w800,
+                                          color: accent,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                        Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.play_circle_fill_rounded,
+                              color: AppColors.dashboardPrimary,
+                              size: 28.sp,
+                            ),
+                            SizedBox(height: 2.h),
+                            Text(
+                              'Start',
+                              style: TextStyle(
+                                fontSize: 9.sp,
+                                fontWeight: FontWeight.w800,
+                                color: AppColors.dashboardPrimary,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-              ),
-              SizedBox(width: 12.w),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      patient.name,
-                      style: TextStyle(
-                        fontSize: 15.sp,
-                        fontWeight: FontWeight.w900,
-                        color: AppColors.dashboardPrimary,
-                      ),
-                    ),
-                    SizedBox(height: 4.h),
-                    Text(
-                      'Patient ID: ${patient.id} • Age ${patient.age} • ${patient.gender}',
-                      style: TextStyle(
-                        fontSize: 11.sp,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.textSecondary,
-                      ),
-                    ),
-                    SizedBox(height: 4.h),
-                    Text(
-                      'Last visit: ${patient.lastVisit}',
-                      style: TextStyle(
-                        fontSize: 11.sp,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.registrationSectionLabel,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Icon(
-                Icons.chevron_right_rounded,
-                size: 26.sp,
-                color: AppColors.textSecondary.withValues(alpha: 0.55),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _visitMetaPill({required IconData icon, required String label}) {
+    return Container(
+      padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 3.h),
+      decoration: BoxDecoration(
+        color: AppColors.surface.withValues(alpha: 0.72),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: AppColors.registrationFieldBorder),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 11.sp, color: AppColors.textSecondary),
+          SizedBox(width: 4.w),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 10.sp,
+              fontWeight: FontWeight.w700,
+              color: AppColors.textSecondary,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -1066,9 +1603,7 @@ class _VisitAssessmentViewState extends State<_VisitAssessmentView> {
     required VoidCallback onTap,
   }) {
     return Material(
-      color: selected
-          ? AppColors.dashboardPrimary
-          : AppColors.surface,
+      color: selected ? AppColors.dashboardPrimary : AppColors.surface,
       borderRadius: BorderRadius.circular(8.r),
       child: InkWell(
         onTap: onTap,
@@ -1607,7 +2142,6 @@ class _VisitAssessmentViewState extends State<_VisitAssessmentView> {
                 child: Padding(
                   padding:
                       EdgeInsets.symmetric(horizontal: 12.w, vertical: 8.h),
-               
                   child: Text(
                     _refsError!,
                     style: TextStyle(
@@ -1800,7 +2334,6 @@ class _VisitAssessmentViewState extends State<_VisitAssessmentView> {
                         value: _alcoholUse,
                         onChanged: (v) =>
                             setState(() => _alcoholUse = v ?? false),
-                 
                       ),
                       SizedBox(height: 8.h),
                       _label('Weight concerns'),

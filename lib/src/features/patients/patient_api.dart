@@ -6,6 +6,7 @@ import 'package:doctor_app/src/core/logging/app_logger.dart';
 import 'package:doctor_app/src/core/network/api_client.dart';
 import 'package:doctor_app/src/core/network/endpoints.dart';
 import 'package:doctor_app/src/features/patients/patient_api_models.dart';
+import 'package:doctor_app/src/features/visits/visit_instruction_models.dart';
 
 List<dynamic> _unwrapEnvelopeList(dynamic root) {
   if (root is List) return root;
@@ -124,6 +125,8 @@ int? _parseRelativeId(dynamic root) {
   }
   return null;
 }
+
+int? _parseCreatedRowId(dynamic root) => _parseRelativeId(root);
 
 /// Patient HTTP API — mirrors `MedicalApi/Controllers/PatientController.cs`.
 ///
@@ -282,15 +285,20 @@ class PatientApi {
   }
 
   /// `POST /api/Patient/medicalhistory` — create row (`id` omitted).
-  Future<void> postMedicalHistory({
+  Future<int> postMedicalHistory({
     required Map<String, dynamic> body,
     required String bearerToken,
   }) async {
-    await _client.post(
+    final res = await _client.post(
       Endpoints.patientMedicalHistoryUpsert,
       body: body,
       bearerToken: bearerToken,
     );
+    final id = _parseCreatedRowId(res.data);
+    if (id == null) {
+      throw StateError('Invalid create medical history response.');
+    }
+    return id;
   }
 
   /// `PUT /api/Patient/surgicalhistory` — update row (**requires** `id` in body).
@@ -306,15 +314,20 @@ class PatientApi {
   }
 
   /// `POST /api/Patient/surgicalhistory` — create row.
-  Future<void> postSurgicalHistory({
+  Future<int> postSurgicalHistory({
     required Map<String, dynamic> body,
     required String bearerToken,
   }) async {
-    await _client.post(
+    final res = await _client.post(
       Endpoints.patientSurgicalHistoryUpsert,
       body: body,
       bearerToken: bearerToken,
     );
+    final id = _parseCreatedRowId(res.data);
+    if (id == null) {
+      throw StateError('Invalid create surgical history response.');
+    }
+    return id;
   }
 
   /// `PUT /api/Patient/drughistory` — update row (**requires** `id` in body).
@@ -330,15 +343,20 @@ class PatientApi {
   }
 
   /// `POST /api/Patient/drughistory` — create row.
-  Future<void> postDrugHistory({
+  Future<int> postDrugHistory({
     required Map<String, dynamic> body,
     required String bearerToken,
   }) async {
-    await _client.post(
+    final res = await _client.post(
       Endpoints.patientDrugHistoryUpsert,
       body: body,
       bearerToken: bearerToken,
     );
+    final id = _parseCreatedRowId(res.data);
+    if (id == null) {
+      throw StateError('Invalid create drug history response.');
+    }
+    return id;
   }
 
   /// `DELETE /api/Patient/medicalhistory/{id}`.
@@ -482,5 +500,21 @@ class PatientApi {
       body: body,
       bearerToken: bearerToken,
     );
+  }
+
+  /// `GET /api/Patient/instructions` — pre-visit instruction carousel.
+  Future<List<VisitInstruction>> getVisitInstructions({
+    required String bearerToken,
+  }) async {
+    try {
+      final res = await _client.get(
+        Endpoints.patientVisitInstructions,
+        bearerToken: bearerToken,
+      );
+      return parseVisitInstructionsList(res.data);
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 404) return const [];
+      rethrow;
+    }
   }
 }

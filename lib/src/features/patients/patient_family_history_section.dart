@@ -514,21 +514,110 @@ class _PatientFamilyHistorySectionState
   }) async {
     final result = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(title, style: TextStyle(fontSize: 16.sp)),
-        content: Text(message, style: TextStyle(fontSize: 13.sp)),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel'),
+      builder: (ctx) {
+        return Dialog(
+          insetPadding: EdgeInsets.symmetric(horizontal: 28.w, vertical: 24.h),
+          backgroundColor: AppColors.surface,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(18.r),
           ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            style: FilledButton.styleFrom(backgroundColor: AppColors.danger),
-            child: const Text('Delete'),
+          child: Padding(
+            padding: EdgeInsets.fromLTRB(20.w, 22.h, 20.w, 18.h),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: 48.r,
+                      height: 48.r,
+                      decoration: BoxDecoration(
+                        color: AppColors.dashboardPeach.withValues(alpha: 0.45),
+                        borderRadius: BorderRadius.circular(14.r),
+                      ),
+                      alignment: Alignment.center,
+                      child: Icon(
+                        Icons.delete_outline_rounded,
+                        size: 28.sp,
+                        color: AppColors.dashboardPrimaryDark,
+                      ),
+                    ),
+                    SizedBox(width: 14.w),
+                    Expanded(
+                      child: Text(
+                        title,
+                        style: TextStyle(
+                          fontSize: 17.sp,
+                          fontWeight: FontWeight.w800,
+                          color: AppColors.dashboardPrimaryDark,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                SizedBox(height: 14.h),
+                Text(
+                  message,
+                  style: TextStyle(
+                    fontSize: 13.sp,
+                    fontWeight: FontWeight.w600,
+                    height: 1.4,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+                SizedBox(height: 22.h),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () => Navigator.pop(ctx, false),
+                        style: OutlinedButton.styleFrom(
+                          padding: EdgeInsets.symmetric(vertical: 14.h),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12.r),
+                          ),
+                          side: const BorderSide(color: AppColors.border),
+                        ),
+                        child: Text(
+                          'Cancel',
+                          style: TextStyle(
+                            fontSize: 14.sp,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.dashboardPrimaryDark,
+                          ),
+                        ),
+                      ),
+                    ),
+                    SizedBox(width: 12.w),
+                    Expanded(
+                      child: FilledButton(
+                        onPressed: () => Navigator.pop(ctx, true),
+                        style: FilledButton.styleFrom(
+                          backgroundColor: AppColors.danger,
+                          foregroundColor: Colors.white,
+                          padding: EdgeInsets.symmetric(vertical: 14.h),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12.r),
+                          ),
+                        ),
+                        child: Text(
+                          'Delete',
+                          style: TextStyle(
+                            fontSize: 14.sp,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
-        ],
-      ),
+        );
+      },
     );
     return result ?? false;
   }
@@ -877,72 +966,133 @@ class _PatientFamilyHistorySectionState
     }
   }
 
-  Widget _relativeAvatarChip(String title) {
+  Color _degreeAccent(int? degreeId) {
+    if (degreeId == null || degreeId <= 0) {
+      return AppColors.dashboardWarning;
+    }
+    final name = _labelForId(widget.relationDegrees, degreeId).toLowerCase();
+    if (name.contains('1')) return AppColors.dashboardPrimary;
+    if (name.contains('2')) return AppColors.followAccentPurple;
+    if (name.contains('3')) return AppColors.followAccentGreen;
+    return AppColors.dashboardWarning;
+  }
+
+  Widget _relativeAvatarChip(String title, Color accent) {
     final initials = NameInitials.fromFullName(title);
     return Container(
-      width: 42.r,
-      height: 42.r,
+      padding: EdgeInsets.all(2.5.r),
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        color: AppColors.dashboardChipBlueBg,
-        border: Border.all(
-          color: AppColors.dashboardPrimary.withValues(alpha: 0.28),
-          width: 1.5,
-        ),
+        color: AppColors.surface,
+        boxShadow: [
+          BoxShadow(
+            color: accent.withValues(alpha: 0.18),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
-      alignment: Alignment.center,
-      child: Text(
-        initials,
-        style: TextStyle(
-          fontSize: 13.sp,
-          fontWeight: FontWeight.w900,
-          color: AppColors.dashboardPrimaryDark,
+      child: CircleAvatar(
+        radius: 24.r,
+        backgroundColor: accent.withValues(alpha: 0.12),
+        child: Text(
+          initials,
+          style: TextStyle(
+            fontSize: 13.sp,
+            fontWeight: FontWeight.w900,
+            color: accent,
+          ),
         ),
       ),
     );
   }
 
-  Widget _conditionPill(String label) {
+  Widget _conditionPill(
+    String label, {
+    required Color accent,
+    VoidCallback? onDelete,
+  }) {
     return Container(
-      padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 6.h),
+      padding: EdgeInsets.fromLTRB(10.w, 6.h, onDelete == null ? 10.w : 4.w, 6.h),
       decoration: BoxDecoration(
-        color: AppColors.dashboardPrimary.withValues(alpha: 0.1),
+        color: accent.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(999),
-        border: Border.all(
-          color: AppColors.dashboardPrimary.withValues(alpha: 0.28),
-        ),
+        border: Border.all(color: accent.withValues(alpha: 0.24)),
       ),
-      child: Text(
-        label,
-        style: TextStyle(
-          fontSize: 11.sp,
-          fontWeight: FontWeight.w800,
-          color: AppColors.dashboardPrimaryDark,
-        ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            Icons.monitor_heart_outlined,
+            size: 12.sp,
+            color: accent,
+          ),
+          SizedBox(width: 5.w),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 11.sp,
+              fontWeight: FontWeight.w800,
+              color: accent,
+            ),
+          ),
+          if (onDelete != null) ...[
+            SizedBox(width: 2.w),
+            InkWell(
+              onTap: onDelete,
+              borderRadius: BorderRadius.circular(999),
+              child: Padding(
+                padding: EdgeInsets.all(3.r),
+                child: Icon(
+                  Icons.close_rounded,
+                  size: 14.sp,
+                  color: accent.withValues(alpha: 0.75),
+                ),
+              ),
+            ),
+          ],
+        ],
       ),
     );
   }
 
-  Widget _familyAddConditionButton({required VoidCallback onPressed}) {
+  Widget _familyPrimaryButton({
+    required String label,
+    required IconData icon,
+    required VoidCallback onPressed,
+    bool filled = true,
+  }) {
     return Material(
-      color: AppColors.dashboardPrimary,
+      color: filled ? AppColors.dashboardPrimary : Colors.transparent,
       borderRadius: BorderRadius.circular(999),
       child: InkWell(
         borderRadius: BorderRadius.circular(999),
         onTap: onPressed,
-        child: Padding(
-          padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 7.h),
+        child: Container(
+          padding: EdgeInsets.symmetric(horizontal: 14.w, vertical: 9.h),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(999),
+            border: filled
+                ? null
+                : Border.all(
+                    color: AppColors.dashboardPrimary.withValues(alpha: 0.35),
+                  ),
+          ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.add_rounded, size: 15.sp, color: AppColors.surface),
-              SizedBox(width: 4.w),
+              Icon(
+                icon,
+                size: 16.sp,
+                color: filled ? AppColors.surface : AppColors.dashboardPrimary,
+              ),
+              SizedBox(width: 5.w),
               Text(
-                'Add condition',
+                label,
                 style: TextStyle(
-                  fontSize: 11.sp,
+                  fontSize: 12.sp,
                   fontWeight: FontWeight.w800,
-                  color: AppColors.surface,
+                  color: filled ? AppColors.surface : AppColors.dashboardPrimary,
                 ),
               ),
             ],
@@ -952,35 +1102,50 @@ class _PatientFamilyHistorySectionState
     );
   }
 
-  Widget _entryDeleteButton({
-    required VoidCallback onPressed,
-    double size = 24,
+  Widget _familyAddConditionButton({required VoidCallback onPressed}) {
+    return _familyPrimaryButton(
+      label: 'Add condition',
+      icon: Icons.add_rounded,
+      onPressed: onPressed,
+      filled: false,
+    );
+  }
+
+  Widget _entryMoreMenu({
+    required VoidCallback onDelete,
+    double iconSize = 22,
   }) {
-    return Tooltip(
-      message: 'Delete',
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: onPressed,
-          borderRadius: BorderRadius.circular(10.r),
-          child: Padding(
-            padding: EdgeInsets.all(6.r),
-            child: Image.asset(
-              'assets/delete.png',
-              width: size.r,
-              height: size.r,
-              fit: BoxFit.contain,
-              errorBuilder: (context, error, stackTrace) {
-                return Icon(
-                  Icons.delete_outline_rounded,
-                  size: size.sp,
-                  color: AppColors.dashboardPrimaryDark,
-                );
-              },
+    return PopupMenuButton<String>(
+      tooltip: 'More options',
+      padding: EdgeInsets.zero,
+      constraints: BoxConstraints(minWidth: 140.w),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12.r),
+      ),
+      color: AppColors.surface,
+      elevation: 4,
+      icon: Icon(
+        Icons.more_vert_rounded,
+        size: iconSize.sp,
+        color: AppColors.dashboardPrimaryDark,
+      ),
+      onSelected: (value) {
+        if (value == 'delete') onDelete();
+      },
+      itemBuilder: (context) => [
+        PopupMenuItem<String>(
+          value: 'delete',
+          height: 44.h,
+          child: Text(
+            'Delete',
+            style: TextStyle(
+              fontSize: 13.sp,
+              fontWeight: FontWeight.w700,
+              color: AppColors.danger,
             ),
           ),
         ),
-      ),
+      ],
     );
   }
 
@@ -999,6 +1164,113 @@ class _PatientFamilyHistorySectionState
     );
   }
 
+  Widget _familyHistoryHeader({
+    required int visibleCount,
+    required int totalCount,
+    required Color accent,
+  }) {
+    final degreeLabel = _degreeId == null
+        ? 'All degrees'
+        : _labelForId(widget.relationDegrees, _degreeId!);
+    final subtitle = widget.readOnly
+        ? 'Recorded relatives and their medical conditions'
+        : 'Add relatives by degree and note their conditions';
+
+    return Material(
+      elevation: 3,
+      shadowColor: accent.withValues(alpha: 0.14),
+      borderRadius: BorderRadius.circular(22.r),
+      clipBehavior: Clip.antiAlias,
+      child: Container(
+        padding: EdgeInsets.fromLTRB(16.w, 16.h, 16.w, 16.h),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(22.r),
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              accent.withValues(alpha: 0.14),
+              AppColors.surface,
+            ],
+            stops: const [0.0, 0.92],
+          ),
+          border: Border.all(color: AppColors.registrationFieldBorder),
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: EdgeInsets.all(3.r),
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: AppColors.surface,
+                boxShadow: [
+                  BoxShadow(
+                    color: accent.withValues(alpha: 0.16),
+                    blurRadius: 10,
+                    offset: const Offset(0, 3),
+                  ),
+                ],
+              ),
+              child: CircleAvatar(
+                radius: 24.r,
+                backgroundColor: accent.withValues(alpha: 0.14),
+                child: Icon(
+                  Icons.family_restroom_rounded,
+                  size: 24.sp,
+                  color: accent,
+                ),
+              ),
+            ),
+            SizedBox(width: 12.w),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Family history',
+                    style: TextStyle(
+                      fontSize: 17.sp,
+                      fontWeight: FontWeight.w900,
+                      color: AppColors.dashboardPrimaryDark,
+                      letterSpacing: -0.2,
+                    ),
+                  ),
+                  SizedBox(height: 4.h),
+                  Text(
+                    subtitle,
+                    style: TextStyle(
+                      fontSize: 11.sp,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textSecondary,
+                      height: 1.35,
+                    ),
+                  ),
+                  SizedBox(height: 6.h),
+                  Container(
+                    padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 4.h),
+                    decoration: BoxDecoration(
+                      color: accent.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(999),
+                      border: Border.all(color: accent.withValues(alpha: 0.2)),
+                    ),
+                    child: Text(
+                      '$visibleCount in $degreeLabel · $totalCount total',
+                      style: TextStyle(
+                        fontSize: 10.sp,
+                        fontWeight: FontWeight.w800,
+                        color: accent,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _degreeTabBar() {
     final degrees = widget.relationDegrees.where((e) => e.id > 0).toList();
     if (degrees.isEmpty) {
@@ -1008,39 +1280,367 @@ class _PatientFamilyHistorySectionState
       return const SizedBox.shrink();
     }
 
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: Row(
-        children: degrees.map((d) {
-          final selected = _degreeId == d.id;
-          return Padding(
-            padding: EdgeInsets.only(right: 8.w),
-            child: Material(
-              color: selected
-                  ? AppColors.dashboardPrimary
-                  : AppColors.dashboardChipBlueBg,
-              borderRadius: BorderRadius.circular(999),
-              child: InkWell(
-                borderRadius: BorderRadius.circular(999),
-                onTap: () => setState(() => _degreeId = d.id),
-                child: Padding(
-                  padding:
-                      EdgeInsets.symmetric(horizontal: 14.w, vertical: 8.h),
-                  child: Text(
-                    d.name,
-                    style: TextStyle(
-                      fontSize: 12.sp,
-                      fontWeight: FontWeight.w800,
-                      color: selected
-                          ? AppColors.surface
-                          : AppColors.dashboardPrimaryDark,
+    return Container(
+      padding: EdgeInsets.all(4.r),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(16.r),
+        border: Border.all(color: AppColors.registrationFieldBorder),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.dashboardPrimary.withValues(alpha: 0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          children: degrees.map((d) {
+            final selected = _degreeId == d.id;
+            final accent = _degreeAccent(d.id);
+            final count =
+                _relatives.where((r) => r.relationDegreeId == d.id).length;
+            return Padding(
+              padding: EdgeInsets.only(right: 6.w),
+              child: Material(
+                color: selected ? accent : Colors.transparent,
+                borderRadius: BorderRadius.circular(12.r),
+                clipBehavior: Clip.antiAlias,
+                child: InkWell(
+                  onTap: () => setState(() => _degreeId = d.id),
+                  child: Padding(
+                    padding:
+                        EdgeInsets.symmetric(horizontal: 12.w, vertical: 10.h),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.account_tree_outlined,
+                          size: 15.sp,
+                          color: selected
+                              ? AppColors.surface
+                              : AppColors.textSecondary,
+                        ),
+                        SizedBox(width: 6.w),
+                        Text(
+                          d.name,
+                          style: TextStyle(
+                            fontSize: 12.sp,
+                            fontWeight: FontWeight.w800,
+                            color: selected
+                                ? AppColors.surface
+                                : AppColors.dashboardPrimaryDark,
+                          ),
+                        ),
+                        if (count > 0) ...[
+                          SizedBox(width: 6.w),
+                          Container(
+                            padding: EdgeInsets.symmetric(
+                              horizontal: 6.w,
+                              vertical: 2.h,
+                            ),
+                            decoration: BoxDecoration(
+                              color: selected
+                                  ? AppColors.surface.withValues(alpha: 0.22)
+                                  : accent.withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(999),
+                            ),
+                            child: Text(
+                              '$count',
+                              style: TextStyle(
+                                fontSize: 10.sp,
+                                fontWeight: FontWeight.w900,
+                                color: selected ? AppColors.surface : accent,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
                     ),
                   ),
                 ),
               ),
+            );
+          }).toList(),
+        ),
+      ),
+    );
+  }
+
+  Widget _relativeCard({
+    required PatientFamilyRelativeRow rel,
+    required int globalIndex,
+    required Color accent,
+  }) {
+    return Material(
+      color: AppColors.surface,
+      elevation: 3,
+      shadowColor: accent.withValues(alpha: 0.12),
+      borderRadius: BorderRadius.circular(20.r),
+      clipBehavior: Clip.antiAlias,
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(20.r),
+          border: Border.all(color: accent.withValues(alpha: 0.2)),
+        ),
+        child: IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Container(width: 4.w, color: accent),
+              Expanded(
+                child: Padding(
+                  padding: EdgeInsets.fromLTRB(14.w, 14.h, 12.w, 14.h),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _relativeAvatarChip(rel.displayTitle, accent),
+                          SizedBox(width: 12.w),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  rel.displayTitle,
+                                  style: TextStyle(
+                                    fontSize: 15.sp,
+                                    fontWeight: FontWeight.w900,
+                                    color: AppColors.dashboardPrimaryDark,
+                                  ),
+                                ),
+                                if (rel.relationDegreeName.trim().isNotEmpty)
+                                  Padding(
+                                    padding: EdgeInsets.only(top: 4.h),
+                                    child: Container(
+                                      padding: EdgeInsets.symmetric(
+                                        horizontal: 8.w,
+                                        vertical: 3.h,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: accent.withValues(alpha: 0.1),
+                                        borderRadius: BorderRadius.circular(999),
+                                      ),
+                                      child: Text(
+                                        rel.relationDegreeName,
+                                        style: TextStyle(
+                                          fontSize: 10.sp,
+                                          fontWeight: FontWeight.w800,
+                                          color: accent,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ),
+                          if (rel.isDraft)
+                            Container(
+                              margin: EdgeInsets.only(right: 4.w),
+                              padding: EdgeInsets.symmetric(
+                                horizontal: 8.w,
+                                vertical: 4.h,
+                              ),
+                              decoration: BoxDecoration(
+                                color: AppColors.dashboardPeach
+                                    .withValues(alpha: 0.65),
+                                borderRadius: BorderRadius.circular(999),
+                                border: Border.all(
+                                  color: AppColors.dashboardPeachBorder,
+                                ),
+                              ),
+                              child: Text(
+                                'Draft',
+                                style: TextStyle(
+                                  fontSize: 9.sp,
+                                  fontWeight: FontWeight.w900,
+                                  color: AppColors.dashboardWarning,
+                                ),
+                              ),
+                            ),
+                          if (!widget.readOnly)
+                            _entryMoreMenu(
+                              onDelete: () =>
+                                  unawaited(_deleteRelative(globalIndex)),
+                            ),
+                        ],
+                      ),
+                      SizedBox(height: 14.h),
+                      Container(
+                        padding: EdgeInsets.all(12.r),
+                        decoration: BoxDecoration(
+                          color: AppColors.registrationFieldFill
+                              .withValues(alpha: 0.45),
+                          borderRadius: BorderRadius.circular(16.r),
+                          border: Border.all(
+                            color: AppColors.registrationFieldBorder,
+                          ),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Row(
+                              children: [
+                                Icon(
+                                  Icons.medical_information_outlined,
+                                  size: 15.sp,
+                                  color: accent,
+                                ),
+                                SizedBox(width: 6.w),
+                                Text(
+                                  'Medical conditions',
+                                  style: TextStyle(
+                                    fontSize: 11.sp,
+                                    fontWeight: FontWeight.w900,
+                                    color: AppColors.registrationSectionLabel,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            SizedBox(height: 10.h),
+                            if (rel.conditions.isEmpty)
+                              Column(
+                                children: [
+                                  Text(
+                                    'No conditions recorded yet.',
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(
+                                      fontSize: 12.sp,
+                                      fontWeight: FontWeight.w600,
+                                      color: AppColors.textSecondary,
+                                    ),
+                                  ),
+                                  if (widget.allowAdd) ...[
+                                    SizedBox(height: 10.h),
+                                    Align(
+                                      alignment: Alignment.center,
+                                      child: _familyAddConditionButton(
+                                        onPressed: () => unawaited(
+                                          _addCondition(globalIndex),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ],
+                              )
+                            else
+                              Wrap(
+                                spacing: 8.w,
+                                runSpacing: 8.h,
+                                children: [
+                                  for (int ci = 0;
+                                      ci < rel.conditions.length;
+                                      ci++)
+                                    _conditionPill(
+                                      rel.conditions[ci].displayConditionName,
+                                      accent: accent,
+                                      onDelete: widget.readOnly
+                                          ? null
+                                          : () => unawaited(
+                                                _deleteCondition(
+                                                  globalIndex,
+                                                  ci,
+                                                ),
+                                              ),
+                                    ),
+                                ],
+                              ),
+                            if (widget.allowAdd && rel.conditions.isNotEmpty)
+                              Padding(
+                                padding: EdgeInsets.only(top: 10.h),
+                                child: Align(
+                                  alignment: Alignment.centerLeft,
+                                  child: _familyAddConditionButton(
+                                    onPressed: () =>
+                                        unawaited(_addCondition(globalIndex)),
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _emptyDegreeState() {
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.symmetric(vertical: 28.h, horizontal: 20.w),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(20.r),
+        border: Border.all(color: AppColors.registrationFieldBorder),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.dashboardPrimary.withValues(alpha: 0.05),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          Container(
+            padding: EdgeInsets.all(16.r),
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: AppColors.dashboardPeach.withValues(alpha: 0.35),
+              border: Border.all(
+                color: AppColors.dashboardWarning.withValues(alpha: 0.2),
+              ),
             ),
-          );
-        }).toList(),
+            child: Icon(
+              Icons.family_restroom_outlined,
+              size: 34.sp,
+              color: AppColors.dashboardWarning.withValues(alpha: 0.8),
+            ),
+          ),
+          SizedBox(height: 14.h),
+          Text(
+            widget.readOnly
+                ? 'No relatives in this degree'
+                : 'Start building family history',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 16.sp,
+              fontWeight: FontWeight.w900,
+              color: AppColors.dashboardPrimaryDark,
+            ),
+          ),
+          SizedBox(height: 6.h),
+          Text(
+            widget.readOnly
+                ? 'Nothing has been recorded for this relation degree yet.'
+                : 'Add a parent, sibling, or other relative and list any illnesses they have had.',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 12.sp,
+              fontWeight: FontWeight.w600,
+              color: AppColors.textSecondary,
+              height: 1.45,
+            ),
+          ),
+          if (widget.allowAdd) ...[
+            SizedBox(height: 16.h),
+            _familyPrimaryButton(
+              label: 'Add relative',
+              icon: Icons.person_add_alt_1_rounded,
+              onPressed: _addRelative,
+            ),
+          ],
+        ],
       ),
     );
   }
@@ -1055,11 +1655,28 @@ class _PatientFamilyHistorySectionState
       return Column(
         children: [
           Padding(
-            padding: EdgeInsets.all(24.r),
-            child: Center(
-              child: CircularProgressIndicator(
-                color: AppColors.dashboardPrimary,
-              ),
+            padding: EdgeInsets.all(32.r),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SizedBox(
+                  width: 34.r,
+                  height: 34.r,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 3,
+                    color: AppColors.dashboardWarning,
+                  ),
+                ),
+                SizedBox(height: 14.h),
+                Text(
+                  'Loading family history…',
+                  style: TextStyle(
+                    fontSize: 13.sp,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ],
             ),
           ),
           bottomInset,
@@ -1068,288 +1685,40 @@ class _PatientFamilyHistorySectionState
     }
 
     final visible = _relativesForDegree();
+    final accent = _degreeAccent(_degreeId);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _degreeTabBar(),
-        SizedBox(height: 14.h),
-        Row(
-          children: [
-            Expanded(
-              child: Text(
-                widget.readOnly
-                    ? 'Relatives and illnesses by degree (1st / 2nd / 3rd).'
-                    : 'Add relatives and their illnesses by degree (1st / 2nd / 3rd).',
-                style: TextStyle(
-                  fontSize: 12.sp,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.textSecondary,
-                  height: 1.35,
-                ),
-              ),
-            ),
-            if (widget.allowAdd)
-              Material(
-                color: AppColors.dashboardPrimary,
-                borderRadius: BorderRadius.circular(999),
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(999),
-                  onTap: _addRelative,
-                  child: Padding(
-                    padding:
-                        EdgeInsets.symmetric(horizontal: 12.w, vertical: 8.h),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.add_rounded,
-                            size: 16.sp, color: AppColors.surface),
-                        SizedBox(width: 4.w),
-                        Text(
-                          'Add relative',
-                          style: TextStyle(
-                            fontSize: 12.sp,
-                            fontWeight: FontWeight.w800,
-                            color: AppColors.surface,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-          ],
+        _familyHistoryHeader(
+          visibleCount: visible.length,
+          totalCount: _relatives.length,
+          accent: accent,
         ),
         SizedBox(height: 14.h),
+        _degreeTabBar(),
+        SizedBox(height: 14.h),
+        if (widget.allowAdd)
+          Align(
+            alignment: Alignment.centerRight,
+            child: _familyPrimaryButton(
+              label: 'Add relative',
+              icon: Icons.person_add_alt_1_rounded,
+              onPressed: _addRelative,
+            ),
+          ),
+        SizedBox(height: 14.h),
         if (visible.isEmpty)
-          Container(
-            width: double.infinity,
-            padding: EdgeInsets.symmetric(vertical: 22.h, horizontal: 16.w),
-            decoration: BoxDecoration(
-              color: AppColors.registrationFieldFill.withValues(alpha: 0.45),
-              borderRadius: BorderRadius.circular(14.r),
-              border: Border.all(color: AppColors.registrationFieldBorder),
-            ),
-            child: Column(
-              children: [
-                Icon(
-                  Icons.family_restroom_outlined,
-                  size: 30.sp,
-                  color: AppColors.dashboardPrimary.withValues(alpha: 0.65),
-                ),
-                SizedBox(height: 10.h),
-                Text(
-                  widget.readOnly
-                      ? 'No relatives recorded for this degree.'
-                      : 'No relatives in this degree yet. Tap below to add one.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 13.sp,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.textSecondary,
-                    height: 1.35,
-                  ),
-                ),
-                if (widget.allowAdd) ...[
-                  SizedBox(height: 14.h),
-                  Material(
-                    color: AppColors.dashboardPrimary,
-                    borderRadius: BorderRadius.circular(999),
-                    child: InkWell(
-                      borderRadius: BorderRadius.circular(999),
-                      onTap: _addRelative,
-                      child: Padding(
-                        padding: EdgeInsets.symmetric(
-                          horizontal: 14.w,
-                          vertical: 9.h,
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.add_rounded,
-                                size: 16.sp, color: AppColors.surface),
-                            SizedBox(width: 4.w),
-                            Text(
-                              'Add relative',
-                              style: TextStyle(
-                                fontSize: 12.sp,
-                                fontWeight: FontWeight.w800,
-                                color: AppColors.surface,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          )
+          _emptyDegreeState()
         else
           ...visible.map((rel) {
             final globalIndex = _globalIndexFor(rel);
             return Padding(
               padding: EdgeInsets.only(bottom: 12.h),
-              child: Material(
-                color: AppColors.surface,
-                elevation: 2.5,
-                shadowColor: AppColors.dashboardPrimary.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(18.r),
-                child: Container(
-                  padding: EdgeInsets.all(14.r),
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(18.r),
-                    border: Border.all(color: AppColors.registrationFieldBorder),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          _relativeAvatarChip(rel.displayTitle),
-                          SizedBox(width: 12.w),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  rel.displayTitle,
-                                  style: TextStyle(
-                                    fontSize: 14.sp,
-                                    fontWeight: FontWeight.w900,
-                                    color: AppColors.textPrimary,
-                                  ),
-                                ),
-                                if (rel.relationDegreeName.trim().isNotEmpty)
-                                  Padding(
-                                    padding: EdgeInsets.only(top: 3.h),
-                                    child: Text(
-                                      rel.relationDegreeName,
-                                      style: TextStyle(
-                                        fontSize: 11.sp,
-                                        fontWeight: FontWeight.w600,
-                                        color: AppColors.textSecondary,
-                                      ),
-                                    ),
-                                  ),
-                              ],
-                            ),
-                          ),
-                          if (rel.isDraft)
-                            Container(
-                              margin: EdgeInsets.only(right: 6.w),
-                              padding: EdgeInsets.symmetric(
-                                horizontal: 8.w,
-                                vertical: 3.h,
-                              ),
-                              decoration: BoxDecoration(
-                                color: AppColors.dashboardPeach
-                                    .withValues(alpha: 0.55),
-                                borderRadius: BorderRadius.circular(8.r),
-                              ),
-                              child: Text(
-                                'New',
-                                style: TextStyle(
-                                  fontSize: 10.sp,
-                                  fontWeight: FontWeight.w900,
-                                  color: AppColors.dashboardWarning,
-                                ),
-                              ),
-                            ),
-                          if (!widget.readOnly)
-                            _entryDeleteButton(
-                              onPressed: () =>
-                                  unawaited(_deleteRelative(globalIndex)),
-                            ),
-                        ],
-                      ),
-                      SizedBox(height: 12.h),
-                      Divider(height: 1, color: AppColors.border),
-                      SizedBox(height: 10.h),
-                      Text(
-                        'Conditions',
-                        style: TextStyle(
-                          fontSize: 11.sp,
-                          fontWeight: FontWeight.w800,
-                          color: AppColors.registrationSectionLabel,
-                        ),
-                      ),
-                      SizedBox(height: 8.h),
-                      if (rel.conditions.isEmpty)
-                        Container(
-                          width: double.infinity,
-                          padding: EdgeInsets.symmetric(
-                            vertical: 14.h,
-                            horizontal: 12.w,
-                          ),
-                          decoration: BoxDecoration(
-                            color: AppColors.registrationFieldFill
-                                .withValues(alpha: 0.45),
-                            borderRadius: BorderRadius.circular(14.r),
-                            border: Border.all(
-                              color: AppColors.registrationFieldBorder,
-                            ),
-                          ),
-                          child: Column(
-                            children: [
-                              Text(
-                                'No conditions recorded for this relative.',
-                                textAlign: TextAlign.center,
-                                style: TextStyle(
-                                  fontSize: 12.sp,
-                                  fontWeight: FontWeight.w600,
-                                  color: AppColors.textSecondary,
-                                ),
-                              ),
-                              if (widget.allowAdd) ...[
-                                SizedBox(height: 10.h),
-                                _familyAddConditionButton(
-                                  onPressed: () =>
-                                      unawaited(_addCondition(globalIndex)),
-                                ),
-                              ],
-                            ],
-                          ),
-                        )
-                      else
-                        Wrap(
-                          spacing: 8.w,
-                          runSpacing: 8.h,
-                          children: [
-                            for (int ci = 0; ci < rel.conditions.length; ci++)
-                              Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  _conditionPill(
-                                    rel.conditions[ci].displayConditionName,
-                                  ),
-                                  if (!widget.readOnly)
-                                    _entryDeleteButton(
-                                      size: 18,
-                                      onPressed: () => unawaited(
-                                        _deleteCondition(globalIndex, ci),
-                                      ),
-                                    ),
-                                ],
-                              ),
-                          ],
-                        ),
-                      if (widget.allowAdd && rel.conditions.isNotEmpty)
-                        Padding(
-                          padding: EdgeInsets.only(top: 10.h),
-                          child: Align(
-                            alignment: Alignment.centerLeft,
-                            child: _familyAddConditionButton(
-                              onPressed: () =>
-                                  unawaited(_addCondition(globalIndex)),
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
+              child: _relativeCard(
+                rel: rel,
+                globalIndex: globalIndex,
+                accent: accent,
               ),
             );
           }),
@@ -1362,14 +1731,29 @@ class _PatientFamilyHistorySectionState
                 backgroundColor: AppColors.registrationSaveBlue,
                 foregroundColor: AppColors.surface,
                 minimumSize: Size(double.infinity, 52.h),
+                elevation: 2,
+                shadowColor:
+                    AppColors.registrationSaveBlue.withValues(alpha: 0.35),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(14.r),
                 ),
               ),
-              child: Text(
-                _saving ? 'Saving…' : 'Save Family History',
-                style: TextStyle(fontSize: 15.sp, fontWeight: FontWeight.w800),
-              ),
+              child: _saving
+                  ? SizedBox(
+                      width: 22.r,
+                      height: 22.r,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2.5,
+                        color: AppColors.surface,
+                      ),
+                    )
+                  : Text(
+                      'Save family history',
+                      style: TextStyle(
+                        fontSize: 15.sp,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
             ),
           ),
         bottomInset,

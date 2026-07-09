@@ -20,6 +20,7 @@ import 'package:doctor_app/src/features/patients/patient_api.dart';
 import 'package:doctor_app/src/features/patients/patient_api_models.dart';
 import 'package:doctor_app/src/features/patients/patient_family_history_section.dart';
 import 'package:doctor_app/src/features/patients/patient_detail_cache.dart';
+import 'package:doctor_app/src/features/patients/patient_detail_disk_cache.dart';
 import 'package:doctor_app/src/features/patients/patient_directory_coordinator.dart';
 import 'package:doctor_app/src/features/patients/visit_detail_screen.dart';
 import 'package:doctor_app/src/features/shell/tabs/visit_tab_page.dart';
@@ -240,7 +241,6 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
   final Set<int> _editingChronicIds = {};
   final Set<int> _editingSurgicalIds = {};
   final Set<int> _editingDrugIds = {};
-  bool _editingTobacco = false;
 
   /// When opened from the hub as a single section, starts read-only until Edit.
   bool _sectionReadOnly = false;
@@ -267,7 +267,6 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
         _editingChronicIds.clear();
         _editingSurgicalIds.clear();
         _editingDrugIds.clear();
-        _editingTobacco = false;
       }
     });
   }
@@ -332,6 +331,16 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
         _applyReferences(cache.references!);
       }
       _hydrateFromBundle(bundle);
+      if (_medical.isEmpty && _surgical.isEmpty && _drugs.isEmpty) {
+        final diskHistory = await PatientDetailDiskCache.load(pid);
+        if (diskHistory != null && mounted) {
+          setState(() {
+            _applyClinicalHistory(diskHistory);
+            _rebuildClinicalTextControllers();
+          });
+          _updateCacheFromState();
+        }
+      }
       if (mounted) {
         setState(() {
           _bundleReady = true;
@@ -343,6 +352,8 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
       if (!cache.hasReferences) {
         unawaited(_fetchAndCacheReferences(session, token));
       }
+      // Stale-while-revalidate: show cache immediately, always hit GET APIs.
+      unawaited(_refreshClinicalAndFamilyFromNetwork(session, token));
       return;
     }
 
@@ -389,6 +400,18 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
     _relationDegrees = refs.relationDegrees;
   }
 
+  void _applyClinicalHistory(PatientCompleteHistoryData? history) {
+    if (history == null) return;
+    _cachedHistory = history;
+    _medical = List<PatientMedicalHistoryRow>.from(history.medical);
+    _surgical = List<PatientSurgicalHistoryRow>.from(history.surgical);
+    _drugs = List<PatientDrugHistoryRow>.from(history.drugs);
+    _clinicalBundleResolved = true;
+    if (history.baseline != null) {
+      _applyBaselineToForm(history.baseline!);
+    }
+  }
+
   void _hydrateFromBundle(PatientDetailBundle bundle) {
     _cachedProfile = bundle.profile;
     _cachedHistory = bundle.history;
@@ -400,25 +423,18 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
     _editingChronicIds.clear();
     _editingSurgicalIds.clear();
     _editingDrugIds.clear();
-    _editingTobacco = false;
 
     final history = bundle.history;
     if (history != null) {
-      _medical = List<PatientMedicalHistoryRow>.from(history.medical);
-      _surgical = List<PatientSurgicalHistoryRow>.from(history.surgical);
-      _drugs = List<PatientDrugHistoryRow>.from(history.drugs);
-      _clinicalBundleResolved = true;
-      final baseline = history.baseline;
-      if (baseline != null) {
-        _familyHtn = baseline.familyHistoryOfHtnOrStroke;
-        _tobaccoUse = baseline.tobaccoUse;
-        _tobaccoTypeController.text = baseline.tobaccoType?.trim() ?? '';
-        _tobaccoQuantityController.text =
-            baseline.tobaccoQuantityPerDay?.toString() ?? '';
-        _tobaccoDurationStart = baseline.tobaccoDurationStart;
-        _tobaccoDurationEnd = baseline.tobaccoDurationEnd;
-        _baselineLoaded = true;
-      } else {
+      _applyClinicalHistory(history);
+    } else if (!_clinicalBundleResolved) {
+      if (_medical.isEmpty &&
+          _surgical.isEmpty &&
+          _drugs.isEmpty &&
+          !_baselineLoaded) {
+        _medical = const [];
+        _surgical = const [];
+        _drugs = const [];
         _familyHtn = false;
         _tobaccoUse = false;
         _tobaccoTypeController.clear();
@@ -427,17 +443,6 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
         _tobaccoDurationEnd = null;
         _baselineLoaded = false;
       }
-    } else if (!_clinicalBundleResolved) {
-      _medical = const [];
-      _surgical = const [];
-      _drugs = const [];
-      _familyHtn = false;
-      _tobaccoUse = false;
-      _tobaccoTypeController.clear();
-      _tobaccoQuantityController.clear();
-      _tobaccoDurationStart = null;
-      _tobaccoDurationEnd = null;
-      _baselineLoaded = false;
       _clinicalBundleResolved = true;
     }
 
@@ -474,20 +479,15 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
     String token,
   ) async {
     final pid = widget.summary.patientId;
-    await _loadProfileAndCascadeLocation(session, token);
-    await _loadClinical(session, token);
 
-    List<PatientFamilyRelativeRow>? familyRelatives;
-    try {
-      final family = await _patientApi!.getFamilyHistory(
-        patientId: pid,
-        bearerToken: token,
-      );
-      familyRelatives = family?.relatives;
-    } on Object catch (e) {
-      if (!mounted || e is SessionEndedFailure) return;
-      _toast(session.apiClient.mapError(e).message);
+    final diskHistory = await PatientDetailDiskCache.load(pid);
+    if (diskHistory != null && mounted) {
+      setState(() => _applyClinicalHistory(diskHistory));
+      _rebuildClinicalTextControllers();
     }
+
+    await _loadProfileAndCascadeLocation(session, token);
+    await _refreshClinicalAndFamilyFromNetwork(session, token);
 
     if (!mounted) return;
 
@@ -500,12 +500,36 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
       tehsils: _tehsils,
       history: _cachedHistory,
       visits: _visits,
-      familyRelatives: familyRelatives,
+      familyRelatives: _cachedFamilyRelatives,
     );
 
-    _cachedFamilyRelatives = familyRelatives;
     _cache.setPatientBundle(pid, bundle);
     if (mounted) setState(() => _bundleReady = true);
+  }
+
+  /// Always calls server GETs for clinical history, visits, and family history.
+  Future<void> _refreshClinicalAndFamilyFromNetwork(
+    SessionController session,
+    String token,
+  ) async {
+    await _loadClinical(session, token);
+    if (!mounted) return;
+
+    final pid = widget.summary.patientId;
+    try {
+      final family = await _patientApi!.getFamilyHistory(
+        patientId: pid,
+        bearerToken: token,
+      );
+      if (!mounted) return;
+      setState(() {
+        _cachedFamilyRelatives = family?.relatives;
+      });
+      _updateCacheFromState();
+    } on Object catch (e) {
+      if (!mounted || e is SessionEndedFailure) return;
+      _toast(session.apiClient.mapError(e).message);
+    }
   }
 
   void _applyProfileToForm(PatientProfileData p) {
@@ -723,6 +747,123 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
     _deferDisposeControllers(toDispose);
   }
 
+  List<PatientMedicalHistoryRow> _mergeMedicalRows(
+    List<PatientMedicalHistoryRow> server,
+    List<PatientMedicalHistoryRow> local,
+  ) {
+    final byId = {for (final r in server) r.id: r};
+    final out = List<PatientMedicalHistoryRow>.from(server);
+    for (final row in local) {
+      if (row.id <= 0) {
+        out.add(row);
+        continue;
+      }
+      if (!byId.containsKey(row.id)) {
+        out.add(row);
+      }
+    }
+    return out;
+  }
+
+  List<PatientSurgicalHistoryRow> _mergeSurgicalRows(
+    List<PatientSurgicalHistoryRow> server,
+    List<PatientSurgicalHistoryRow> local,
+  ) {
+    final byId = {for (final r in server) r.id: r};
+    final out = List<PatientSurgicalHistoryRow>.from(server);
+    for (final row in local) {
+      if (row.id <= 0) {
+        out.add(row);
+        continue;
+      }
+      if (!byId.containsKey(row.id)) {
+        out.add(row);
+      }
+    }
+    return out;
+  }
+
+  List<PatientDrugHistoryRow> _mergeDrugRows(
+    List<PatientDrugHistoryRow> server,
+    List<PatientDrugHistoryRow> local,
+  ) {
+    final byId = {for (final r in server) r.id: r};
+    final out = List<PatientDrugHistoryRow>.from(server);
+    for (final row in local) {
+      if (row.id <= 0) {
+        out.add(row);
+        continue;
+      }
+      if (!byId.containsKey(row.id)) {
+        out.add(row);
+      }
+    }
+    return out;
+  }
+
+  void _applyBaselineToForm(PatientBaselineLifestyle baseline) {
+    _familyHtn = baseline.familyHistoryOfHtnOrStroke;
+    _tobaccoUse = baseline.tobaccoUse;
+    _tobaccoTypeController.text = baseline.tobaccoType?.trim() ?? '';
+    _tobaccoQuantityController.text =
+        baseline.tobaccoQuantityPerDay?.toString() ?? '';
+    _tobaccoDurationStart = baseline.tobaccoDurationStart;
+    _tobaccoDurationEnd = baseline.tobaccoDurationEnd;
+    _baselineLoaded = true;
+  }
+
+  void _clearBaselineForm() {
+    _familyHtn = false;
+    _tobaccoUse = false;
+    _tobaccoTypeController.clear();
+    _tobaccoQuantityController.clear();
+    _tobaccoDurationStart = null;
+    _tobaccoDurationEnd = null;
+    _baselineLoaded = false;
+  }
+
+  bool get _tobaccoFormTouched =>
+      _tobaccoUse ||
+      _tobaccoTypeController.text.trim().isNotEmpty ||
+      _tobaccoQuantityController.text.trim().isNotEmpty ||
+      _tobaccoDurationStart != null ||
+      _tobaccoDurationEnd != null;
+
+  bool get _tobaccoFieldsEditable => _sectionEditable;
+
+  PatientBaselineLifestyle? _baselineFromLocalForm() {
+    if (!_baselineLoaded && !_tobaccoFormTouched) {
+      return _cachedHistory?.baseline;
+    }
+    final qtyRaw = _tobaccoQuantityController.text.trim();
+    final qty = int.tryParse(qtyRaw);
+    return PatientBaselineLifestyle(
+      patientId: widget.summary.patientId,
+      familyHistoryOfHtnOrStroke: _familyHtn,
+      tobaccoUse: _tobaccoUse,
+      tobaccoType: _tobaccoTypeController.text.trim().isEmpty
+          ? null
+          : _tobaccoTypeController.text.trim(),
+      tobaccoQuantityPerDay: qty,
+      tobaccoDurationStart: _tobaccoDurationStart,
+      tobaccoDurationEnd: _tobaccoDurationEnd,
+    );
+  }
+
+  String _displayDateOrDash(DateTime? date) {
+    if (date == null) return '—';
+    return _displayDate(date);
+  }
+
+  void _syncCachedHistoryFromLocal() {
+    _cachedHistory = PatientCompleteHistoryData(
+      baseline: _baselineFromLocalForm(),
+      medical: List<PatientMedicalHistoryRow>.from(_medical),
+      surgical: List<PatientSurgicalHistoryRow>.from(_surgical),
+      drugs: List<PatientDrugHistoryRow>.from(_drugs),
+    );
+  }
+
   Future<void> _loadClinical(SessionController session, String token) async {
     final pid = widget.summary.patientId;
 
@@ -737,6 +878,25 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
       _toast(session.apiClient.mapError(e).message);
     }
 
+    if (history == null && !_baselineLoaded) {
+      await _ensureBaselineShell(
+        api: _patientApi!,
+        patientId: pid,
+        token: token,
+      );
+      if (mounted) {
+        try {
+          history = await _patientApi!.getCompleteHistory(
+            patientId: pid,
+            bearerToken: token,
+          );
+        } on Object catch (e) {
+          if (!mounted || e is SessionEndedFailure) return;
+          _toast(session.apiClient.mapError(e).message);
+        }
+      }
+    }
+
     List<PatientVisitRow> visits = const [];
     try {
       visits = await _patientApi!.getVisits(
@@ -749,28 +909,38 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
     }
 
     if (!mounted) return;
-    _cachedHistory = history;
+
+    final localMedical = List<PatientMedicalHistoryRow>.from(_medical);
+    final localSurgical = List<PatientSurgicalHistoryRow>.from(_surgical);
+    final localDrugs = List<PatientDrugHistoryRow>.from(_drugs);
+    final localBaseline = _baselineFromLocalForm();
+
+    if (history != null) {
+      _cachedHistory = history;
+    }
     setState(() {
       _editingChronicIds.clear();
       _editingSurgicalIds.clear();
       _editingDrugIds.clear();
-      _editingTobacco = false;
       if (history != null) {
-        _medical = List<PatientMedicalHistoryRow>.from(history.medical);
-        _surgical = List<PatientSurgicalHistoryRow>.from(history.surgical);
-        _drugs = List<PatientDrugHistoryRow>.from(history.drugs);
+        _medical = _mergeMedicalRows(history.medical, localMedical);
+        _surgical = _mergeSurgicalRows(history.surgical, localSurgical);
+        _drugs = _mergeDrugRows(history.drugs, localDrugs);
         _clinicalBundleResolved = true;
-        final baseline = history.baseline;
+        final baseline = history.baseline ?? localBaseline;
         if (baseline != null) {
-          _familyHtn = baseline.familyHistoryOfHtnOrStroke;
-          _tobaccoUse = baseline.tobaccoUse;
-          _tobaccoTypeController.text = baseline.tobaccoType?.trim() ?? '';
-          _tobaccoQuantityController.text =
-              baseline.tobaccoQuantityPerDay?.toString() ?? '';
-          _tobaccoDurationStart = baseline.tobaccoDurationStart;
-          _tobaccoDurationEnd = baseline.tobaccoDurationEnd;
-          _baselineLoaded = true;
-        } else {
+          _applyBaselineToForm(baseline);
+        } else if (!_baselineLoaded) {
+          _clearBaselineForm();
+        }
+      } else if (!_clinicalBundleResolved) {
+        if (_medical.isEmpty &&
+            _surgical.isEmpty &&
+            _drugs.isEmpty &&
+            !_baselineLoaded) {
+          _medical = const [];
+          _surgical = const [];
+          _drugs = const [];
           _familyHtn = false;
           _tobaccoUse = false;
           _tobaccoTypeController.clear();
@@ -779,29 +949,22 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
           _tobaccoDurationEnd = null;
           _baselineLoaded = false;
         }
-      } else if (!_clinicalBundleResolved) {
-        _medical = const [];
-        _surgical = const [];
-        _drugs = const [];
-        _familyHtn = false;
-        _tobaccoUse = false;
-        _tobaccoTypeController.clear();
-        _tobaccoQuantityController.clear();
-        _tobaccoDurationStart = null;
-        _tobaccoDurationEnd = null;
-        _baselineLoaded = false;
         _clinicalBundleResolved = true;
       }
       _visits = List<PatientVisitRow>.from(visits)
         ..sort((a, b) => b.visitDate.compareTo(a.visitDate));
     });
     _rebuildClinicalTextControllers();
+    _syncCachedHistoryFromLocal();
     _updateCacheFromState();
   }
 
   void _updateCacheFromState() {
     final profile = _cachedProfile;
     if (profile == null) return;
+    _syncCachedHistoryFromLocal();
+    final pid = widget.summary.patientId;
+    unawaited(PatientDetailDiskCache.save(pid, _cachedHistory));
     _cache.setPatientBundle(
       widget.summary.patientId,
       PatientDetailBundle(
@@ -1010,6 +1173,7 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
     required PatientApi api,
     required String token,
   }) async {
+    final updated = <PatientMedicalHistoryRow>[];
     for (final row in _medical) {
       final durRaw = _medicalDurationCtl[row.id]?.text.trim() ?? '';
       final customName = _medicalCustomNameCtl[row.id]?.text.trim() ??
@@ -1043,13 +1207,26 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
       if (row.complianceLevelId != null && row.complianceLevelId! > 0) {
         body['complianceLevelId'] = row.complianceLevelId;
       }
+
+      final dur = int.tryParse(durRaw);
+      final resolved = row.copyWith(
+        customConditionName: isCustom ? customName : '',
+        durationInMonths: dur,
+      );
+
       if (row.id > 0) {
         body['id'] = row.id;
         await api.putMedicalHistory(body: body, bearerToken: token);
+        updated.add(resolved);
       } else {
-        await api.postMedicalHistory(body: body, bearerToken: token);
+        final newId = await api.postMedicalHistory(
+          body: body,
+          bearerToken: token,
+        );
+        updated.add(resolved.copyWith(id: newId));
       }
     }
+    _medical = updated;
     return true;
   }
 
@@ -1058,6 +1235,7 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
     required PatientApi api,
     required String token,
   }) async {
+    final updated = <PatientSurgicalHistoryRow>[];
     for (final s in _surgical) {
       final customName = _surgicalCustomNameCtl[s.id]?.text.trim() ??
           s.customProcedureName.trim();
@@ -1087,23 +1265,38 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
       if (notesTrim.isNotEmpty) body['notes'] = notesTrim;
 
       final moRaw = _surgicalMonthCtl[s.id]?.text.trim() ?? '';
+      int? mo;
       if (moRaw.isNotEmpty) {
-        final mo = int.tryParse(moRaw);
+        mo = int.tryParse(moRaw);
         if (mo != null && mo >= 1 && mo <= 12) body['approxMonth'] = mo;
       }
       final yrRaw = _surgicalYearCtl[s.id]?.text.trim() ?? '';
+      int? yr;
       if (yrRaw.isNotEmpty) {
-        final yr = int.tryParse(yrRaw);
+        yr = int.tryParse(yrRaw);
         if (yr != null && yr >= 1900 && yr <= 2200) body['approxYear'] = yr;
       }
+
+      final resolved = s.copyWith(
+        customProcedureName: isCustom ? customName : '',
+        notes: notesTrim,
+        approxMonth: mo,
+        approxYear: yr,
+      );
 
       if (s.id > 0) {
         body['id'] = s.id;
         await api.putSurgicalHistory(body: body, bearerToken: token);
+        updated.add(resolved);
       } else {
-        await api.postSurgicalHistory(body: body, bearerToken: token);
+        final newId = await api.postSurgicalHistory(
+          body: body,
+          bearerToken: token,
+        );
+        updated.add(resolved.copyWith(id: newId));
       }
     }
+    _surgical = updated;
     return true;
   }
 
@@ -1112,6 +1305,7 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
     required PatientApi api,
     required String token,
   }) async {
+    final updated = <PatientDrugHistoryRow>[];
     for (final d in _drugs) {
       final customName = _drugCustomNameCtl[d.id]?.text.trim() ??
           d.customMedicineCategoryName.trim();
@@ -1142,14 +1336,48 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
       final fx = _drugSideEffectsCtl[d.id]?.text.trim() ?? '';
       if (fx.isNotEmpty) body['sideEffects'] = fx;
 
+      final resolved = d.copyWith(
+        customMedicineCategoryName: isCustom ? customName : '',
+        sideEffects: fx,
+      );
+
       if (d.id > 0) {
         body['id'] = d.id;
         await api.putDrugHistory(body: body, bearerToken: token);
+        updated.add(resolved);
       } else {
-        await api.postDrugHistory(body: body, bearerToken: token);
+        final newId = await api.postDrugHistory(
+          body: body,
+          bearerToken: token,
+        );
+        updated.add(resolved.copyWith(id: newId));
       }
     }
+    _drugs = updated;
     return true;
+  }
+
+  Future<void> _ensureBaselineShell({
+    required PatientApi api,
+    required String patientId,
+    required String token,
+  }) async {
+    if (_baselineLoaded) return;
+    try {
+      await api.postBaselineLifestyle(
+        body: {
+          'patientId': patientId,
+          'familyHistoryOfHTNOrStroke': false,
+          'tobaccoUse': false,
+        },
+        bearerToken: token,
+      );
+      if (mounted) {
+        setState(() => _baselineLoaded = true);
+      }
+    } on Object {
+      // Non-fatal — disk cache still preserves rows if complete-history 404s.
+    }
   }
 
   Future<void> _saveMedicalAndLifestyle() async {
@@ -1186,6 +1414,13 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
         _MedicalHistoryTab.tobacco => true,
       };
       if (!saved || !mounted) return;
+
+      await _ensureBaselineShell(api: api, patientId: pid, token: token);
+
+      setState(() {});
+      _rebuildClinicalTextControllers();
+      _syncCachedHistoryFromLocal();
+      _updateCacheFromState();
 
       _toast('Medical history saved.');
       await _loadClinical(session, token);
@@ -1302,8 +1537,12 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
         await api.postBaselineLifestyle(body: body, bearerToken: token);
       }
       if (!mounted) return;
+      setState(() {
+        _baselineLoaded = true;
+      });
+      _syncCachedHistoryFromLocal();
+      _updateCacheFromState();
       _toast(successMessage);
-      setState(() => _editingTobacco = false);
       await _loadClinical(session, token);
     } on Object catch (e) {
       if (!mounted || e is SessionEndedFailure) return;
@@ -2275,6 +2514,8 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
       _medical = [..._medical, row];
     });
     _rebuildClinicalTextControllers();
+    _syncCachedHistoryFromLocal();
+    _updateCacheFromState();
     if (!_sectionEditable) {
       unawaited(_saveMedicalAndLifestyle());
     }
@@ -2464,6 +2705,8 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
       _surgical = [..._surgical, row];
     });
     _rebuildClinicalTextControllers();
+    _syncCachedHistoryFromLocal();
+    _updateCacheFromState();
     if (!_sectionEditable) {
       unawaited(_saveMedicalAndLifestyle());
     }
@@ -2672,6 +2915,8 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
       _drugs = [..._drugs, row];
     });
     _rebuildClinicalTextControllers();
+    _syncCachedHistoryFromLocal();
+    _updateCacheFromState();
     if (!_sectionEditable) {
       unawaited(_saveMedicalAndLifestyle());
     }
@@ -2822,18 +3067,10 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
                         borderRadius: BorderRadius.circular(14.r),
                       ),
                       alignment: Alignment.center,
-                      child: Image.asset(
-                        'assets/delete.png',
-                        width: 28.r,
-                        height: 28.r,
-                        fit: BoxFit.contain,
-                        errorBuilder: (context, error, stackTrace) {
-                          return Icon(
-                            Icons.delete_outline_rounded,
-                            size: 28.sp,
-                            color: AppColors.dashboardPrimaryDark,
-                          );
-                        },
+                      child: Icon(
+                        Icons.delete_outline_rounded,
+                        size: 28.sp,
+                        color: AppColors.dashboardPrimaryDark,
                       ),
                     ),
                     SizedBox(width: 14.w),
@@ -2914,46 +3151,39 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
     return result ?? false;
   }
 
-  Widget _historyEntryDeleteButton({required VoidCallback onPressed}) {
-    return Tooltip(
-      message: 'Delete',
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: onPressed,
-          borderRadius: BorderRadius.circular(10.r),
-          child: Padding(
-            padding: EdgeInsets.all(6.r),
-            child: Image.asset(
-              'assets/delete.png',
-              width: 24.r,
-              height: 24.r,
-              fit: BoxFit.contain,
-              errorBuilder: (context, error, stackTrace) {
-                return Icon(
-                  Icons.delete_outline_rounded,
-                  size: 24.sp,
-                  color: AppColors.dashboardPrimaryDark,
-                );
-              },
+  Widget _historyEntryMoreMenu({required VoidCallback onDelete}) {
+    return PopupMenuButton<String>(
+      tooltip: 'More options',
+      padding: EdgeInsets.zero,
+      constraints: BoxConstraints(minWidth: 140.w),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12.r),
+      ),
+      color: AppColors.surface,
+      elevation: 4,
+      icon: Icon(
+        Icons.more_vert_rounded,
+        size: 22.sp,
+        color: AppColors.dashboardPrimaryDark,
+      ),
+      onSelected: (value) {
+        if (value == 'delete') onDelete();
+      },
+      itemBuilder: (context) => [
+        PopupMenuItem<String>(
+          value: 'delete',
+          height: 44.h,
+          child: Text(
+            'Delete',
+            style: TextStyle(
+              fontSize: 13.sp,
+              fontWeight: FontWeight.w700,
+              color: AppColors.danger,
             ),
           ),
         ),
-      ),
+      ],
     );
-  }
-
-  void _cancelTobaccoEdit() {
-    setState(() {
-      _editingTobacco = false;
-      if (!_baselineLoaded) {
-        _tobaccoUse = false;
-        _tobaccoTypeController.clear();
-        _tobaccoQuantityController.clear();
-        _tobaccoDurationStart = null;
-        _tobaccoDurationEnd = null;
-      }
-    });
   }
 
   Widget _historyHeaderAddButton({
@@ -3058,7 +3288,7 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
       mainAxisSize: MainAxisSize.min,
       children: [
         _historyEntryUpdateButton(onPressed: onUpdate),
-        _historyEntryDeleteButton(onPressed: onDelete),
+        _historyEntryMoreMenu(onDelete: onDelete),
       ],
     );
   }
@@ -3218,7 +3448,7 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
                   onPressed: onUpdate,
                   label: 'View',
                 ),
-                _historyEntryDeleteButton(onPressed: onDelete),
+                _historyEntryMoreMenu(onDelete: onDelete),
               ],
             )
           else
@@ -3242,6 +3472,8 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
       _medical = [..._medical]..removeAt(index);
     });
     _rebuildClinicalTextControllers();
+    _syncCachedHistoryFromLocal();
+    _updateCacheFromState();
   }
 
   void _removeSurgicalEntryAt(int index) {
@@ -3250,6 +3482,8 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
       _surgical = [..._surgical]..removeAt(index);
     });
     _rebuildClinicalTextControllers();
+    _syncCachedHistoryFromLocal();
+    _updateCacheFromState();
   }
 
   void _removeDrugEntryAt(int index) {
@@ -3258,6 +3492,8 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
       _drugs = [..._drugs]..removeAt(index);
     });
     _rebuildClinicalTextControllers();
+    _syncCachedHistoryFromLocal();
+    _updateCacheFromState();
   }
 
   Future<void> _offerDeleteMedicalRow(int index) async {
@@ -3295,6 +3531,8 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
       final idx = _medical.indexWhere((e) => e.id == row.id);
       if (idx >= 0) _removeMedicalEntryAt(idx);
       _editingChronicIds.remove(row.id);
+      _syncCachedHistoryFromLocal();
+      _updateCacheFromState();
       _toast('Chronic condition deleted.');
     } on Object catch (e) {
       if (!mounted || e is SessionEndedFailure) return;
@@ -3337,6 +3575,8 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
       final idx = _surgical.indexWhere((e) => e.id == row.id);
       if (idx >= 0) _removeSurgicalEntryAt(idx);
       _editingSurgicalIds.remove(row.id);
+      _syncCachedHistoryFromLocal();
+      _updateCacheFromState();
       _toast('Surgical history deleted.');
     } on Object catch (e) {
       if (!mounted || e is SessionEndedFailure) return;
@@ -3379,6 +3619,8 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
       final idx = _drugs.indexWhere((e) => e.id == row.id);
       if (idx >= 0) _removeDrugEntryAt(idx);
       _editingDrugIds.remove(row.id);
+      _syncCachedHistoryFromLocal();
+      _updateCacheFromState();
       _toast('Drug history deleted.');
     } on Object catch (e) {
       if (!mounted || e is SessionEndedFailure) return;
@@ -3400,11 +3642,109 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
       _tobaccoQuantityController.clear();
       _tobaccoDurationStart = null;
       _tobaccoDurationEnd = null;
-      _editingTobacco = false;
     });
 
     await _saveBaselineLifestyle(
       successMessage: 'Tobacco history cleared.',
+    );
+  }
+
+  Widget _tobaccoHistoryBody() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (_baselineLoaded && _sectionEditable)
+          Align(
+            alignment: Alignment.centerRight,
+            child: _historyEntryMoreMenu(
+              onDelete: () => unawaited(_offerDeleteTobacco()),
+            ),
+          ),
+        SwitchListTile(
+          contentPadding: EdgeInsets.zero,
+          title: Text(
+            'Tobacco use',
+            style: TextStyle(
+              fontSize: 13.sp,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          subtitle: Text(
+            _sectionEditable
+                ? (_tobaccoUse
+                    ? 'Add tobacco details below'
+                    : 'Turn on if patient uses tobacco')
+                : (!_baselineLoaded
+                    ? 'Tap Edit above to record tobacco history'
+                    : (_tobaccoUse
+                        ? 'Patient uses tobacco'
+                        : 'No tobacco use recorded')),
+            style: TextStyle(
+              fontSize: 12.sp,
+              fontWeight: FontWeight.w500,
+              color: AppColors.textSecondary,
+            ),
+          ),
+          value: _tobaccoUse,
+          onChanged: _tobaccoFieldsEditable
+              ? (v) => setState(() => _tobaccoUse = v)
+              : null,
+        ),
+        if (_tobaccoUse) ...[
+          SizedBox(height: 8.h),
+          if (_tobaccoFieldsEditable) ...[
+            TextFormField(
+              controller: _tobaccoTypeController,
+              style: TextStyle(
+                fontSize: 14.sp,
+                fontWeight: FontWeight.w600,
+                color: AppColors.textPrimary,
+              ),
+              decoration: _fieldDecoration(
+                hint: 'Tobacco type (e.g. Cigarette, Huqqa)',
+              ),
+            ),
+            SizedBox(height: 10.h),
+            TextFormField(
+              controller: _tobaccoQuantityController,
+              keyboardType: TextInputType.number,
+              style: TextStyle(
+                fontSize: 14.sp,
+                fontWeight: FontWeight.w600,
+                color: AppColors.textPrimary,
+              ),
+              decoration: _fieldDecoration(
+                hint: 'Quantity per day (optional)',
+              ),
+            ),
+            SizedBox(height: 10.h),
+            _tobaccoDateField(
+              label: 'Duration start',
+              date: _tobaccoDurationStart,
+              onTap: () => unawaited(_pickTobaccoDate(isStart: true)),
+            ),
+            SizedBox(height: 10.h),
+            _tobaccoDateField(
+              label: 'Duration end (optional)',
+              date: _tobaccoDurationEnd,
+              onTap: () => unawaited(_pickTobaccoDate(isStart: false)),
+              onClear: _tobaccoDurationEnd == null
+                  ? null
+                  : () => setState(() => _tobaccoDurationEnd = null),
+            ),
+          ] else
+            _infoGroupCard(
+              icon: Icons.smoking_rooms_outlined,
+              title: 'Tobacco details',
+              rows: [
+                ('Type', _tobaccoTypeController.text),
+                ('Quantity per day', _tobaccoQuantityController.text),
+                ('Duration start', _displayDateOrDash(_tobaccoDurationStart)),
+                ('Duration end', _displayDateOrDash(_tobaccoDurationEnd)),
+              ],
+            ),
+        ],
+      ],
     );
   }
 
@@ -4109,170 +4449,9 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
           _historySectionCard(
             icon: Icons.smoking_rooms_outlined,
             title: 'Tobacco history',
-            headerTrailing: (!_baselineLoaded && !_editingTobacco)
-                ? _historyHeaderAddButton(
-                    label: 'Add new',
-                    onPressed: () => setState(() => _editingTobacco = true),
-                  )
-                : null,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                if (!_editingTobacco) ...[
-                  if (!_baselineLoaded)
-                    _historyEmptyState(
-                      icon: Icons.smoking_rooms_outlined,
-                      viewMessage: 'No tobacco history recorded yet.',
-                      addLabel: 'Add new',
-                      onAdd: () => setState(() => _editingTobacco = true),
-                    )
-                  else ...[
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(
-                          child: Text(
-                            _tobaccoUse
-                                ? 'Tobacco use recorded'
-                                : 'No tobacco use',
-                            style: TextStyle(
-                              fontSize: 14.sp,
-                              fontWeight: FontWeight.w800,
-                              color: AppColors.textPrimary,
-                            ),
-                          ),
-                        ),
-                        if (_sectionEditable)
-                          _historyEntryViewActions(
-                            onUpdate: () =>
-                                setState(() => _editingTobacco = true),
-                            onDelete: () => unawaited(_offerDeleteTobacco()),
-                          ),
-                      ],
-                    ),
-                    SizedBox(height: 8.h),
-                    Wrap(
-                      spacing: 8.w,
-                      runSpacing: 8.h,
-                      children: [
-                        _historyMetaPill(
-                          label: 'Tobacco use',
-                          value: _tobaccoUse ? 'Yes' : 'No',
-                          accent: _tobaccoUse
-                              ? AppColors.dashboardWarning
-                              : AppColors.followAccentGreen,
-                        ),
-                        if (_tobaccoUse) ...[
-                          _historyMetaPill(
-                            label: 'Type',
-                            value: _tobaccoTypeController.text,
-                          ),
-                          _historyMetaPill(
-                            label: 'Qty/day',
-                            value: _tobaccoQuantityController.text,
-                          ),
-                          _historyMetaPill(
-                            label: 'Start',
-                            value: _tobaccoDurationStart != null
-                                ? _displayDate(_tobaccoDurationStart)
-                                : '',
-                          ),
-                          _historyMetaPill(
-                            label: 'End',
-                            value: _tobaccoDurationEnd != null
-                                ? _displayDate(_tobaccoDurationEnd)
-                                : '',
-                          ),
-                        ],
-                      ],
-                    ),
-                  ],
-                ] else ...[
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        child: Text(
-                          _baselineLoaded
-                              ? 'Tobacco history'
-                              : 'New tobacco record',
-                          style: TextStyle(
-                            fontSize: 14.sp,
-                            fontWeight: FontWeight.w800,
-                            color: AppColors.textPrimary,
-                          ),
-                        ),
-                      ),
-                      _historyEntryUpdateButton(
-                        onPressed: _cancelTobaccoEdit,
-                        label: 'View',
-                      ),
-                      if (_baselineLoaded)
-                        _historyEntryDeleteButton(
-                          onPressed: () => unawaited(_offerDeleteTobacco()),
-                        ),
-                    ],
-                  ),
-                  SizedBox(height: 8.h),
-                  SwitchListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: Text(
-                      'Tobacco use',
-                      style: TextStyle(
-                        fontSize: 13.sp,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    value: _tobaccoUse,
-                    onChanged: (v) => setState(() => _tobaccoUse = v),
-                  ),
-                  if (_tobaccoUse) ...[
-                    SizedBox(height: 8.h),
-                    TextFormField(
-                      controller: _tobaccoTypeController,
-                      style: TextStyle(
-                        fontSize: 14.sp,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.textPrimary,
-                      ),
-                      decoration: _fieldDecoration(
-                        hint: 'Tobacco type (e.g. Cigarette, Huqqa)',
-                      ),
-                    ),
-                    SizedBox(height: 10.h),
-                    TextFormField(
-                      controller: _tobaccoQuantityController,
-                      keyboardType: TextInputType.number,
-                      style: TextStyle(
-                        fontSize: 14.sp,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.textPrimary,
-                      ),
-                      decoration: _fieldDecoration(
-                        hint: 'Quantity per day (optional)',
-                      ),
-                    ),
-                    SizedBox(height: 10.h),
-                    _tobaccoDateField(
-                      label: 'Duration start',
-                      date: _tobaccoDurationStart,
-                      onTap: () => unawaited(_pickTobaccoDate(isStart: true)),
-                    ),
-                    SizedBox(height: 10.h),
-                    _tobaccoDateField(
-                      label: 'Duration end (optional)',
-                      date: _tobaccoDurationEnd,
-                      onTap: () => unawaited(_pickTobaccoDate(isStart: false)),
-                      onClear: _tobaccoDurationEnd == null
-                          ? null
-                          : () => setState(() => _tobaccoDurationEnd = null),
-                    ),
-                  ],
-                ],
-              ],
-            ),
+            child: _tobaccoHistoryBody(),
           ),
-        if (_medicalTab == _MedicalHistoryTab.tobacco && _editingTobacco)
+        if (_medicalTab == _MedicalHistoryTab.tobacco && _sectionEditable)
           _primaryCtaButton(
             onPressed: _savingBaseline
                 ? null

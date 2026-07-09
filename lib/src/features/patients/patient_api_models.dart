@@ -183,6 +183,7 @@ class PatientMedicalHistoryRow {
   }
 
   PatientMedicalHistoryRow copyWith({
+    int? id,
     int? conditionId,
     String? conditionName,
     String? customConditionName,
@@ -194,7 +195,7 @@ class PatientMedicalHistoryRow {
     bool clearComplianceLevel = false,
   }) {
     return PatientMedicalHistoryRow(
-      id: id,
+      id: id ?? this.id,
       patientId: patientId,
       conditionId: conditionId ?? this.conditionId,
       conditionName: conditionName ?? this.conditionName,
@@ -263,6 +264,7 @@ class PatientSurgicalHistoryRow {
   }
 
   PatientSurgicalHistoryRow copyWith({
+    int? id,
     int? procedureId,
     String? procedureName,
     String? customProcedureName,
@@ -272,7 +274,7 @@ class PatientSurgicalHistoryRow {
     String? notes,
   }) {
     return PatientSurgicalHistoryRow(
-      id: id,
+      id: id ?? this.id,
       patientId: patientId,
       procedureId: procedureId ?? this.procedureId,
       procedureName: procedureName ?? this.procedureName,
@@ -334,6 +336,7 @@ class PatientDrugHistoryRow {
   }
 
   PatientDrugHistoryRow copyWith({
+    int? id,
     int? medicineCategoryId,
     String? categoryName,
     String? customMedicineCategoryName,
@@ -344,7 +347,7 @@ class PatientDrugHistoryRow {
     bool clearAdherenceLevel = false,
   }) {
     return PatientDrugHistoryRow(
-      id: id,
+      id: id ?? this.id,
       patientId: patientId,
       medicineCategoryId: medicineCategoryId ?? this.medicineCategoryId,
       categoryName: categoryName ?? this.categoryName,
