@@ -557,11 +557,13 @@ class PatientFamilyRelativeRow {
 
     var relationDegreeId =
         _readInt(m, 'relationDegreeId', 'RelationDegreeId') ??
+        _readInt(m, 'patientRelationDegreeId', 'PatientRelationDegreeId') ??
         _readInt(m, 'degreeId', 'DegreeId') ??
         0;
     var relationDegreeName =
         _readString(m, 'relationDegreeName', 'RelationDegreeName') ??
         _readString(m, 'degreeName', 'DegreeName') ??
+        _readString(m, 'relationDegree', 'RelationDegree') ??
         '';
     if (relationDegreeId <= 0) {
       final nested = m['relationDegree'] ?? m['RelationDegree'];
@@ -603,9 +605,23 @@ class PatientFamilyHistoryData {
 
   static PatientFamilyHistoryData? tryFromJson(dynamic json) {
     final raw = _extractFamilyHistoryRawList(json);
-    if (raw == null) return const PatientFamilyHistoryData(relatives: []);
+    if (raw != null) {
+      return PatientFamilyHistoryData(relatives: _parseRelativesFromRaw(raw));
+    }
 
-    return PatientFamilyHistoryData(relatives: _parseRelativesFromRaw(raw));
+    if (json is Map) {
+      var m = Map<String, dynamic>.from(json);
+      final envelope = m['data'] ?? m['Data'] ?? m['result'] ?? m['Result'];
+      if (envelope is Map) {
+        m = Map<String, dynamic>.from(envelope);
+      }
+      final fromMap = _parseRelativesFromDegreeMap(m);
+      if (fromMap.isNotEmpty) {
+        return PatientFamilyHistoryData(relatives: fromMap);
+      }
+    }
+
+    return const PatientFamilyHistoryData(relatives: []);
   }
 
   static List<dynamic>? _extractFamilyHistoryRawList(dynamic json) {
@@ -663,10 +679,12 @@ class PatientFamilyHistoryData {
           m['Members'];
       if (nested is List) {
         final groupDegreeId = _readInt(m, 'relationDegreeId', 'RelationDegreeId') ??
+            _readInt(m, 'patientRelationDegreeId', 'PatientRelationDegreeId') ??
             _readInt(m, 'degreeId', 'DegreeId');
         final groupDegreeName =
             _readString(m, 'relationDegreeName', 'RelationDegreeName') ??
             _readString(m, 'degreeName', 'DegreeName') ??
+            _readString(m, 'name', 'Name') ??
             '';
         for (final relItem in nested) {
           final row = PatientFamilyRelativeRow.tryFromJson(
@@ -681,6 +699,42 @@ class PatientFamilyHistoryData {
 
       final row = PatientFamilyRelativeRow.tryFromJson(item);
       if (row != null) relatives.add(row);
+    }
+    return relatives;
+  }
+
+  static List<PatientFamilyRelativeRow> _parseRelativesFromDegreeMap(
+    Map<String, dynamic> m,
+  ) {
+    final relatives = <PatientFamilyRelativeRow>[];
+    for (final entry in m.entries) {
+      final value = entry.value;
+      if (value is! List || value.isEmpty) continue;
+
+      final key = entry.key.trim();
+      final keyDegreeId = int.tryParse(key);
+      final fallbackName = keyDegreeId == null ? key : '';
+
+      if (value.first is Map) {
+        final first = Map<String, dynamic>.from(value.first as Map);
+        final isDegreeGroup = first.containsKey('relatives') ||
+            first.containsKey('Relatives') ||
+            first.containsKey('patientRelatives') ||
+            first.containsKey('PatientRelatives');
+        if (isDegreeGroup) {
+          relatives.addAll(_parseRelativesFromRaw(value));
+          continue;
+        }
+      }
+
+      for (final relItem in value) {
+        final row = PatientFamilyRelativeRow.tryFromJson(
+          relItem,
+          fallbackDegreeId: keyDegreeId,
+          fallbackDegreeName: fallbackName,
+        );
+        if (row != null) relatives.add(row);
+      }
     }
     return relatives;
   }

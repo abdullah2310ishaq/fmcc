@@ -159,14 +159,55 @@ class _PatientFamilyHistorySectionState
     return '';
   }
 
+  int _resolveRelationDegreeId(PatientFamilyRelativeRow rel) {
+    final direct = rel.relationDegreeId;
+    if (direct > 0) {
+      for (final d in widget.relationDegrees) {
+        if (d.id == direct) return direct;
+      }
+    }
+
+    final relName = rel.relationDegreeName.trim().toLowerCase();
+    if (relName.isNotEmpty) {
+      for (final d in widget.relationDegrees) {
+        if (_degreeNamesMatch(d.name, rel.relationDegreeName)) {
+          return d.id;
+        }
+      }
+    }
+
+    return direct;
+  }
+
+  bool _degreeNamesMatch(String referenceName, String rowName) {
+    final a = referenceName.trim().toLowerCase();
+    final b = rowName.trim().toLowerCase();
+    if (a.isEmpty || b.isEmpty) return false;
+    if (a == b) return true;
+
+    final na = a.replaceAll(RegExp(r'[^a-z0-9]'), '');
+    final nb = b.replaceAll(RegExp(r'[^a-z0-9]'), '');
+    if (na.isNotEmpty && na == nb) return true;
+    if (na.length >= 3 && nb.length >= 3 && (na.contains(nb) || nb.contains(na))) {
+      return true;
+    }
+    return false;
+  }
+
+  bool _relativeMatchesDegree(PatientFamilyRelativeRow rel, int degreeId) {
+    return _resolveRelationDegreeId(rel) == degreeId;
+  }
+
   List<PatientFamilyRelativeRow> _enrichRelatives(
     List<PatientFamilyRelativeRow> rows,
   ) {
     return rows
         .map((rel) {
+          final resolvedDegreeId = _resolveRelationDegreeId(rel);
           var degreeName = rel.relationDegreeName.trim();
-          if (degreeName.isEmpty && rel.relationDegreeId > 0) {
-            degreeName = _labelForId(widget.relationDegrees, rel.relationDegreeId);
+          if (degreeName.isEmpty && resolvedDegreeId > 0) {
+            degreeName =
+                _labelForId(widget.relationDegrees, resolvedDegreeId);
           }
 
           final conditions = rel.conditions
@@ -175,6 +216,8 @@ class _PatientFamilyHistorySectionState
               .toList(growable: false);
 
           return rel.copyWith(
+            relationDegreeId:
+                resolvedDegreeId > 0 ? resolvedDegreeId : rel.relationDegreeId,
             relationDegreeName: degreeName,
             conditions: conditions,
           );
@@ -420,15 +463,7 @@ class _PatientFamilyHistorySectionState
     final d = _degreeId;
     if (d == null || d <= 0) return _relatives;
 
-    final matched =
-        _relatives.where((r) => r.relationDegreeId == d).toList();
-    if (matched.isNotEmpty) return matched;
-
-    final unassigned =
-        _relatives.where((r) => r.relationDegreeId <= 0).toList();
-    if (unassigned.isNotEmpty) return unassigned;
-
-    return matched;
+    return _relatives.where((r) => _relativeMatchesDegree(r, d)).toList();
   }
 
   int _globalIndexFor(PatientFamilyRelativeRow row) {
@@ -1300,8 +1335,9 @@ class _PatientFamilyHistorySectionState
           children: degrees.map((d) {
             final selected = _degreeId == d.id;
             final accent = _degreeAccent(d.id);
-            final count =
-                _relatives.where((r) => r.relationDegreeId == d.id).length;
+            final count = _relatives
+                .where((r) => _relativeMatchesDegree(r, d.id))
+                .length;
             return Padding(
               padding: EdgeInsets.only(right: 6.w),
               child: Material(
