@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -64,13 +65,34 @@ class DoctorApp extends StatefulWidget {
   State<DoctorApp> createState() => _DoctorAppState();
 }
 
-class _DoctorAppState extends State<DoctorApp> {
+class _DoctorAppState extends State<DoctorApp> with WidgetsBindingObserver {
   late final GoRouter _router;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _lockPortraitOrientation();
     _router = _buildRouter(widget.sessionController);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _lockPortraitOrientation();
+    }
+  }
+
+  Future<void> _lockPortraitOrientation() {
+    return SystemChrome.setPreferredOrientations([
+      DeviceOrientation.portraitUp,
+    ]);
   }
 
   @override
@@ -84,7 +106,7 @@ class _DoctorAppState extends State<DoctorApp> {
       ],
       child: ScreenUtilInit(
         designSize: const Size(375, 812),
-        minTextAdapt: true,
+        minTextAdapt: false,
         splitScreenMode: true,
         builder: (context, child) {
           return MaterialApp.router(
@@ -92,6 +114,15 @@ class _DoctorAppState extends State<DoctorApp> {
             debugShowCheckedModeBanner: false,
             theme: AppTheme.light(),
             routerConfig: _router,
+            builder: (context, child) {
+              final mediaQuery = MediaQuery.of(context);
+              return MediaQuery(
+                data: mediaQuery.copyWith(
+                  textScaler: TextScaler.noScaling,
+                ),
+                child: child ?? const SizedBox.shrink(),
+              );
+            },
           );
         },
       ),
