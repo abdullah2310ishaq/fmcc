@@ -3,7 +3,6 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
@@ -76,21 +75,10 @@ class _SplashScreenState extends State<SplashScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Container(
+      backgroundColor: Colors.white,
+      body: SizedBox(
         width: double.infinity,
         height: double.infinity,
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              AppColors.dashboardChipBlueBg,
-              AppColors.registrationScreenBg,
-              AppColors.surface,
-            ],
-            stops: [0, 0.55, 1],
-          ),
-        ),
         child: SafeArea(
           child: Column(
             children: [
@@ -102,57 +90,13 @@ class _SplashScreenState extends State<SplashScreen>
                       position: _slide,
                       child: ScaleTransition(
                         scale: _scale,
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Container(
-                              padding: EdgeInsets.all(24.r),
-                              decoration: BoxDecoration(
-                                color: AppColors.surface,
-                                shape: BoxShape.circle,
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: AppColors.dashboardPrimary
-                                        .withValues(alpha: 0.2),
-                                    blurRadius: 32,
-                                    offset: const Offset(0, 14),
-                                  ),
-                                ],
-                                border: Border.all(
-                                  color: AppColors.registrationFieldBorder,
-                                  width: 1.5,
-                                ),
-                              ),
-                              child: SvgPicture.asset(
-                                'assets/images/medical_logo.svg',
-                                width: 76.r,
-                                height: 76.r,
-                              ),
-                            ),
-                            SizedBox(height: 28.h),
-                            Text(
-                              'Careho Provider',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                fontSize: 32.sp,
-                                fontWeight: FontWeight.w900,
-                                color: AppColors.dashboardPrimaryDark,
-                                letterSpacing: -0.4,
-                                height: 1.1,
-                              ),
-                            ),
-                            SizedBox(height: 10.h),
-                            Text(
-                              'Community Health Worker Portal',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                fontSize: 14.sp,
-                                fontWeight: FontWeight.w600,
-                                color: AppColors.textSecondary,
-                                letterSpacing: 0.2,
-                              ),
-                            ),
-                          ],
+                        child: Padding(
+                          padding: EdgeInsets.symmetric(horizontal: 40.w),
+                          child: Image.asset(
+                            'assets/logo.png',
+                            width: 240.w,
+                            fit: BoxFit.contain,
+                          ),
                         ),
                       ),
                     ),

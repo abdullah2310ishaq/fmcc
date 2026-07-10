@@ -7,6 +7,7 @@ environment:
   sdk: ">=3.1.0 <4.0.0"
 
 dependencies:
+
   flutter:
     sdk: flutter
   cupertino_icons: ^1.0.8
@@ -41,12 +42,21 @@ flutter_native_splash:
   ios: true
   web: false
 
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: assets/logo.png
+  adaptive_icon_background: "#FFFFFF"
+  adaptive_icon_foreground: assets/logo.png
+  remove_alpha_ios: true
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^6.0.0
 
   flutter_native_splash: ^2.4.7
+  flutter_launcher_icons: ^0.14.4
 
 dependency_overrides:
 

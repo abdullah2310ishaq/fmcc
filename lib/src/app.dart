@@ -110,7 +110,7 @@ class _DoctorAppState extends State<DoctorApp> with WidgetsBindingObserver {
         splitScreenMode: true,
         builder: (context, child) {
           return MaterialApp.router(
-            title: 'Doctor App',
+            title: 'WHO-PEN Based Digital Health App',
             debugShowCheckedModeBanner: false,
             theme: AppTheme.light(),
             routerConfig: _router,

@@ -23,36 +23,22 @@ class AuthScreen extends StatefulWidget {
   State<AuthScreen> createState() => _AuthScreenState();
 }
 
-class _AuthBodyCurveClipper extends CustomClipper<Path> {
-  const _AuthBodyCurveClipper();
-
-  @override
-  Path getClip(Size size) {
-    final path = Path()
-      ..moveTo(0, 34)
-      ..cubicTo(
-        size.width * 0.26,
-        2,
-        size.width * 0.74,
-        2,
-        size.width,
-        34,
-      )
-      ..lineTo(size.width, size.height)
-      ..lineTo(0, size.height)
-      ..close();
-    return path;
-  }
-
-  @override
-  bool shouldReclip(covariant CustomClipper<Path> oldClipper) => false;
-}
-
 class _AuthScreenState extends State<AuthScreen> {
   bool _busy = false;
   final GoogleSignIn _googleSignIn = GoogleSignIn(
     serverClientId: GoogleSignInConfig.webClientId,
     scopes: const ['email', 'profile', 'openid'],
+  );
+
+  static const _backgroundGradient = LinearGradient(
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+    colors: [
+      AppColors.dashboardChipBlueBg,
+      AppColors.registrationScreenBg,
+      AppColors.surface,
+    ],
+    stops: [0, 0.55, 1],
   );
 
   @override
@@ -95,133 +81,91 @@ class _AuthScreenState extends State<AuthScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final bottomInset = MediaQuery.paddingOf(context).bottom;
+
     return Scaffold(
-      backgroundColor: AppColors.registrationScreenBg,
-      body: SafeArea(
-        child: Stack(
-          children: [
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Expanded(flex: 5, child: _buildBrandHeader()),
-                Expanded(
-                  flex: 4,
-                  child: Transform.translate(
-                    offset: Offset(0, -34.h),
-                    child: ClipPath(
-                      clipper: const _AuthBodyCurveClipper(),
-                      child: Container(
-                        color: AppColors.registrationScreenBg,
-                        padding: EdgeInsets.fromLTRB(24.w, 82.h, 24.w, 24.h),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            Text(
-                              'Sign in with your verified government Google\naccount to access the health worker portal.',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                fontSize: 14.sp,
-                                fontWeight: FontWeight.w500,
-                                color: AppColors.dashboardPrimaryDark
-                                    .withValues(alpha: 0.82),
-                                height: 1.45,
-                              ),
-                            ),
-                            SizedBox(height: 28.h),
-                            _buildGoogleButton(
-                              onPressed: _busy
-                                  ? null
-                                  : () => unawaited(_handleLogin()),
-                              text: 'Continue with Google',
-                              isLoading: _busy,
-                            ),
-                            SizedBox(height: 18.h),
-                            Text(
-                              'Only authorized and verified Health Workers can access\nthis system.',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                fontSize: 12.sp,
-                                fontWeight: FontWeight.w500,
-                                color: AppColors.registrationSectionLabel,
-                                height: 1.4,
-                              ),
-                            ),
-                            const Spacer(),
-                            Wrap(
-                              alignment: WrapAlignment.center,
-                              crossAxisAlignment: WrapCrossAlignment.center,
-                              spacing: 12.w,
-                              runSpacing: 8.h,
-                              children: [
-                                _footerLink('Privacy Policy'),
-                                _footerLink('Help & Support'),
-                              ],
-                            ),
-                          ],
-                        ),
+      body: DecoratedBox(
+        decoration: const BoxDecoration(gradient: _backgroundGradient),
+        child: SafeArea(
+          child: Stack(
+            children: [
+              Padding(
+                padding: EdgeInsets.fromLTRB(
+                  24.w,
+                  20.h,
+                  24.w,
+                  16.h + bottomInset,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    SizedBox(height: 16.h),
+                    Center(
+                      child: Image.asset(
+                        'assets/logo.png',
+                        width: 200.w,
+                        fit: BoxFit.contain,
                       ),
                     ),
-                  ),
+                    SizedBox(height: 28.h),
+                    Text(
+                      'Sign in',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 24.sp,
+                        fontWeight: FontWeight.w900,
+                        color: AppColors.dashboardPrimaryDark,
+                        letterSpacing: -0.3,
+                      ),
+                    ),
+                    SizedBox(height: 8.h),
+                    Text(
+                      'Sign in with your verified government Google\naccount to access the health worker portal.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 14.sp,
+                        fontWeight: FontWeight.w500,
+                        color: AppColors.textSecondary,
+                        height: 1.45,
+                      ),
+                    ),
+                    SizedBox(height: 28.h),
+                    _buildGoogleButton(
+                      onPressed: _busy
+                          ? null
+                          : () => unawaited(_handleLogin()),
+                      text: 'Continue with Google',
+                      isLoading: _busy,
+                    ),
+                    SizedBox(height: 18.h),
+                    Text(
+                      'Only authorized and verified Health Workers can access\nthis system.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 12.sp,
+                        fontWeight: FontWeight.w500,
+                        color: AppColors.registrationSectionLabel,
+                        height: 1.4,
+                      ),
+                    ),
+                    const Spacer(),
+                    Wrap(
+                      alignment: WrapAlignment.center,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      spacing: 12.w,
+                      runSpacing: 8.h,
+                      children: [
+                        _footerLink('Privacy Policy'),
+                        _footerLink('Help & Support'),
+                      ],
+                    ),
+                  ],
                 ),
-              ],
-            ),
-            if (_busy) const _SigningInOverlay(),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildBrandHeader() {
-    return Container(
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          colors: [Color(0xFF1F6FAB), Color(0xFF0E947E)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-      ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Container(
-            width: 80.r,
-            height: 80.r,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: AppColors.surface.withValues(alpha: 0.18),
-              borderRadius: BorderRadius.circular(22.r),
-              border: Border.all(
-                color: AppColors.surface.withValues(alpha: 0.48),
-                width: 2,
               ),
-            ),
-            child: Icon(
-              Icons.add_rounded,
-              size: 42.sp,
-              color: AppColors.surface,
-            ),
+              if (_busy) const _SigningInOverlay(),
+            ],
           ),
-          SizedBox(height: 22.h),
-          Text(
-            'Careho Provider',
-            style: TextStyle(
-              fontSize: 26.sp,
-              fontWeight: FontWeight.w900,
-              color: AppColors.surface,
-              letterSpacing: -0.3,
-            ),
-          ),
-          SizedBox(height: 5.h),
-          Text(
-            'Community Health Worker Portal',
-            style: TextStyle(
-              fontSize: 14.sp,
-              fontWeight: FontWeight.w500,
-              color: AppColors.surface.withValues(alpha: 0.9),
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -239,10 +183,10 @@ class _AuthScreenState extends State<AuthScreen> {
           backgroundColor: AppColors.surface,
           foregroundColor: AppColors.textPrimary,
           side: const BorderSide(color: AppColors.registrationFieldBorder),
-          elevation: 3,
-          shadowColor: AppColors.dashboardPrimary.withValues(alpha: 0.18),
+          elevation: 0,
+          shadowColor: AppColors.dashboardPrimary.withValues(alpha: 0.08),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(14.r),
+            borderRadius: BorderRadius.circular(16.r),
           ),
         ),
         child: isLoading
@@ -251,7 +195,7 @@ class _AuthScreenState extends State<AuthScreen> {
                 height: 24.r,
                 child: const CircularProgressIndicator(
                   strokeWidth: 2.5,
-                  color: AppColors.blueDark,
+                  color: AppColors.dashboardPrimary,
                 ),
               )
             : Row(
@@ -524,7 +468,7 @@ class _SigningInOverlay extends StatelessWidget {
                   height: 22.r,
                   child: const CircularProgressIndicator(
                     strokeWidth: 2.5,
-                    color: AppColors.blue,
+                    color: AppColors.dashboardPrimary,
                   ),
                 ),
                 SizedBox(width: 12.w),
