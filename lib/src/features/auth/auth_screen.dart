@@ -30,17 +30,6 @@ class _AuthScreenState extends State<AuthScreen> {
     scopes: const ['email', 'profile', 'openid'],
   );
 
-  static const _backgroundGradient = LinearGradient(
-    begin: Alignment.topLeft,
-    end: Alignment.bottomRight,
-    colors: [
-      AppColors.dashboardChipBlueBg,
-      AppColors.registrationScreenBg,
-      AppColors.surface,
-    ],
-    stops: [0, 0.55, 1],
-  );
-
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
@@ -84,87 +73,62 @@ class _AuthScreenState extends State<AuthScreen> {
     final bottomInset = MediaQuery.paddingOf(context).bottom;
 
     return Scaffold(
-      body: DecoratedBox(
-        decoration: const BoxDecoration(gradient: _backgroundGradient),
-        child: SafeArea(
-          child: Stack(
-            children: [
-              Padding(
-                padding: EdgeInsets.fromLTRB(
-                  24.w,
-                  20.h,
-                  24.w,
-                  16.h + bottomInset,
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    SizedBox(height: 16.h),
-                    Center(
-                      child: Image.asset(
-                        'assets/logo.png',
-                        width: 200.w,
-                        fit: BoxFit.contain,
-                      ),
-                    ),
-                    SizedBox(height: 28.h),
-                    Text(
-                      'Sign in',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 24.sp,
-                        fontWeight: FontWeight.w900,
-                        color: AppColors.dashboardPrimaryDark,
-                        letterSpacing: -0.3,
-                      ),
-                    ),
-                    SizedBox(height: 8.h),
-                    Text(
-                      'Sign in with your verified government Google\naccount to access the health worker portal.',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 14.sp,
-                        fontWeight: FontWeight.w500,
-                        color: AppColors.textSecondary,
-                        height: 1.45,
-                      ),
-                    ),
-                    SizedBox(height: 28.h),
-                    _buildGoogleButton(
-                      onPressed: _busy
-                          ? null
-                          : () => unawaited(_handleLogin()),
-                      text: 'Continue with Google',
-                      isLoading: _busy,
-                    ),
-                    SizedBox(height: 18.h),
-                    Text(
-                      'Only authorized and verified Health Workers can access\nthis system.',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 12.sp,
-                        fontWeight: FontWeight.w500,
-                        color: AppColors.registrationSectionLabel,
-                        height: 1.4,
-                      ),
-                    ),
-                    const Spacer(),
-                    Wrap(
-                      alignment: WrapAlignment.center,
-                      crossAxisAlignment: WrapCrossAlignment.center,
-                      spacing: 12.w,
-                      runSpacing: 8.h,
-                      children: [
-                        _footerLink('Privacy Policy'),
-                        _footerLink('Help & Support'),
-                      ],
-                    ),
-                  ],
-                ),
+      backgroundColor: Colors.white,
+      body: SafeArea(
+        child: Stack(
+          children: [
+            Padding(
+              padding: EdgeInsets.fromLTRB(
+                24.w,
+                0,
+                24.w,
+                16.h + bottomInset,
               ),
-              if (_busy) const _SigningInOverlay(),
-            ],
-          ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const Spacer(flex: 3),
+                  Center(
+                    child: Image.asset(
+                      'assets/logo.png',
+                      width: 200.w,
+                      fit: BoxFit.contain,
+                    ),
+                  ),
+                  SizedBox(height: 32.h),
+                  Text(
+                    'Sign in',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 24.sp,
+                      fontWeight: FontWeight.w900,
+                      color: AppColors.dashboardPrimaryDark,
+                      letterSpacing: -0.3,
+                    ),
+                  ),
+                  SizedBox(height: 10.h),
+                  Text(
+                    'Sign in with your verified government Google\naccount to access the health worker portal.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 14.sp,
+                      fontWeight: FontWeight.w500,
+                      color: AppColors.textSecondary,
+                      height: 1.45,
+                    ),
+                  ),
+                  SizedBox(height: 32.h),
+                  _buildGoogleButton(
+                    onPressed: _busy ? null : () => unawaited(_handleLogin()),
+                    text: 'Continue with Google',
+                    isLoading: _busy,
+                  ),
+                  const Spacer(flex: 4),
+                ],
+              ),
+            ),
+            if (_busy) const _SigningInOverlay(),
+          ],
         ),
       ),
     );
@@ -226,26 +190,6 @@ class _AuthScreenState extends State<AuthScreen> {
     );
   }
 
-  Widget _footerLink(String label) {
-    return TextButton(
-      onPressed: () {},
-      style: TextButton.styleFrom(
-        padding: EdgeInsets.symmetric(horizontal: 4.w),
-        minimumSize: Size.zero,
-        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-      ),
-      child: Text(
-        label,
-        style: TextStyle(
-          fontSize: 12.sp,
-          fontWeight: FontWeight.w700,
-          color: AppColors.dashboardPrimary,
-          decoration: TextDecoration.underline,
-        ),
-      ),
-    );
-  }
-
   Future<String> _getGoogleIdToken() async {
     try {
       AppLogger.instance.i('[AUTH] GoogleSignIn.signIn() starting…');
@@ -281,7 +225,8 @@ class _AuthScreenState extends State<AuthScreen> {
           'email=${claims['email']}',
         );
       } else {
-        AppLogger.instance.w('[AUTH] Could not decode idToken payload (JWT shape?)');
+        AppLogger.instance
+            .w('[AUTH] Could not decode idToken payload (JWT shape?)');
       }
 
       AppLogger.instance.i(
@@ -317,12 +262,14 @@ class _AuthScreenState extends State<AuthScreen> {
     try {
       final idToken = await _getGoogleIdToken();
       if (!mounted) return;
-      AppLogger.instance.i('[AUTH] Calling SessionController.signInWithGoogleIdToken…');
+      AppLogger.instance
+          .i('[AUTH] Calling SessionController.signInWithGoogleIdToken…');
       await session.signInWithGoogleIdToken(
         idToken: idToken,
         isRegister: false,
       );
-      AppLogger.instance.i('[AUTH] Sign-in flow completed (session updated, leaving auth screen via router)');
+      AppLogger.instance.i(
+          '[AUTH] Sign-in flow completed (session updated, leaving auth screen via router)');
     } catch (e, st) {
       if (!mounted) return;
       _logAuthScreenFailure(phase: 'sign_in_flow', error: e, stackTrace: st);
