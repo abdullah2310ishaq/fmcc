@@ -13,6 +13,8 @@ class NamedReferenceItem {
       id: _readInt(
         json['id'] ??
             json['Id'] ??
+            json['exerciseLevelId'] ??
+            json['ExerciseLevelId'] ??
             json['relationDegreeId'] ??
             json['RelationDegreeId'] ??
             json['conditionId'] ??
@@ -31,6 +33,8 @@ class NamedReferenceItem {
         'Label',
         'title',
         'Title',
+        'exerciseLevelName',
+        'ExerciseLevelName',
         'relationDegreeName',
         'RelationDegreeName',
         'degreeName',

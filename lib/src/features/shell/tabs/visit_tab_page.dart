@@ -16,6 +16,7 @@ import 'package:doctor_app/src/features/home/health_worker_dashboard_models.dart
 import 'package:doctor_app/src/features/home/home_dashboard_controller.dart';
 import 'package:doctor_app/src/features/patients/patient_directory_list_card.dart';
 import 'package:doctor_app/src/features/patients/patient_api.dart';
+import 'package:doctor_app/src/features/patients/patient_api_models.dart';
 import 'package:doctor_app/src/features/visits/visit_instructions_bottom_sheet.dart';
 import 'package:doctor_app/src/features/visits/visit_instructions_cache.dart';
 import 'package:doctor_app/src/features/visits/visit_instructions_prefs.dart';
@@ -985,8 +986,6 @@ class _VisitAssessmentViewState extends State<_VisitAssessmentView> {
 
   final Map<int, bool> _symptomAnswers = {};
 
-  bool _highSaltDiet = false;
-  bool _alcoholUse = false;
   bool _isFollowUpVisit = false;
   bool _dangerSigns = false;
   DateTime? _nextVisitDate;
@@ -1070,6 +1069,137 @@ class _VisitAssessmentViewState extends State<_VisitAssessmentView> {
     if (sbp >= 140 && dbp >= 90) return 'Uncontrolled HTN';
     if (sbp < 140 && dbp < 90) return 'Controlled';
     return 'Mixed / borderline';
+  }
+
+  bool _isBpControlled(int sbp, int dbp) => sbp < 140 && dbp < 90;
+
+  Future<void> _openCounsellingInstructions() async {
+    final session = context.read<SessionController>();
+    final token = session.state.accessToken?.trim();
+    if (token == null || token.isEmpty) {
+      _toast('Please sign in again.');
+      return;
+    }
+
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(child: CircularProgressIndicator()),
+    );
+
+    List<CounsellingInstruction> items = const [];
+    Object? error;
+    try {
+      items = await _patientApi!.getCounsellingInstructions(
+        bearerToken: token,
+      );
+    } on Object catch (e) {
+      error = e;
+    }
+
+    if (!mounted) return;
+    Navigator.of(context, rootNavigator: true).pop();
+
+    if (error != null) {
+      if (error is SessionEndedFailure) return;
+      _toast(session.apiClient.mapError(error).message);
+      return;
+    }
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppColors.surface,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(18.r)),
+      ),
+      builder: (ctx) {
+        return SafeArea(
+          child: Padding(
+            padding: EdgeInsets.fromLTRB(20.w, 16.h, 20.w, 20.h),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'Counselling Instructions',
+                        style: TextStyle(
+                          fontSize: 16.sp,
+                          fontWeight: FontWeight.w800,
+                          color: AppColors.dashboardPrimaryDark,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: () => Navigator.of(ctx).pop(),
+                      icon: Icon(Icons.close_rounded, size: 22.sp),
+                    ),
+                  ],
+                ),
+                SizedBox(height: 8.h),
+                if (items.isEmpty)
+                  Padding(
+                    padding: EdgeInsets.symmetric(vertical: 24.h),
+                    child: Text(
+                      'No counselling instructions available.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 13.sp,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  )
+                else
+                  ConstrainedBox(
+                    constraints: BoxConstraints(
+                      maxHeight: MediaQuery.sizeOf(ctx).height * 0.55,
+                    ),
+                    child: ListView.separated(
+                      shrinkWrap: true,
+                      itemCount: items.length,
+                      separatorBuilder: (_, __) => Divider(height: 20.h),
+                      itemBuilder: (_, i) {
+                        final row = items[i];
+                        return Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              '${i + 1}.',
+                              style: TextStyle(
+                                fontSize: 13.sp,
+                                fontWeight: FontWeight.w800,
+                                color: AppColors.followAccentGreen,
+                              ),
+                            ),
+                            SizedBox(width: 10.w),
+                            Expanded(
+                              child: Text(
+                                row.instructionName.trim().isEmpty
+                                    ? '—'
+                                    : row.instructionName.trim(),
+                                style: TextStyle(
+                                  fontSize: 14.sp,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.textPrimary,
+                                  height: 1.4,
+                                ),
+                              ),
+                            ),
+                          ],
+                        );
+                      },
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 
   @override
@@ -1206,8 +1336,6 @@ class _VisitAssessmentViewState extends State<_VisitAssessmentView> {
       'healthWorkerId': healthWorkerId,
       'visitTypeId': _visitTypeId ?? 0,
       'isFollowUpVisit': _isFollowUpVisit,
-      'highSaltDiet': _highSaltDiet,
-      'alcoholUse': _alcoholUse,
       'dangerSigns': _dangerSigns,
       'symptomIds': _symptomAnswers.entries
           .where((e) => e.value)
@@ -1836,6 +1964,36 @@ class _VisitAssessmentViewState extends State<_VisitAssessmentView> {
                       ),
                     ),
                   ),
+                  if (_isBpControlled(avg.sbp, avg.dbp)) ...[
+                    SizedBox(height: 12.h),
+                    OutlinedButton.icon(
+                      onPressed: () =>
+                          unawaited(_openCounsellingInstructions()),
+                      icon: Icon(
+                        Icons.menu_book_outlined,
+                        size: 18.sp,
+                        color: AppColors.followAccentGreen,
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppColors.followAccentGreen,
+                        side: BorderSide(
+                          color: AppColors.followAccentGreen
+                              .withValues(alpha: 0.55),
+                        ),
+                        minimumSize: Size(double.infinity, 44.h),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12.r),
+                        ),
+                      ),
+                      label: Text(
+                        'Counselling Instructions',
+                        style: TextStyle(
+                          fontSize: 13.sp,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -2308,33 +2466,6 @@ class _VisitAssessmentViewState extends State<_VisitAssessmentView> {
                           onChanged: (v) =>
                               setState(() => _physicalActivityLevelId = v),
                         ),
-                      SizedBox(height: 8.h),
-                      CheckboxListTile(
-                        contentPadding: EdgeInsets.zero,
-                        title: Text(
-                          'High salt diet',
-                          style: TextStyle(
-                            fontSize: 13.sp,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        value: _highSaltDiet,
-                        onChanged: (v) =>
-                            setState(() => _highSaltDiet = v ?? false),
-                      ),
-                      CheckboxListTile(
-                        contentPadding: EdgeInsets.zero,
-                        title: Text(
-                          'Alcohol use',
-                          style: TextStyle(
-                            fontSize: 13.sp,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        value: _alcoholUse,
-                        onChanged: (v) =>
-                            setState(() => _alcoholUse = v ?? false),
-                      ),
                       SizedBox(height: 8.h),
                       _label('Weight concerns'),
                       TextFormField(

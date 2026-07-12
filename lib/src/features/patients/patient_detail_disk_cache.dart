@@ -19,7 +19,8 @@ class PatientDetailDiskCache {
     final hasAny = history.medical.isNotEmpty ||
         history.surgical.isNotEmpty ||
         history.drugs.isNotEmpty ||
-        history.baseline != null;
+        history.baseline != null ||
+        history.patientLifeStyle != null;
     if (!hasAny) return;
 
     final prefs = await SharedPreferences.getInstance();
@@ -63,6 +64,8 @@ class PatientDetailDiskCache {
       'drugHistory': history.drugs.map(_drugToJson).toList(),
       if (history.baseline != null)
         'baselineLifestyle': _baselineToJson(history.baseline!),
+      if (history.patientLifeStyle != null)
+        'patientLifeStyle': _lifeStyleToJson(history.patientLifeStyle!),
     };
   }
 
@@ -112,5 +115,19 @@ class PatientDetailDiskCache {
         'tobaccoQuantityPerDay': b.tobaccoQuantityPerDay,
         'tobaccoDurationStart': b.tobaccoDurationStart?.toIso8601String(),
         'tobaccoDurationEnd': b.tobaccoDurationEnd?.toIso8601String(),
+      };
+
+  static Map<String, dynamic> _lifeStyleToJson(PatientLifeStyle l) => {
+        'patientId': l.patientId,
+        'breakfast': l.breakfast,
+        'lunch': l.lunch,
+        'snacks': l.snacks,
+        'dinner': l.dinner,
+        'nightSleepHours': l.nightSleepHours,
+        'daySleepHours': l.daySleepHours,
+        'exerciseLevelId': l.exerciseLevelId,
+        'exerciseLevelName': l.exerciseLevelName,
+        'alcoholUse': l.alcoholUse,
+        'highSaltDiet': l.highSaltDiet,
       };
 }

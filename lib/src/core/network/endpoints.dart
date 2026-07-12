@@ -75,6 +75,12 @@ class Endpoints {
   static const String patientBaselineLifestyleUpsert =
       '/api/Patient/baselinelifestyle';
 
+  /// Create/update meals, sleep, exercise, salt & alcohol.
+  static const String patientLifestyleUpsert = '/api/Patient/lifestyle';
+
+  static String patientLifestyle(String patientId) =>
+      '/api/Patient/lifestyle/${Uri.encodeComponent(patientId)}';
+
   static String patientVisits(String patientId) =>
       '/api/Patient/visits/${Uri.encodeComponent(patientId)}/';
 
@@ -88,6 +94,7 @@ class Endpoints {
   static const String medicineCategories = '/api/Reference/medicine-categories';
   static const String physicalActivityLevels =
       '/api/Reference/physical-activity-levels';
+  static const String exerciseLevels = '/api/Reference/exercise-levels';
   static const String adherenceLevels = '/api/Reference/adherence-levels';
   static const String complianceLevels = '/api/Reference/compliance-levels';
   static const String relationDegrees = '/api/Reference/relation-degrees';
@@ -116,4 +123,6 @@ class Endpoints {
   static const String patientVisitCreate = '/api/Patient/visit';
   static const String patientVisitUpdate = '/api/Patient/visit';
   static const String patientVisitInstructions = '/api/Patient/instructions';
+  static const String patientCounsellingInstructions =
+      '/api/Patient/counselling-instructions';
 }

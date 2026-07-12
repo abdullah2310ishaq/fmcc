@@ -196,7 +196,7 @@ class PatientApi {
 
   /// `GET /api/Patient/complete-history/{patientId}` — aggregate
   /// [PatientCompleteHistoryData] (`medicalHistory`, `surgicalHistory`, `drugHistory`,
-  /// `baselineLifestyle` per API model).
+  /// `baselineLifestyle`, `patientLifeStyle` per API model).
   ///
   /// Returns `null` on **404** (controller requires all four parts present).
   Future<PatientCompleteHistoryData?> getCompleteHistory({
@@ -502,6 +502,44 @@ class PatientApi {
     );
   }
 
+  /// `GET /api/Patient/lifestyle/{patientId}`.
+  Future<PatientLifeStyle?> getLifestyle({
+    required String patientId,
+    required String bearerToken,
+  }) async {
+    try {
+      final res = await _client.get(
+        Endpoints.patientLifestyle(patientId),
+        bearerToken: bearerToken,
+      );
+      final data = res.data;
+      if (data is Map) {
+        final m = Map<String, dynamic>.from(data);
+        final inner = m['data'] ?? m['Data'];
+        if (inner is Map) {
+          return PatientLifeStyle.tryFromJson(inner);
+        }
+        return PatientLifeStyle.tryFromJson(m);
+      }
+      return PatientLifeStyle.tryFromJson(data);
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 404) return null;
+      rethrow;
+    }
+  }
+
+  /// `PUT /api/Patient/lifestyle` — create or update lifestyle.
+  Future<void> upsertLifestyle({
+    required Map<String, dynamic> body,
+    required String bearerToken,
+  }) async {
+    await _client.put(
+      Endpoints.patientLifestyleUpsert,
+      body: body,
+      bearerToken: bearerToken,
+    );
+  }
+
   /// `GET /api/Patient/instructions` — pre-visit instruction carousel.
   Future<List<VisitInstruction>> getVisitInstructions({
     required String bearerToken,
@@ -512,6 +550,22 @@ class PatientApi {
         bearerToken: bearerToken,
       );
       return parseVisitInstructionsList(res.data);
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 404) return const [];
+      rethrow;
+    }
+  }
+
+  /// `GET /api/Patient/counselling-instructions` — text-only list for Controlled BP.
+  Future<List<CounsellingInstruction>> getCounsellingInstructions({
+    required String bearerToken,
+  }) async {
+    try {
+      final res = await _client.get(
+        Endpoints.patientCounsellingInstructions,
+        bearerToken: bearerToken,
+      );
+      return parseCounsellingInstructionsList(res.data);
     } on DioException catch (e) {
       if (e.response?.statusCode == 404) return const [];
       rethrow;

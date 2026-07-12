@@ -65,16 +65,18 @@ class PatientProfileData {
 
 /// `GET /api/Patient/complete-history/{patientId}` — matches
 /// `PatientCompleteHistoryResponseModel` (JSON: `baselineLifestyle`, `medicalHistory`,
-/// `surgicalHistory`, `drugHistory`; PascalCase aliases supported).
+/// `surgicalHistory`, `drugHistory`, `patientLifeStyle`; PascalCase aliases supported).
 class PatientCompleteHistoryData {
   const PatientCompleteHistoryData({
     this.baseline,
+    this.patientLifeStyle,
     required this.medical,
     required this.surgical,
     required this.drugs,
   });
 
   final PatientBaselineLifestyle? baseline;
+  final PatientLifeStyle? patientLifeStyle;
   final List<PatientMedicalHistoryRow> medical;
   final List<PatientSurgicalHistoryRow> surgical;
   final List<PatientDrugHistoryRow> drugs;
@@ -91,6 +93,12 @@ class PatientCompleteHistoryData {
     final blRaw = m['baselineLifestyle'] ?? m['BaselineLifestyle'];
     if (blRaw is Map) {
       baseline = PatientBaselineLifestyle.tryFromJson(blRaw);
+    }
+
+    PatientLifeStyle? patientLifeStyle;
+    final plsRaw = m['patientLifeStyle'] ?? m['PatientLifeStyle'];
+    if (plsRaw is Map) {
+      patientLifeStyle = PatientLifeStyle.tryFromJson(plsRaw);
     }
 
     final medical = <PatientMedicalHistoryRow>[];
@@ -122,6 +130,7 @@ class PatientCompleteHistoryData {
 
     return PatientCompleteHistoryData(
       baseline: baseline,
+      patientLifeStyle: patientLifeStyle,
       medical: medical,
       surgical: surgical,
       drugs: drugs,
@@ -781,6 +790,100 @@ class PatientBaselineLifestyle {
   }
 }
 
+/// `GET|PUT /api/Patient/lifestyle` — meals, sleep, exercise, salt, alcohol.
+class PatientLifeStyle {
+  const PatientLifeStyle({
+    required this.patientId,
+    this.breakfast = '',
+    this.lunch = '',
+    this.snacks = '',
+    this.dinner = '',
+    this.nightSleepHours,
+    this.daySleepHours,
+    this.exerciseLevelId,
+    this.exerciseLevelName = '',
+    required this.alcoholUse,
+    required this.highSaltDiet,
+  });
+
+  final String patientId;
+  final String breakfast;
+  final String lunch;
+  final String snacks;
+  final String dinner;
+  final double? nightSleepHours;
+  final double? daySleepHours;
+  final int? exerciseLevelId;
+  final String exerciseLevelName;
+  final bool alcoholUse;
+  final bool highSaltDiet;
+
+  static PatientLifeStyle? tryFromJson(dynamic json) {
+    if (json is! Map) return null;
+    final m = Map<String, dynamic>.from(json);
+    final patientId = _readString(m, 'patientId', 'PatientId') ?? '';
+    return PatientLifeStyle(
+      patientId: patientId,
+      breakfast: _readString(m, 'breakfast', 'Breakfast') ?? '',
+      lunch: _readString(m, 'lunch', 'Lunch') ?? '',
+      snacks: _readString(m, 'snacks', 'Snacks') ?? '',
+      dinner: _readString(m, 'dinner', 'Dinner') ?? '',
+      nightSleepHours:
+          _readDouble(m, 'nightSleepHours', 'NightSleepHours'),
+      daySleepHours: _readDouble(m, 'daySleepHours', 'DaySleepHours'),
+      exerciseLevelId: _readInt(m, 'exerciseLevelId', 'ExerciseLevelId'),
+      exerciseLevelName:
+          _readString(m, 'exerciseLevelName', 'ExerciseLevelName') ?? '',
+      alcoholUse: _readBool(m, 'alcoholUse', 'AlcoholUse') ?? false,
+      highSaltDiet: _readBool(m, 'highSaltDiet', 'HighSaltDiet') ?? false,
+    );
+  }
+}
+
+/// `GET /api/Patient/counselling-instructions` — text-only counselling list.
+class CounsellingInstruction {
+  const CounsellingInstruction({
+    required this.id,
+    required this.instructionName,
+  });
+
+  final int id;
+  final String instructionName;
+
+  static CounsellingInstruction? tryFromJson(dynamic json) {
+    if (json is! Map) return null;
+    final m = Map<String, dynamic>.from(json);
+    final id = _readInt(m, 'id', 'Id');
+    if (id == null) return null;
+    return CounsellingInstruction(
+      id: id,
+      instructionName:
+          _readString(m, 'instructionName', 'InstructionName') ?? '',
+    );
+  }
+}
+
+List<CounsellingInstruction> parseCounsellingInstructionsList(dynamic root) {
+  final raw = _unwrapEnvelopeList(root);
+  final out = <CounsellingInstruction>[];
+  for (final item in raw) {
+    final row = CounsellingInstruction.tryFromJson(item);
+    if (row != null) out.add(row);
+  }
+  out.sort((a, b) => a.id.compareTo(b.id));
+  return out;
+}
+
+List<dynamic> _unwrapEnvelopeList(dynamic root) {
+  if (root is List) return root;
+  if (root is Map) {
+    final m = Map<String, dynamic>.from(root);
+    final inner = m['data'] ?? m['Data'];
+    if (inner is List) return inner;
+  }
+  return const [];
+}
+
 class PatientVisitRow {
   const PatientVisitRow({
     required this.visitId,
@@ -867,6 +970,14 @@ int? _readInt(Map<String, dynamic> m, String a, String b) {
   if (v is int) return v;
   if (v is num) return v.toInt();
   if (v is String) return int.tryParse(v.trim());
+  return null;
+}
+
+double? _readDouble(Map<String, dynamic> m, String a, String b) {
+  final v = m[a] ?? m[b];
+  if (v is double) return v;
+  if (v is num) return v.toDouble();
+  if (v is String) return double.tryParse(v.trim());
   return null;
 }
 

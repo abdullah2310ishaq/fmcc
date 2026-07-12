@@ -19,6 +19,7 @@ import 'package:doctor_app/src/features/home/health_worker_dashboard_models.dart
 import 'package:doctor_app/src/features/patients/patient_api.dart';
 import 'package:doctor_app/src/features/patients/patient_api_models.dart';
 import 'package:doctor_app/src/features/patients/patient_family_history_section.dart';
+import 'package:doctor_app/src/features/patients/patient_lifestyle_section.dart';
 import 'package:doctor_app/src/features/patients/patient_detail_cache.dart';
 import 'package:doctor_app/src/features/patients/patient_detail_disk_cache.dart';
 import 'package:doctor_app/src/features/patients/patient_directory_coordinator.dart';
@@ -91,6 +92,7 @@ enum PatientDetailSection {
   medicalHistory,
   familyHistory,
   baselineLifestyle,
+  lifestyle,
   visitHistory,
 }
 
@@ -100,6 +102,7 @@ extension PatientDetailSectionUi on PatientDetailSection {
         PatientDetailSection.medicalHistory => 'Medical History',
         PatientDetailSection.familyHistory => 'Family History',
         PatientDetailSection.baselineLifestyle => 'Baseline Lifestyle',
+        PatientDetailSection.lifestyle => 'Lifestyle',
         PatientDetailSection.visitHistory => 'Visit History',
       };
 
@@ -112,6 +115,8 @@ extension PatientDetailSectionUi on PatientDetailSection {
           'Family relatives & hereditary conditions',
         PatientDetailSection.baselineLifestyle =>
           'Baseline lifestyle & family HTN/stroke',
+        PatientDetailSection.lifestyle =>
+          'Meals, sleep, exercise, salt & alcohol',
         PatientDetailSection.visitHistory => 'Past visits & follow-ups',
       };
 
@@ -121,6 +126,7 @@ extension PatientDetailSectionUi on PatientDetailSection {
           Icons.medical_information_outlined,
         PatientDetailSection.familyHistory => Icons.family_restroom_outlined,
         PatientDetailSection.baselineLifestyle => Icons.spa_outlined,
+        PatientDetailSection.lifestyle => Icons.restaurant_outlined,
         PatientDetailSection.visitHistory => Icons.event_note_rounded,
       };
 
@@ -129,6 +135,7 @@ extension PatientDetailSectionUi on PatientDetailSection {
         PatientDetailSection.medicalHistory => AppColors.followAccentPurple,
         PatientDetailSection.familyHistory => AppColors.dashboardWarning,
         PatientDetailSection.baselineLifestyle => AppColors.followAccentGreen,
+        PatientDetailSection.lifestyle => AppColors.dashboardPrimaryDark,
         PatientDetailSection.visitHistory => AppColors.dashboardPrimaryDark,
       };
 }
@@ -192,11 +199,18 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
   final Map<int, TextEditingController> _drugCustomNameCtl = {};
   final _tobaccoTypeController = TextEditingController();
   final _tobaccoQuantityController = TextEditingController();
+  final _breakfastController = TextEditingController();
+  final _lunchController = TextEditingController();
+  final _snacksController = TextEditingController();
+  final _dinnerController = TextEditingController();
+  final _nightSleepController = TextEditingController();
+  final _daySleepController = TextEditingController();
 
   List<NamedReferenceItem> _medicalConditions = const [];
   List<NamedReferenceItem> _surgicalProcedures = const [];
   List<NamedReferenceItem> _medicineCategories = const [];
   List<NamedReferenceItem> _relationDegrees = const [];
+  List<NamedReferenceItem> _exerciseLevels = const [];
   int _clinicalTempIdSeq = 0;
 
   PatientDetailSection _section = PatientDetailSection.personalInfo;
@@ -234,9 +248,16 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
   bool _baselineLoaded = false;
   bool _clinicalBundleResolved = false;
 
+  bool _highSaltDiet = false;
+  bool _alcoholUse = false;
+  int? _exerciseLevelId;
+  String _exerciseLevelLabel = '';
+  bool _lifestyleLoaded = false;
+
   bool _savingPersonal = false;
   bool _savingMedical = false;
   bool _savingBaseline = false;
+  bool _savingLifestyle = false;
 
   final Set<int> _editingChronicIds = {};
   final Set<int> _editingSurgicalIds = {};
@@ -410,6 +431,9 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
     if (history.baseline != null) {
       _applyBaselineToForm(history.baseline!);
     }
+    if (history.patientLifeStyle != null && !_lifestyleLoaded) {
+      _applyLifestyleToForm(history.patientLifeStyle!);
+    }
   }
 
   void _hydrateFromBundle(PatientDetailBundle bundle) {
@@ -442,6 +466,9 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
         _tobaccoDurationStart = null;
         _tobaccoDurationEnd = null;
         _baselineLoaded = false;
+        if (!_lifestyleLoaded) {
+          _clearLifestyleForm();
+        }
       }
       _clinicalBundleResolved = true;
     }
@@ -623,6 +650,7 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
         ref.getSurgicalProcedures(bearerToken: token),
         ref.getMedicineCategories(bearerToken: token),
         ref.getRelationDegrees(bearerToken: token),
+        ref.getExerciseLevels(bearerToken: token),
       ]);
       if (!mounted) return;
       setState(() {
@@ -632,6 +660,10 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
         _surgicalProcedures = results[3];
         _medicineCategories = results[4];
         _relationDegrees = results[5];
+        _exerciseLevels = results[6];
+        if (_exerciseLevelId != null && _exerciseLevelLabel.trim().isEmpty) {
+          _exerciseLevelLabel = _exerciseLevelName(_exerciseLevelId);
+        }
       });
       AppLogger.instance.i(
         '[PatientDetail] clinical refs loaded — '
@@ -822,6 +854,99 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
     _baselineLoaded = false;
   }
 
+  void _applyLifestyleToForm(PatientLifeStyle lifestyle) {
+    _breakfastController.text = lifestyle.breakfast;
+    _lunchController.text = lifestyle.lunch;
+    _snacksController.text = lifestyle.snacks;
+    _dinnerController.text = lifestyle.dinner;
+    _nightSleepController.text = lifestyle.nightSleepHours == null
+        ? ''
+        : _formatSleepHours(lifestyle.nightSleepHours!);
+    _daySleepController.text = lifestyle.daySleepHours == null
+        ? ''
+        : _formatSleepHours(lifestyle.daySleepHours!);
+    _exerciseLevelId = lifestyle.exerciseLevelId;
+    final apiName = lifestyle.exerciseLevelName.trim();
+    final lookedUp = _exerciseLevelName(lifestyle.exerciseLevelId);
+    _exerciseLevelLabel = apiName.isNotEmpty ? apiName : lookedUp;
+    _alcoholUse = lifestyle.alcoholUse;
+    _highSaltDiet = lifestyle.highSaltDiet;
+    _lifestyleLoaded = true;
+  }
+
+  void _clearLifestyleForm() {
+    _breakfastController.clear();
+    _lunchController.clear();
+    _snacksController.clear();
+    _dinnerController.clear();
+    _nightSleepController.clear();
+    _daySleepController.clear();
+    _exerciseLevelId = null;
+    _exerciseLevelLabel = '';
+    _alcoholUse = false;
+    _highSaltDiet = false;
+    _lifestyleLoaded = false;
+  }
+
+  String _formatSleepHours(double hours) {
+    if (hours == hours.roundToDouble()) {
+      return hours.round().toString();
+    }
+    return hours.toString();
+  }
+
+  bool get _lifestyleFormTouched =>
+      _breakfastController.text.trim().isNotEmpty ||
+      _lunchController.text.trim().isNotEmpty ||
+      _snacksController.text.trim().isNotEmpty ||
+      _dinnerController.text.trim().isNotEmpty ||
+      _nightSleepController.text.trim().isNotEmpty ||
+      _daySleepController.text.trim().isNotEmpty ||
+      _exerciseLevelId != null ||
+      _alcoholUse ||
+      _highSaltDiet;
+
+  PatientLifeStyle? _lifestyleFromLocalForm() {
+    if (!_lifestyleLoaded && !_lifestyleFormTouched) {
+      return _cachedHistory?.patientLifeStyle;
+    }
+    final name = _displayExerciseLevelName();
+    return PatientLifeStyle(
+      patientId: widget.summary.patientId,
+      breakfast: _breakfastController.text.trim(),
+      lunch: _lunchController.text.trim(),
+      snacks: _snacksController.text.trim(),
+      dinner: _dinnerController.text.trim(),
+      nightSleepHours: double.tryParse(_nightSleepController.text.trim()),
+      daySleepHours: double.tryParse(_daySleepController.text.trim()),
+      exerciseLevelId: _exerciseLevelId,
+      exerciseLevelName: name == '—' ? '' : name,
+      alcoholUse: _alcoholUse,
+      highSaltDiet: _highSaltDiet,
+    );
+  }
+
+  String _exerciseLevelName(int? id) {
+    if (id == null) return '';
+    for (final item in _exerciseLevels) {
+      if (item.id == id) return item.name;
+    }
+    return '';
+  }
+
+  String _displayExerciseLevelName() {
+    final label = _exerciseLevelLabel.trim();
+    if (label.isNotEmpty) return label;
+    final lookedUp = _exerciseLevelName(_exerciseLevelId);
+    if (lookedUp.isNotEmpty) return lookedUp;
+    return '—';
+  }
+
+  void _setExerciseLevel(int? id) {
+    _exerciseLevelId = id;
+    _exerciseLevelLabel = _exerciseLevelName(id);
+  }
+
   bool get _tobaccoFormTouched =>
       _tobaccoUse ||
       _tobaccoTypeController.text.trim().isNotEmpty ||
@@ -858,6 +983,7 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
   void _syncCachedHistoryFromLocal() {
     _cachedHistory = PatientCompleteHistoryData(
       baseline: _baselineFromLocalForm(),
+      patientLifeStyle: _lifestyleFromLocalForm(),
       medical: List<PatientMedicalHistoryRow>.from(_medical),
       surgical: List<PatientSurgicalHistoryRow>.from(_surgical),
       drugs: List<PatientDrugHistoryRow>.from(_drugs),
@@ -948,6 +1074,9 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
           _tobaccoDurationStart = null;
           _tobaccoDurationEnd = null;
           _baselineLoaded = false;
+          if (!_lifestyleLoaded) {
+            _clearLifestyleForm();
+          }
         }
         _clinicalBundleResolved = true;
       }
@@ -957,6 +1086,36 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
     _rebuildClinicalTextControllers();
     _syncCachedHistoryFromLocal();
     _updateCacheFromState();
+    await _loadLifestyle(session, token);
+  }
+
+  Future<void> _loadLifestyle(
+    SessionController session,
+    String token,
+  ) async {
+    final pid = widget.summary.patientId;
+    try {
+      final lifestyle = await _patientApi!.getLifestyle(
+        patientId: pid,
+        bearerToken: token,
+      );
+      if (!mounted) return;
+      setState(() {
+        if (lifestyle != null) {
+          _applyLifestyleToForm(lifestyle);
+        } else if (!_lifestyleLoaded) {
+          final fromHistory = _cachedHistory?.patientLifeStyle;
+          if (fromHistory != null) {
+            _applyLifestyleToForm(fromHistory);
+          }
+        }
+      });
+      _syncCachedHistoryFromLocal();
+      _updateCacheFromState();
+    } on Object catch (e) {
+      if (!mounted || e is SessionEndedFailure) return;
+      _toast(session.apiClient.mapError(e).message);
+    }
   }
 
   void _updateCacheFromState() {
@@ -1055,6 +1214,12 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
     }
     _tobaccoTypeController.dispose();
     _tobaccoQuantityController.dispose();
+    _breakfastController.dispose();
+    _lunchController.dispose();
+    _snacksController.dispose();
+    _dinnerController.dispose();
+    _nightSleepController.dispose();
+    _daySleepController.dispose();
     _medicalDurationCtl.clear();
     _medicalCustomNameCtl.clear();
     _surgicalNotesCtl.clear();
@@ -1549,6 +1714,65 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
       _toast(session.apiClient.mapError(e).message);
     } finally {
       if (mounted) setState(() => _savingBaseline = false);
+    }
+  }
+
+  Map<String, dynamic> _buildLifestyleBody(String patientId) {
+    final body = <String, dynamic>{
+      'patientId': patientId,
+      'breakfast': _breakfastController.text.trim(),
+      'lunch': _lunchController.text.trim(),
+      'snacks': _snacksController.text.trim(),
+      'dinner': _dinnerController.text.trim(),
+      'alcoholUse': _alcoholUse,
+      'highSaltDiet': _highSaltDiet,
+    };
+    final night = double.tryParse(_nightSleepController.text.trim());
+    if (night != null) body['nightSleepHours'] = night;
+    final day = double.tryParse(_daySleepController.text.trim());
+    if (day != null) body['daySleepHours'] = day;
+    final exerciseId = _exerciseLevelId;
+    if (exerciseId != null && exerciseId > 0) {
+      body['exerciseLevelId'] = exerciseId;
+    }
+    return body;
+  }
+
+  Future<void> _saveLifestyle() async {
+    final session = context.read<SessionController>();
+    final token = session.state.accessToken?.trim();
+    if (token == null || token.isEmpty) {
+      _toast('Please sign in again.');
+      return;
+    }
+
+    // Keep selected exercise label even if reference list is empty after reload.
+    if (_exerciseLevelLabel.trim().isEmpty && _exerciseLevelId != null) {
+      _exerciseLevelLabel = _exerciseLevelName(_exerciseLevelId);
+    }
+
+    final pid = widget.summary.patientId;
+    final body = _buildLifestyleBody(pid);
+
+    setState(() => _savingLifestyle = true);
+    try {
+      await _patientApi!.upsertLifestyle(body: body, bearerToken: token);
+      if (!mounted) return;
+      setState(() => _lifestyleLoaded = true);
+      _syncCachedHistoryFromLocal();
+      _updateCacheFromState();
+      _toast('Lifestyle saved.');
+      if (widget.fixedSection != null) {
+        widget.onBack();
+        return;
+      }
+      setState(() => _sectionReadOnly = true);
+      await _loadLifestyle(session, token);
+    } on Object catch (e) {
+      if (!mounted || e is SessionEndedFailure) return;
+      _toast(session.apiClient.mapError(e).message);
+    } finally {
+      if (mounted) setState(() => _savingLifestyle = false);
     }
   }
 
@@ -4628,6 +4852,51 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
     );
   }
 
+  Widget _lifestyleBody() {
+    if (_loadingDetail && !_bundleReady && !_lifestyleLoaded) {
+      return const SizedBox.shrink();
+    }
+
+    if (!_sectionEditable) {
+      final hasData = _lifestyleLoaded || _lifestyleFormTouched;
+      return PatientLifestyleView(
+        data: hasData
+            ? PatientLifestyleViewData(
+                breakfast: _breakfastController.text,
+                lunch: _lunchController.text,
+                snacks: _snacksController.text,
+                dinner: _dinnerController.text,
+                nightSleepHours: _nightSleepController.text,
+                daySleepHours: _daySleepController.text,
+                exerciseLevelName: _displayExerciseLevelName(),
+                highSaltDiet: _highSaltDiet,
+                alcoholUse: _alcoholUse,
+              )
+            : null,
+        onRecordTap: _toggleSectionReadOnly,
+      );
+    }
+
+    return PatientLifestyleForm(
+      breakfastController: _breakfastController,
+      lunchController: _lunchController,
+      snacksController: _snacksController,
+      dinnerController: _dinnerController,
+      nightSleepController: _nightSleepController,
+      daySleepController: _daySleepController,
+      exerciseLevels: _exerciseLevels,
+      exerciseLevelId: _exerciseLevelId,
+      highSaltDiet: _highSaltDiet,
+      alcoholUse: _alcoholUse,
+      saving: _savingLifestyle,
+      onExerciseChanged: (v) => setState(() => _setExerciseLevel(v)),
+      onHighSaltChanged: (v) => setState(() => _highSaltDiet = v),
+      onAlcoholChanged: (v) => setState(() => _alcoholUse = v),
+      onSave: () => unawaited(_saveLifestyle()),
+      fieldDecoration: ({String? hint}) => _fieldDecoration(hint: hint),
+    );
+  }
+
   Widget _visitHistoryMetaLine(PatientVisitRow v) {
     final base = TextStyle(
       fontSize: 12.sp,
@@ -4964,6 +5233,7 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
         _medicalBody(),
         familySection,
         _baselineBody(),
+        _lifestyleBody(),
         _visitsBody(),
       ],
     );

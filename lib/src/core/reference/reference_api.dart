@@ -117,6 +117,11 @@ class ReferenceApi {
   }) =>
       _namedClinicalList(Endpoints.physicalActivityLevels, bearerToken);
 
+  Future<List<NamedReferenceItem>> getExerciseLevels({
+    required String bearerToken,
+  }) =>
+      _namedClinicalList(Endpoints.exerciseLevels, bearerToken);
+
   Future<List<NamedReferenceItem>> getAdherenceLevels({
     required String bearerToken,
   }) =>
