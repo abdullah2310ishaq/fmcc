@@ -259,6 +259,7 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
 
   /// When opened from the hub as a single section, starts read-only until Edit.
   bool _sectionReadOnly = false;
+  BaselineLifestyleTab _baselineLifestyleTab = BaselineLifestyleTab.tobacco;
 
   bool get _sectionEditable => widget.fixedSection == null || !_sectionReadOnly;
 
@@ -4789,6 +4790,8 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
 
     if (!_sectionEditable) {
       return PatientLifestyleView(
+        selectedTab: _baselineLifestyleTab,
+        onTabChanged: (t) => setState(() => _baselineLifestyleTab = t),
         data: hasData
             ? PatientLifestyleViewData(
                 tobaccoUse: _tobaccoUse,
@@ -4816,6 +4819,8 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
     }
 
     return PatientLifestyleForm(
+      selectedTab: _baselineLifestyleTab,
+      onTabChanged: (t) => setState(() => _baselineLifestyleTab = t),
       tobaccoUse: _tobaccoUse,
       onTobaccoUseChanged: (v) => setState(() => _tobaccoUse = v),
       tobaccoTypeController: _tobaccoTypeController,

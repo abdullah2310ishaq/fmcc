@@ -58,39 +58,36 @@ class PatientLifestyleViewData {
 }
 
 /// Flat baseline + lifestyle read-only layout with filter chips.
-class PatientLifestyleView extends StatefulWidget {
+class PatientLifestyleView extends StatelessWidget {
   const PatientLifestyleView({
     super.key,
+    required this.selectedTab,
+    required this.onTabChanged,
     required this.data,
     this.onRecordTap,
   });
 
+  final BaselineLifestyleTab selectedTab;
+  final ValueChanged<BaselineLifestyleTab> onTabChanged;
   final PatientLifestyleViewData? data;
   final VoidCallback? onRecordTap;
 
   @override
-  State<PatientLifestyleView> createState() => _PatientLifestyleViewState();
-}
-
-class _PatientLifestyleViewState extends State<PatientLifestyleView> {
-  BaselineLifestyleTab _tab = BaselineLifestyleTab.tobacco;
-
-  @override
   Widget build(BuildContext context) {
-    if (widget.data == null) {
-      return _LifestyleEmptyState(onRecordTap: widget.onRecordTap);
+    if (data == null) {
+      return _LifestyleEmptyState(onRecordTap: onRecordTap);
     }
 
-    final d = widget.data!;
+    final d = data!;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         _BaselineLifestyleTabBar(
-          selected: _tab,
-          onSelected: (t) => setState(() => _tab = t),
+          selected: selectedTab,
+          onSelected: onTabChanged,
         ),
         SizedBox(height: 14.h),
-        switch (_tab) {
+        switch (selectedTab) {
           BaselineLifestyleTab.tobacco => _tobaccoView(d),
           BaselineLifestyleTab.meals => _mealsView(d),
           BaselineLifestyleTab.sleep => _sleepView(d),
@@ -210,9 +207,11 @@ class _PatientLifestyleViewState extends State<PatientLifestyleView> {
 }
 
 /// Baseline + lifestyle edit form with filter chips.
-class PatientLifestyleForm extends StatefulWidget {
+class PatientLifestyleForm extends StatelessWidget {
   const PatientLifestyleForm({
     super.key,
+    required this.selectedTab,
+    required this.onTabChanged,
     required this.tobaccoUse,
     required this.onTobaccoUseChanged,
     required this.tobaccoTypeController,
@@ -240,6 +239,8 @@ class PatientLifestyleForm extends StatefulWidget {
     required this.fieldDecoration,
   });
 
+  final BaselineLifestyleTab selectedTab;
+  final ValueChanged<BaselineLifestyleTab> onTabChanged;
   final bool tobaccoUse;
   final ValueChanged<bool> onTobaccoUseChanged;
   final TextEditingController tobaccoTypeController;
@@ -267,15 +268,8 @@ class PatientLifestyleForm extends StatefulWidget {
   final InputDecoration Function({String? hint}) fieldDecoration;
 
   @override
-  State<PatientLifestyleForm> createState() => _PatientLifestyleFormState();
-}
-
-class _PatientLifestyleFormState extends State<PatientLifestyleForm> {
-  BaselineLifestyleTab _tab = BaselineLifestyleTab.tobacco;
-
-  @override
   Widget build(BuildContext context) {
-    final exerciseItems = widget.exerciseLevels
+    final exerciseItems = exerciseLevels
         .where((e) => e.id > 0)
         .map(
           (e) => DropdownMenuItem<int>(
@@ -292,26 +286,26 @@ class _PatientLifestyleFormState extends State<PatientLifestyleForm> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         _BaselineLifestyleTabBar(
-          selected: _tab,
-          onSelected: (t) => setState(() => _tab = t),
+          selected: selectedTab,
+          onSelected: onTabChanged,
         ),
         SizedBox(height: 14.h),
-        switch (_tab) {
-          BaselineLifestyleTab.tobacco => _tobaccoEditBody(),
+        switch (selectedTab) {
+          BaselineLifestyleTab.tobacco => _tobaccoEditBody(context),
           BaselineLifestyleTab.meals => Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 _fieldLabel('Breakfast'),
-                _textField(widget.breakfastController, hint: 'Breakfast details'),
+                _textField(context, breakfastController, hint: 'Breakfast details'),
                 SizedBox(height: 14.h),
                 _fieldLabel('Lunch'),
-                _textField(widget.lunchController, hint: 'Lunch details'),
+                _textField(context, lunchController, hint: 'Lunch details'),
                 SizedBox(height: 14.h),
                 _fieldLabel('Snacks'),
-                _textField(widget.snacksController, hint: 'Snacks details'),
+                _textField(context, snacksController, hint: 'Snacks details'),
                 SizedBox(height: 14.h),
                 _fieldLabel('Dinner'),
-                _textField(widget.dinnerController, hint: 'Dinner details'),
+                _textField(context, dinnerController, hint: 'Dinner details'),
               ],
             ),
           BaselineLifestyleTab.sleep => Column(
@@ -319,7 +313,8 @@ class _PatientLifestyleFormState extends State<PatientLifestyleForm> {
               children: [
                 _fieldLabel('Night sleep hours'),
                 _textField(
-                  widget.nightSleepController,
+                  context,
+                  nightSleepController,
                   hint: 'e.g. 7.5',
                   keyboardType:
                       const TextInputType.numberWithOptions(decimal: true),
@@ -328,7 +323,8 @@ class _PatientLifestyleFormState extends State<PatientLifestyleForm> {
                 SizedBox(height: 14.h),
                 _fieldLabel('Day sleep hours'),
                 _textField(
-                  widget.daySleepController,
+                  context,
+                  daySleepController,
                   hint: 'e.g. 1',
                   keyboardType:
                       const TextInputType.numberWithOptions(decimal: true),
@@ -342,12 +338,12 @@ class _PatientLifestyleFormState extends State<PatientLifestyleForm> {
                 _fieldLabel('Exercise level'),
                 DropdownButtonFormField<int>(
                   value: exerciseItems
-                          .any((e) => e.value == widget.exerciseLevelId)
-                      ? widget.exerciseLevelId
+                          .any((e) => e.value == exerciseLevelId)
+                      ? exerciseLevelId
                       : null,
-                  decoration: widget.fieldDecoration(),
+                  decoration: fieldDecoration(),
                   items: exerciseItems,
-                  onChanged: widget.onExerciseChanged,
+                  onChanged: onExerciseChanged,
                   style: TextStyle(
                     fontSize: 14.sp,
                     fontWeight: FontWeight.w600,
@@ -367,8 +363,8 @@ class _PatientLifestyleFormState extends State<PatientLifestyleForm> {
                     style:
                         TextStyle(fontSize: 14.sp, fontWeight: FontWeight.w600),
                   ),
-                  value: widget.highSaltDiet,
-                  onChanged: (v) => widget.onHighSaltChanged(v ?? false),
+                  value: highSaltDiet,
+                  onChanged: (v) => onHighSaltChanged(v ?? false),
                 ),
                 CheckboxListTile(
                   contentPadding: EdgeInsets.zero,
@@ -378,15 +374,15 @@ class _PatientLifestyleFormState extends State<PatientLifestyleForm> {
                     style:
                         TextStyle(fontSize: 14.sp, fontWeight: FontWeight.w600),
                   ),
-                  value: widget.alcoholUse,
-                  onChanged: (v) => widget.onAlcoholChanged(v ?? false),
+                  value: alcoholUse,
+                  onChanged: (v) => onAlcoholChanged(v ?? false),
                 ),
               ],
             ),
         },
         SizedBox(height: 20.h),
         FilledButton(
-          onPressed: widget.saving ? null : widget.onSave,
+          onPressed: saving ? null : onSave,
           style: FilledButton.styleFrom(
             backgroundColor: AppColors.registrationSaveBlue,
             foregroundColor: AppColors.surface,
@@ -396,7 +392,7 @@ class _PatientLifestyleFormState extends State<PatientLifestyleForm> {
             ),
           ),
           child: Text(
-            widget.saving ? 'Saving…' : 'Save Baseline Lifestyle',
+            saving ? 'Saving…' : 'Save Baseline Lifestyle',
             style: TextStyle(fontSize: 15.sp, fontWeight: FontWeight.w800),
           ),
         ),
@@ -405,7 +401,7 @@ class _PatientLifestyleFormState extends State<PatientLifestyleForm> {
     );
   }
 
-  Widget _tobaccoEditBody() {
+  Widget _tobaccoEditBody(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -416,7 +412,7 @@ class _PatientLifestyleFormState extends State<PatientLifestyleForm> {
             style: TextStyle(fontSize: 14.sp, fontWeight: FontWeight.w600),
           ),
           subtitle: Text(
-            widget.tobaccoUse
+            tobaccoUse
                 ? 'Add tobacco details below'
                 : 'Turn on if patient uses tobacco',
             style: TextStyle(
@@ -425,21 +421,23 @@ class _PatientLifestyleFormState extends State<PatientLifestyleForm> {
               color: AppColors.textSecondary,
             ),
           ),
-          value: widget.tobaccoUse,
-          onChanged: widget.onTobaccoUseChanged,
+          value: tobaccoUse,
+          onChanged: onTobaccoUseChanged,
         ),
-        if (widget.tobaccoUse) ...[
+        if (tobaccoUse) ...[
           SizedBox(height: 8.h),
           _fieldLabel('Tobacco type'),
           _textField(
-            widget.tobaccoTypeController,
+            context,
+            tobaccoTypeController,
             hint: 'e.g. Cigarette, Huqqa',
             maxLines: 1,
           ),
           SizedBox(height: 14.h),
           _fieldLabel('Quantity per day'),
           _textField(
-            widget.tobaccoQuantityController,
+            context,
+            tobaccoQuantityController,
             hint: 'Optional',
             keyboardType: TextInputType.number,
             maxLines: 1,
@@ -447,17 +445,17 @@ class _PatientLifestyleFormState extends State<PatientLifestyleForm> {
           SizedBox(height: 14.h),
           _fieldLabel('Duration start'),
           _tobaccoDateField(
-            date: widget.tobaccoDurationStart,
+            date: tobaccoDurationStart,
             hint: 'Select start date',
-            onTap: () => widget.onPickTobaccoDate(isStart: true),
+            onTap: () => onPickTobaccoDate(isStart: true),
           ),
           SizedBox(height: 14.h),
           _fieldLabel('Duration end (optional)'),
           _tobaccoDateField(
-            date: widget.tobaccoDurationEnd,
+            date: tobaccoDurationEnd,
             hint: 'Select end date',
-            onTap: () => widget.onPickTobaccoDate(isStart: false),
-            onClear: widget.onClearTobaccoEnd,
+            onTap: () => onPickTobaccoDate(isStart: false),
+            onClear: onClearTobaccoEnd,
           ),
         ],
       ],
@@ -474,12 +472,12 @@ class _PatientLifestyleFormState extends State<PatientLifestyleForm> {
       onTap: onTap,
       borderRadius: BorderRadius.circular(12.r),
       child: InputDecorator(
-        decoration: widget.fieldDecoration(hint: hint),
+        decoration: fieldDecoration(hint: hint),
         child: Row(
           children: [
             Expanded(
               child: Text(
-                widget.formatDate(date),
+                formatDate(date),
                 style: TextStyle(
                   fontSize: 14.sp,
                   fontWeight: FontWeight.w600,
@@ -521,6 +519,7 @@ class _PatientLifestyleFormState extends State<PatientLifestyleForm> {
   }
 
   Widget _textField(
+    BuildContext context,
     TextEditingController controller, {
     required String hint,
     TextInputType? keyboardType,
@@ -531,7 +530,7 @@ class _PatientLifestyleFormState extends State<PatientLifestyleForm> {
       keyboardType: keyboardType,
       maxLines: maxLines,
       style: TextStyle(fontSize: 14.sp, fontWeight: FontWeight.w600),
-      decoration: widget.fieldDecoration(hint: hint),
+      decoration: fieldDecoration(hint: hint),
     );
   }
 }
