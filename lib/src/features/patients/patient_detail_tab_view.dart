@@ -827,6 +827,35 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
     return out;
   }
 
+  PatientBaselineLifestyle? _mergeBaselineLifestyle(
+    PatientBaselineLifestyle? local,
+    PatientBaselineLifestyle? remote,
+  ) {
+    if (local == null) return remote;
+    if (remote == null) return local;
+
+    String? pickString(String? fromRemote, String? fromLocal) {
+      final remote = fromRemote?.trim();
+      if (remote != null && remote.isNotEmpty) return remote;
+      final local = fromLocal?.trim();
+      if (local != null && local.isNotEmpty) return local;
+      return null;
+    }
+
+    return PatientBaselineLifestyle(
+      patientId:
+          remote.patientId.isNotEmpty ? remote.patientId : local.patientId,
+      familyHistoryOfHtnOrStroke: remote.familyHistoryOfHtnOrStroke,
+      tobaccoUse: remote.tobaccoUse,
+      tobaccoType: pickString(remote.tobaccoType, local.tobaccoType),
+      tobaccoQuantityPerDay:
+          remote.tobaccoQuantityPerDay ?? local.tobaccoQuantityPerDay,
+      tobaccoDurationStart:
+          remote.tobaccoDurationStart ?? local.tobaccoDurationStart,
+      tobaccoDurationEnd: remote.tobaccoDurationEnd ?? local.tobaccoDurationEnd,
+    );
+  }
+
   void _applyBaselineToForm(PatientBaselineLifestyle baseline) {
     _familyHtn = baseline.familyHistoryOfHtnOrStroke;
     _tobaccoUse = baseline.tobaccoUse;
@@ -1047,7 +1076,8 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
         _surgical = _mergeSurgicalRows(history.surgical, localSurgical);
         _drugs = _mergeDrugRows(history.drugs, localDrugs);
         _clinicalBundleResolved = true;
-        final baseline = history.baseline ?? localBaseline;
+        final baseline =
+            _mergeBaselineLifestyle(localBaseline, history.baseline);
         if (baseline != null) {
           _applyBaselineToForm(baseline);
         } else if (!_baselineLoaded) {
@@ -4754,7 +4784,6 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
 
     final hasData = _baselineLoaded ||
         _lifestyleLoaded ||
-        _familyHtn ||
         _tobaccoUse ||
         _lifestyleFormTouched;
 
@@ -4762,7 +4791,6 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
       return PatientLifestyleView(
         data: hasData
             ? PatientLifestyleViewData(
-                familyHistoryOfHtnOrStroke: _familyHtn,
                 tobaccoUse: _tobaccoUse,
                 tobaccoType: _tobaccoTypeController.text,
                 tobaccoQuantityPerDay: _tobaccoQuantityController.text,
@@ -4788,8 +4816,17 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
     }
 
     return PatientLifestyleForm(
-      familyHtn: _familyHtn,
-      onFamilyHtnChanged: (v) => setState(() => _familyHtn = v),
+      tobaccoUse: _tobaccoUse,
+      onTobaccoUseChanged: (v) => setState(() => _tobaccoUse = v),
+      tobaccoTypeController: _tobaccoTypeController,
+      tobaccoQuantityController: _tobaccoQuantityController,
+      tobaccoDurationStart: _tobaccoDurationStart,
+      tobaccoDurationEnd: _tobaccoDurationEnd,
+      onPickTobaccoDate: _pickTobaccoDate,
+      onClearTobaccoEnd: _tobaccoDurationEnd == null
+          ? null
+          : () => setState(() => _tobaccoDurationEnd = null),
+      formatDate: _displayDateOrDash,
       breakfastController: _breakfastController,
       lunchController: _lunchController,
       snacksController: _snacksController,
@@ -4808,6 +4845,7 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
             _saveBaselineLifestyle(
               successMessage: 'Baseline lifestyle saved.',
               includeLifestyle: true,
+              validateTobacco: true,
               popOnSuccess: true,
             ),
           ),

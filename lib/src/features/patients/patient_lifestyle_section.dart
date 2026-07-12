@@ -25,7 +25,6 @@ extension BaselineLifestyleTabUi on BaselineLifestyleTab {
 /// Display snapshot for baseline + patient lifestyle (read-only).
 class PatientLifestyleViewData {
   const PatientLifestyleViewData({
-    required this.familyHistoryOfHtnOrStroke,
     required this.tobaccoUse,
     this.tobaccoType = '',
     this.tobaccoQuantityPerDay = '',
@@ -42,7 +41,6 @@ class PatientLifestyleViewData {
     required this.alcoholUse,
   });
 
-  final bool familyHistoryOfHtnOrStroke;
   final bool tobaccoUse;
   final String tobaccoType;
   final String tobaccoQuantityPerDay;
@@ -108,13 +106,6 @@ class _PatientLifestyleViewState extends State<PatientLifestyleView> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _LifestyleFieldRow(
-          label: 'Family HTN / stroke',
-          value: d.familyHistoryOfHtnOrStroke ? 'Yes' : 'No',
-          valueColor: d.familyHistoryOfHtnOrStroke
-              ? AppColors.dashboardWarning
-              : AppColors.followAccentGreen,
-        ),
         _LifestyleFieldRow(
           label: 'Tobacco use',
           value: d.tobaccoUse ? 'Yes' : 'No',
@@ -222,8 +213,15 @@ class _PatientLifestyleViewState extends State<PatientLifestyleView> {
 class PatientLifestyleForm extends StatefulWidget {
   const PatientLifestyleForm({
     super.key,
-    required this.familyHtn,
-    required this.onFamilyHtnChanged,
+    required this.tobaccoUse,
+    required this.onTobaccoUseChanged,
+    required this.tobaccoTypeController,
+    required this.tobaccoQuantityController,
+    required this.tobaccoDurationStart,
+    required this.tobaccoDurationEnd,
+    required this.onPickTobaccoDate,
+    required this.onClearTobaccoEnd,
+    required this.formatDate,
     required this.breakfastController,
     required this.lunchController,
     required this.snacksController,
@@ -242,8 +240,15 @@ class PatientLifestyleForm extends StatefulWidget {
     required this.fieldDecoration,
   });
 
-  final bool familyHtn;
-  final ValueChanged<bool> onFamilyHtnChanged;
+  final bool tobaccoUse;
+  final ValueChanged<bool> onTobaccoUseChanged;
+  final TextEditingController tobaccoTypeController;
+  final TextEditingController tobaccoQuantityController;
+  final DateTime? tobaccoDurationStart;
+  final DateTime? tobaccoDurationEnd;
+  final Future<void> Function({required bool isStart}) onPickTobaccoDate;
+  final VoidCallback? onClearTobaccoEnd;
+  final String Function(DateTime?) formatDate;
   final TextEditingController breakfastController;
   final TextEditingController lunchController;
   final TextEditingController snacksController;
@@ -292,15 +297,7 @@ class _PatientLifestyleFormState extends State<PatientLifestyleForm> {
         ),
         SizedBox(height: 14.h),
         switch (_tab) {
-          BaselineLifestyleTab.tobacco => SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              title: Text(
-                'Family history of HTN / stroke',
-                style: TextStyle(fontSize: 14.sp, fontWeight: FontWeight.w600),
-              ),
-              value: widget.familyHtn,
-              onChanged: widget.onFamilyHtnChanged,
-            ),
+          BaselineLifestyleTab.tobacco => _tobaccoEditBody(),
           BaselineLifestyleTab.meals => Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
@@ -405,6 +402,107 @@ class _PatientLifestyleFormState extends State<PatientLifestyleForm> {
         ),
         SizedBox(height: MediaQuery.paddingOf(context).bottom + 12.h),
       ],
+    );
+  }
+
+  Widget _tobaccoEditBody() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SwitchListTile(
+          contentPadding: EdgeInsets.zero,
+          title: Text(
+            'Tobacco use',
+            style: TextStyle(fontSize: 14.sp, fontWeight: FontWeight.w600),
+          ),
+          subtitle: Text(
+            widget.tobaccoUse
+                ? 'Add tobacco details below'
+                : 'Turn on if patient uses tobacco',
+            style: TextStyle(
+              fontSize: 12.sp,
+              fontWeight: FontWeight.w500,
+              color: AppColors.textSecondary,
+            ),
+          ),
+          value: widget.tobaccoUse,
+          onChanged: widget.onTobaccoUseChanged,
+        ),
+        if (widget.tobaccoUse) ...[
+          SizedBox(height: 8.h),
+          _fieldLabel('Tobacco type'),
+          _textField(
+            widget.tobaccoTypeController,
+            hint: 'e.g. Cigarette, Huqqa',
+            maxLines: 1,
+          ),
+          SizedBox(height: 14.h),
+          _fieldLabel('Quantity per day'),
+          _textField(
+            widget.tobaccoQuantityController,
+            hint: 'Optional',
+            keyboardType: TextInputType.number,
+            maxLines: 1,
+          ),
+          SizedBox(height: 14.h),
+          _fieldLabel('Duration start'),
+          _tobaccoDateField(
+            date: widget.tobaccoDurationStart,
+            hint: 'Select start date',
+            onTap: () => widget.onPickTobaccoDate(isStart: true),
+          ),
+          SizedBox(height: 14.h),
+          _fieldLabel('Duration end (optional)'),
+          _tobaccoDateField(
+            date: widget.tobaccoDurationEnd,
+            hint: 'Select end date',
+            onTap: () => widget.onPickTobaccoDate(isStart: false),
+            onClear: widget.onClearTobaccoEnd,
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _tobaccoDateField({
+    required DateTime? date,
+    required String hint,
+    required VoidCallback onTap,
+    VoidCallback? onClear,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12.r),
+      child: InputDecorator(
+        decoration: widget.fieldDecoration(hint: hint),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                widget.formatDate(date),
+                style: TextStyle(
+                  fontSize: 14.sp,
+                  fontWeight: FontWeight.w600,
+                  color: date == null
+                      ? AppColors.textSecondary
+                      : AppColors.textPrimary,
+                ),
+              ),
+            ),
+            if (onClear != null)
+              IconButton(
+                onPressed: onClear,
+                icon: Icon(Icons.close, size: 18.sp),
+                tooltip: 'Clear',
+              ),
+            Icon(
+              Icons.calendar_today_outlined,
+              size: 18.sp,
+              color: AppColors.textSecondary,
+            ),
+          ],
+        ),
+      ),
     );
   }
 
