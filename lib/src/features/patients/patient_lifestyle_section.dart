@@ -4,9 +4,33 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:doctor_app/src/core/reference/reference_models.dart';
 import 'package:doctor_app/src/core/theme/app_colors.dart';
 
-/// Display snapshot for lifestyle read-only view.
+enum BaselineLifestyleTab {
+  tobacco,
+  meals,
+  sleep,
+  exercises,
+  habits,
+}
+
+extension BaselineLifestyleTabUi on BaselineLifestyleTab {
+  String get label => switch (this) {
+        BaselineLifestyleTab.tobacco => 'Tobacco',
+        BaselineLifestyleTab.meals => 'Meals',
+        BaselineLifestyleTab.sleep => 'Sleep',
+        BaselineLifestyleTab.exercises => 'Exercises',
+        BaselineLifestyleTab.habits => 'Habits',
+      };
+}
+
+/// Display snapshot for baseline + patient lifestyle (read-only).
 class PatientLifestyleViewData {
   const PatientLifestyleViewData({
+    required this.familyHistoryOfHtnOrStroke,
+    required this.tobaccoUse,
+    this.tobaccoType = '',
+    this.tobaccoQuantityPerDay = '',
+    this.tobaccoDurationStart = '',
+    this.tobaccoDurationEnd = '',
     required this.breakfast,
     required this.lunch,
     required this.snacks,
@@ -18,6 +42,12 @@ class PatientLifestyleViewData {
     required this.alcoholUse,
   });
 
+  final bool familyHistoryOfHtnOrStroke;
+  final bool tobaccoUse;
+  final String tobaccoType;
+  final String tobaccoQuantityPerDay;
+  final String tobaccoDurationStart;
+  final String tobaccoDurationEnd;
   final String breakfast;
   final String lunch;
   final String snacks;
@@ -29,8 +59,8 @@ class PatientLifestyleViewData {
   final bool alcoholUse;
 }
 
-/// Flat, evenly spaced lifestyle read-only layout (no cards / boxes).
-class PatientLifestyleView extends StatelessWidget {
+/// Flat baseline + lifestyle read-only layout with filter chips.
+class PatientLifestyleView extends StatefulWidget {
   const PatientLifestyleView({
     super.key,
     required this.data,
@@ -40,31 +70,98 @@ class PatientLifestyleView extends StatelessWidget {
   final PatientLifestyleViewData? data;
   final VoidCallback? onRecordTap;
 
-  static const double _labelWidth = 108;
+  @override
+  State<PatientLifestyleView> createState() => _PatientLifestyleViewState();
+}
+
+class _PatientLifestyleViewState extends State<PatientLifestyleView> {
+  BaselineLifestyleTab _tab = BaselineLifestyleTab.tobacco;
 
   @override
   Widget build(BuildContext context) {
-    if (data == null) {
-      return _LifestyleEmptyState(onRecordTap: onRecordTap);
+    if (widget.data == null) {
+      return _LifestyleEmptyState(onRecordTap: widget.onRecordTap);
     }
 
-    final d = data!;
+    final d = widget.data!;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const _LifestyleSectionHeader(
-          icon: Icons.restaurant_menu_rounded,
-          title: 'Daily meals',
+        _BaselineLifestyleTabBar(
+          selected: _tab,
+          onSelected: (t) => setState(() => _tab = t),
         ),
+        SizedBox(height: 14.h),
+        switch (_tab) {
+          BaselineLifestyleTab.tobacco => _tobaccoView(d),
+          BaselineLifestyleTab.meals => _mealsView(d),
+          BaselineLifestyleTab.sleep => _sleepView(d),
+          BaselineLifestyleTab.exercises => _exercisesView(d),
+          BaselineLifestyleTab.habits => _habitsView(d),
+        },
+        SizedBox(height: MediaQuery.paddingOf(context).bottom + 16.h),
+      ],
+    );
+  }
+
+  Widget _tobaccoView(PatientLifestyleViewData d) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _LifestyleFieldRow(
+          label: 'Family HTN / stroke',
+          value: d.familyHistoryOfHtnOrStroke ? 'Yes' : 'No',
+          valueColor: d.familyHistoryOfHtnOrStroke
+              ? AppColors.dashboardWarning
+              : AppColors.followAccentGreen,
+        ),
+        _LifestyleFieldRow(
+          label: 'Tobacco use',
+          value: d.tobaccoUse ? 'Yes' : 'No',
+          valueColor: d.tobaccoUse
+              ? AppColors.dashboardWarning
+              : AppColors.followAccentGreen,
+          showDivider: d.tobaccoUse,
+        ),
+        if (d.tobaccoUse) ...[
+          _LifestyleFieldRow(
+            label: 'Tobacco type',
+            value: _dash(d.tobaccoType),
+          ),
+          _LifestyleFieldRow(
+            label: 'Qty / day',
+            value: _dash(d.tobaccoQuantityPerDay),
+          ),
+          _LifestyleFieldRow(
+            label: 'Duration start',
+            value: _dash(d.tobaccoDurationStart),
+          ),
+          _LifestyleFieldRow(
+            label: 'Duration end',
+            value: _dash(d.tobaccoDurationEnd),
+            showDivider: false,
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _mealsView(PatientLifestyleViewData d) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
         _LifestyleFieldRow(label: 'Breakfast', value: d.breakfast),
         _LifestyleFieldRow(label: 'Lunch', value: d.lunch),
         _LifestyleFieldRow(label: 'Snacks', value: d.snacks),
         _LifestyleFieldRow(label: 'Dinner', value: d.dinner, showDivider: false),
-        SizedBox(height: 18.h),
-        const _LifestyleSectionHeader(
-          icon: Icons.bedtime_outlined,
-          title: 'Sleep',
-        ),
+      ],
+    );
+  }
+
+  Widget _sleepView(PatientLifestyleViewData d) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
         _LifestyleFieldRow(
           label: 'Night sleep',
           value: _hoursValue(d.nightSleepHours),
@@ -74,15 +171,22 @@ class PatientLifestyleView extends StatelessWidget {
           value: _hoursValue(d.daySleepHours),
           showDivider: false,
         ),
-        SizedBox(height: 18.h),
-        const _LifestyleSectionHeader(
-          icon: Icons.fitness_center_rounded,
-          title: 'Activity & habits',
-        ),
-        _LifestyleFieldRow(
-          label: 'Exercise',
-          value: _dash(d.exerciseLevelName),
-        ),
+      ],
+    );
+  }
+
+  Widget _exercisesView(PatientLifestyleViewData d) {
+    return _LifestyleFieldRow(
+      label: 'Exercise level',
+      value: _dash(d.exerciseLevelName),
+      showDivider: false,
+    );
+  }
+
+  Widget _habitsView(PatientLifestyleViewData d) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
         _LifestyleFieldRow(
           label: 'High salt diet',
           value: d.highSaltDiet ? 'Yes' : 'No',
@@ -98,7 +202,6 @@ class PatientLifestyleView extends StatelessWidget {
               : AppColors.followAccentGreen,
           showDivider: false,
         ),
-        SizedBox(height: MediaQuery.paddingOf(context).bottom + 16.h),
       ],
     );
   }
@@ -115,10 +218,12 @@ class PatientLifestyleView extends StatelessWidget {
   }
 }
 
-/// Lifestyle edit form UI — state stays with the parent.
-class PatientLifestyleForm extends StatelessWidget {
+/// Baseline + lifestyle edit form with filter chips.
+class PatientLifestyleForm extends StatefulWidget {
   const PatientLifestyleForm({
     super.key,
+    required this.familyHtn,
+    required this.onFamilyHtnChanged,
     required this.breakfastController,
     required this.lunchController,
     required this.snacksController,
@@ -137,6 +242,8 @@ class PatientLifestyleForm extends StatelessWidget {
     required this.fieldDecoration,
   });
 
+  final bool familyHtn;
+  final ValueChanged<bool> onFamilyHtnChanged;
   final TextEditingController breakfastController;
   final TextEditingController lunchController;
   final TextEditingController snacksController;
@@ -155,8 +262,15 @@ class PatientLifestyleForm extends StatelessWidget {
   final InputDecoration Function({String? hint}) fieldDecoration;
 
   @override
+  State<PatientLifestyleForm> createState() => _PatientLifestyleFormState();
+}
+
+class _PatientLifestyleFormState extends State<PatientLifestyleForm> {
+  BaselineLifestyleTab _tab = BaselineLifestyleTab.tobacco;
+
+  @override
   Widget build(BuildContext context) {
-    final exerciseItems = exerciseLevels
+    final exerciseItems = widget.exerciseLevels
         .where((e) => e.id > 0)
         .map(
           (e) => DropdownMenuItem<int>(
@@ -172,84 +286,110 @@ class PatientLifestyleForm extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const _LifestyleSectionHeader(
-          icon: Icons.restaurant_menu_rounded,
-          title: 'Daily meals',
+        _BaselineLifestyleTabBar(
+          selected: _tab,
+          onSelected: (t) => setState(() => _tab = t),
         ),
-        _fieldLabel('Breakfast'),
-        _textField(breakfastController, hint: 'Breakfast details'),
         SizedBox(height: 14.h),
-        _fieldLabel('Lunch'),
-        _textField(lunchController, hint: 'Lunch details'),
-        SizedBox(height: 14.h),
-        _fieldLabel('Snacks'),
-        _textField(snacksController, hint: 'Snacks details'),
-        SizedBox(height: 14.h),
-        _fieldLabel('Dinner'),
-        _textField(dinnerController, hint: 'Dinner details'),
+        switch (_tab) {
+          BaselineLifestyleTab.tobacco => SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: Text(
+                'Family history of HTN / stroke',
+                style: TextStyle(fontSize: 14.sp, fontWeight: FontWeight.w600),
+              ),
+              value: widget.familyHtn,
+              onChanged: widget.onFamilyHtnChanged,
+            ),
+          BaselineLifestyleTab.meals => Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _fieldLabel('Breakfast'),
+                _textField(widget.breakfastController, hint: 'Breakfast details'),
+                SizedBox(height: 14.h),
+                _fieldLabel('Lunch'),
+                _textField(widget.lunchController, hint: 'Lunch details'),
+                SizedBox(height: 14.h),
+                _fieldLabel('Snacks'),
+                _textField(widget.snacksController, hint: 'Snacks details'),
+                SizedBox(height: 14.h),
+                _fieldLabel('Dinner'),
+                _textField(widget.dinnerController, hint: 'Dinner details'),
+              ],
+            ),
+          BaselineLifestyleTab.sleep => Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _fieldLabel('Night sleep hours'),
+                _textField(
+                  widget.nightSleepController,
+                  hint: 'e.g. 7.5',
+                  keyboardType:
+                      const TextInputType.numberWithOptions(decimal: true),
+                  maxLines: 1,
+                ),
+                SizedBox(height: 14.h),
+                _fieldLabel('Day sleep hours'),
+                _textField(
+                  widget.daySleepController,
+                  hint: 'e.g. 1',
+                  keyboardType:
+                      const TextInputType.numberWithOptions(decimal: true),
+                  maxLines: 1,
+                ),
+              ],
+            ),
+          BaselineLifestyleTab.exercises => Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _fieldLabel('Exercise level'),
+                DropdownButtonFormField<int>(
+                  value: exerciseItems
+                          .any((e) => e.value == widget.exerciseLevelId)
+                      ? widget.exerciseLevelId
+                      : null,
+                  decoration: widget.fieldDecoration(),
+                  items: exerciseItems,
+                  onChanged: widget.onExerciseChanged,
+                  style: TextStyle(
+                    fontSize: 14.sp,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+              ],
+            ),
+          BaselineLifestyleTab.habits => Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                CheckboxListTile(
+                  contentPadding: EdgeInsets.zero,
+                  dense: true,
+                  title: Text(
+                    'High salt diet',
+                    style:
+                        TextStyle(fontSize: 14.sp, fontWeight: FontWeight.w600),
+                  ),
+                  value: widget.highSaltDiet,
+                  onChanged: (v) => widget.onHighSaltChanged(v ?? false),
+                ),
+                CheckboxListTile(
+                  contentPadding: EdgeInsets.zero,
+                  dense: true,
+                  title: Text(
+                    'Alcohol use',
+                    style:
+                        TextStyle(fontSize: 14.sp, fontWeight: FontWeight.w600),
+                  ),
+                  value: widget.alcoholUse,
+                  onChanged: (v) => widget.onAlcoholChanged(v ?? false),
+                ),
+              ],
+            ),
+        },
         SizedBox(height: 20.h),
-        const _LifestyleSectionHeader(
-          icon: Icons.bedtime_outlined,
-          title: 'Sleep',
-        ),
-        _fieldLabel('Night sleep hours'),
-        _textField(
-          nightSleepController,
-          hint: 'e.g. 7.5',
-          keyboardType: const TextInputType.numberWithOptions(decimal: true),
-          maxLines: 1,
-        ),
-        SizedBox(height: 14.h),
-        _fieldLabel('Day sleep hours'),
-        _textField(
-          daySleepController,
-          hint: 'e.g. 1',
-          keyboardType: const TextInputType.numberWithOptions(decimal: true),
-          maxLines: 1,
-        ),
-        SizedBox(height: 20.h),
-        const _LifestyleSectionHeader(
-          icon: Icons.fitness_center_rounded,
-          title: 'Activity & habits',
-        ),
-        _fieldLabel('Exercise level'),
-        DropdownButtonFormField<int>(
-          value: exerciseItems.any((e) => e.value == exerciseLevelId)
-              ? exerciseLevelId
-              : null,
-          decoration: fieldDecoration(),
-          items: exerciseItems,
-          onChanged: onExerciseChanged,
-          style: TextStyle(
-            fontSize: 14.sp,
-            fontWeight: FontWeight.w600,
-            color: AppColors.textPrimary,
-          ),
-        ),
-        SizedBox(height: 6.h),
-        CheckboxListTile(
-          contentPadding: EdgeInsets.zero,
-          dense: true,
-          title: Text(
-            'High salt diet',
-            style: TextStyle(fontSize: 14.sp, fontWeight: FontWeight.w600),
-          ),
-          value: highSaltDiet,
-          onChanged: (v) => onHighSaltChanged(v ?? false),
-        ),
-        CheckboxListTile(
-          contentPadding: EdgeInsets.zero,
-          dense: true,
-          title: Text(
-            'Alcohol use',
-            style: TextStyle(fontSize: 14.sp, fontWeight: FontWeight.w600),
-          ),
-          value: alcoholUse,
-          onChanged: (v) => onAlcoholChanged(v ?? false),
-        ),
-        SizedBox(height: 8.h),
         FilledButton(
-          onPressed: saving ? null : onSave,
+          onPressed: widget.saving ? null : widget.onSave,
           style: FilledButton.styleFrom(
             backgroundColor: AppColors.registrationSaveBlue,
             foregroundColor: AppColors.surface,
@@ -259,7 +399,7 @@ class PatientLifestyleForm extends StatelessWidget {
             ),
           ),
           child: Text(
-            saving ? 'Saving…' : 'Save Lifestyle',
+            widget.saving ? 'Saving…' : 'Save Baseline Lifestyle',
             style: TextStyle(fontSize: 15.sp, fontWeight: FontWeight.w800),
           ),
         ),
@@ -293,37 +433,55 @@ class PatientLifestyleForm extends StatelessWidget {
       keyboardType: keyboardType,
       maxLines: maxLines,
       style: TextStyle(fontSize: 14.sp, fontWeight: FontWeight.w600),
-      decoration: fieldDecoration(hint: hint),
+      decoration: widget.fieldDecoration(hint: hint),
     );
   }
 }
 
-class _LifestyleSectionHeader extends StatelessWidget {
-  const _LifestyleSectionHeader({
-    required this.icon,
-    required this.title,
+class _BaselineLifestyleTabBar extends StatelessWidget {
+  const _BaselineLifestyleTabBar({
+    required this.selected,
+    required this.onSelected,
   });
 
-  final IconData icon;
-  final String title;
+  final BaselineLifestyleTab selected;
+  final ValueChanged<BaselineLifestyleTab> onSelected;
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: EdgeInsets.only(bottom: 4.h),
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
       child: Row(
-        children: [
-          Icon(icon, size: 17.sp, color: AppColors.dashboardPrimary),
-          SizedBox(width: 8.w),
-          Text(
-            title,
-            style: TextStyle(
-              fontSize: 13.sp,
-              fontWeight: FontWeight.w800,
-              color: AppColors.dashboardPrimaryDark,
+        children: BaselineLifestyleTab.values.map((tab) {
+          final isSelected = selected == tab;
+          return Padding(
+            padding: EdgeInsets.only(right: 8.w),
+            child: Material(
+              color: isSelected
+                  ? AppColors.dashboardPrimary
+                  : AppColors.dashboardChipBlueBg,
+              borderRadius: BorderRadius.circular(999),
+              child: InkWell(
+                borderRadius: BorderRadius.circular(999),
+                onTap: () => onSelected(tab),
+                child: Padding(
+                  padding:
+                      EdgeInsets.symmetric(horizontal: 14.w, vertical: 8.h),
+                  child: Text(
+                    tab.label,
+                    style: TextStyle(
+                      fontSize: 12.sp,
+                      fontWeight: FontWeight.w800,
+                      color: isSelected
+                          ? AppColors.surface
+                          : AppColors.dashboardPrimaryDark,
+                    ),
+                  ),
+                ),
+              ),
             ),
-          ),
-        ],
+          );
+        }).toList(),
       ),
     );
   }
@@ -342,6 +500,8 @@ class _LifestyleFieldRow extends StatelessWidget {
   final Color? valueColor;
   final bool showDivider;
 
+  static const double _labelWidth = 108;
+
   @override
   Widget build(BuildContext context) {
     final empty = value.trim().isEmpty || value.trim() == '—';
@@ -354,7 +514,7 @@ class _LifestyleFieldRow extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               SizedBox(
-                width: PatientLifestyleView._labelWidth.w,
+                width: _labelWidth.w,
                 child: Text(
                   label,
                   style: TextStyle(
@@ -406,13 +566,13 @@ class _LifestyleEmptyState extends StatelessWidget {
       child: Column(
         children: [
           Icon(
-            Icons.restaurant_outlined,
+            Icons.spa_outlined,
             size: 34.sp,
             color: AppColors.dashboardPrimary.withValues(alpha: 0.55),
           ),
           SizedBox(height: 12.h),
           Text(
-            'No lifestyle details recorded yet.',
+            'No baseline lifestyle recorded yet.',
             textAlign: TextAlign.center,
             style: TextStyle(
               fontSize: 13.sp,
@@ -426,7 +586,7 @@ class _LifestyleEmptyState extends StatelessWidget {
             TextButton(
               onPressed: onRecordTap,
               child: Text(
-                'Record lifestyle',
+                'Record baseline',
                 style: TextStyle(
                   fontSize: 14.sp,
                   fontWeight: FontWeight.w800,

@@ -12,7 +12,6 @@ import 'package:doctor_app/src/core/session/session_controller.dart';
 import 'package:doctor_app/src/core/theme/app_colors.dart';
 import 'package:doctor_app/src/features/patients/patient_api.dart';
 import 'package:doctor_app/src/features/patients/patient_directory_coordinator.dart';
-import 'package:doctor_app/src/widgets/urdu_help_suffix.dart';
 
 /// Full-screen new patient form — pushed from Patients tab (+).
 class NewPatientRegistrationScreen extends StatefulWidget {
@@ -284,22 +283,16 @@ class _NewPatientRegistrationScreenState
     );
   }
 
-  Widget _labelRow(String en, String urduHelp) {
+  Widget _labelRow(String en) {
     return Padding(
       padding: EdgeInsets.only(bottom: 6.h),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          Text(
-            en,
-            style: TextStyle(
-              fontSize: 13.sp,
-              fontWeight: FontWeight.w700,
-              color: AppColors.textPrimary,
-            ),
-          ),
-          UrduHelpSuffix(urduText: urduHelp),
-        ],
+      child: Text(
+        en,
+        style: TextStyle(
+          fontSize: 13.sp,
+          fontWeight: FontWeight.w700,
+          color: AppColors.textPrimary,
+        ),
       ),
     );
   }
@@ -339,8 +332,7 @@ class _NewPatientRegistrationScreenState
       child: Padding(
         padding: EdgeInsets.symmetric(horizontal: 4.w),
         child: Material(
-          color:
-              selected ? AppColors.registrationFieldFill : AppColors.surface,
+          color: selected ? AppColors.registrationFieldFill : AppColors.surface,
           borderRadius: BorderRadius.circular(10.r),
           child: InkWell(
             onTap: () => setState(() => _gender = value),
@@ -350,9 +342,8 @@ class _NewPatientRegistrationScreenState
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(10.r),
                 border: Border.all(
-                  color: selected
-                      ? AppColors.dashboardPrimary
-                      : AppColors.border,
+                  color:
+                      selected ? AppColors.dashboardPrimary : AppColors.border,
                   width: selected ? 1.8 : 1,
                 ),
               ),
@@ -447,7 +438,7 @@ class _NewPatientRegistrationScreenState
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     _sectionTitle('SECTION 1 — BASIC INFORMATION'),
-                    _labelRow('First Name', 'مریض کا پہلا نام'),
+                    _labelRow('First Name'),
                     TextFormField(
                       controller: _firstNameController,
                       textCapitalization: TextCapitalization.words,
@@ -460,7 +451,7 @@ class _NewPatientRegistrationScreenState
                       },
                     ),
                     SizedBox(height: 14.h),
-                    _labelRow('Last Name', 'آخری نام'),
+                    _labelRow('Last Name'),
                     TextFormField(
                       controller: _lastNameController,
                       textCapitalization: TextCapitalization.words,
@@ -473,7 +464,7 @@ class _NewPatientRegistrationScreenState
                       },
                     ),
                     SizedBox(height: 14.h),
-                    _labelRow('CNIC', 'شناختی کارڈ نمبر'),
+                    _labelRow('CNIC'),
                     TextFormField(
                       controller: _cnicController,
                       keyboardType: TextInputType.number,
@@ -499,7 +490,7 @@ class _NewPatientRegistrationScreenState
                       ),
                     ),
                     SizedBox(height: 14.h),
-                    _labelRow('Date of Birth', 'تاریخ پیدائش'),
+                    _labelRow('Date of Birth'),
                     TextFormField(
                       controller: _dobController,
                       readOnly: true,
@@ -519,7 +510,7 @@ class _NewPatientRegistrationScreenState
                           _dateOfBirth == null ? 'Select date of birth' : null,
                     ),
                     SizedBox(height: 14.h),
-                    _labelRow('Gender', 'جنس'),
+                    _labelRow('Gender'),
                     Row(
                       children: [
                         _genderChip('Female', _PatientGenderForm.female),
@@ -528,7 +519,7 @@ class _NewPatientRegistrationScreenState
                       ],
                     ),
                     SizedBox(height: 14.h),
-                    _labelRow('Marital status', 'ازدواجی حیثیت'),
+                    _labelRow('Marital status'),
                     DropdownButtonFormField<int>(
                       value: _maritalStatusId,
                       decoration: _fieldDecoration(
@@ -556,13 +547,12 @@ class _NewPatientRegistrationScreenState
                     ),
                     SizedBox(height: 22.h),
                     _sectionTitle('SECTION 2 — CONTACT & LOCATION'),
-                    _labelRow('Phone Number', 'فون نمبر'),
+                    _labelRow('Phone Number'),
                     TextFormField(
                       controller: _phoneController,
                       keyboardType: TextInputType.phone,
                       inputFormatters: [PakistanPhoneInputFormatter()],
-                      decoration:
-                          _fieldDecoration(hint: '03001234567'),
+                      decoration: _fieldDecoration(hint: '03001234567'),
                       validator: (v) {
                         if (!PakistanPhoneInputFormatter.isValidPakistaniMobile(
                           v ?? '',
@@ -573,7 +563,7 @@ class _NewPatientRegistrationScreenState
                       },
                     ),
                     SizedBox(height: 14.h),
-                    _labelRow('Province', 'صوبہ'),
+                    _labelRow('Province'),
                     DropdownButtonFormField<int>(
                       value: _provinceId,
                       decoration: _fieldDecoration(
@@ -594,8 +584,7 @@ class _NewPatientRegistrationScreenState
                           )
                           .toList(),
                       onChanged: _loadingRefs ? null : _onProvinceChanged,
-                      validator: (v) =>
-                          v == null ? 'Select province' : null,
+                      validator: (v) => v == null ? 'Select province' : null,
                     ),
                     SizedBox(height: 14.h),
                     Row(
@@ -605,7 +594,7 @@ class _NewPatientRegistrationScreenState
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
-                              _labelRow('District', 'ضلع'),
+                              _labelRow('District'),
                               DropdownButtonFormField<int>(
                                 value: _districtId,
                                 decoration: _fieldDecoration(
@@ -625,8 +614,9 @@ class _NewPatientRegistrationScreenState
                                       ),
                                     )
                                     .toList(),
-                                onChanged:
-                                    _districts.isEmpty ? null : _onDistrictChanged,
+                                onChanged: _districts.isEmpty
+                                    ? null
+                                    : _onDistrictChanged,
                                 validator: (v) =>
                                     v == null ? 'Select district' : null,
                               ),
@@ -638,7 +628,7 @@ class _NewPatientRegistrationScreenState
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
-                              _labelRow('Tehsil', 'تحصیل'),
+                              _labelRow('Tehsil'),
                               DropdownButtonFormField<int>(
                                 value: _tehsilId,
                                 decoration: _fieldDecoration(
@@ -670,7 +660,7 @@ class _NewPatientRegistrationScreenState
                       ],
                     ),
                     SizedBox(height: 14.h),
-                    _labelRow('Street Address', 'گھر کا پتہ'),
+                    _labelRow('Street Address'),
                     TextFormField(
                       controller: _streetController,
                       maxLines: 2,

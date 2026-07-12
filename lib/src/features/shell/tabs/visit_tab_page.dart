@@ -2371,25 +2371,19 @@ class _VisitAssessmentViewState extends State<_VisitAssessmentView> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      _nextVisitDateTile(),
-                      SizedBox(height: 18.h),
-                      if (_refsLoading)
-                        Padding(
-                          padding: EdgeInsets.all(16.r),
-                          child: Center(
-                            child: CircularProgressIndicator(
-                              color: AppColors.dashboardPrimary,
-                            ),
+                      if (!_refsLoading) ...[
+                        _label('Presenting Complaint'),
+                        TextFormField(
+                          controller: _reasonController,
+                          maxLines: 2,
+                          style: TextStyle(
+                            fontSize: 14.sp,
+                            fontWeight: FontWeight.w600,
                           ),
-                        )
-                      else
-                        _dropdownInt(
-                          label: 'Visit status',
-                          value: _visitStatusId,
-                          items: _visitStatuses,
-                          onChanged: (v) => setState(() => _visitStatusId = v),
+                          decoration: _fieldDecoration(),
                         ),
-                      SizedBox(height: 18.h),
+                        SizedBox(height: 18.h),
+                      ],
                       _visitVitalsRecordCard(),
                       SizedBox(height: 12.h),
                       _dangerSignsToggle(),
@@ -2419,17 +2413,6 @@ class _VisitAssessmentViewState extends State<_VisitAssessmentView> {
                               ? null
                               : (v) =>
                                   setState(() => _isFollowUpVisit = v ?? false),
-                        ),
-                        SizedBox(height: 8.h),
-                        _label('Reason for visit'),
-                        TextFormField(
-                          controller: _reasonController,
-                          maxLines: 2,
-                          style: TextStyle(
-                            fontSize: 14.sp,
-                            fontWeight: FontWeight.w600,
-                          ),
-                          decoration: _fieldDecoration(),
                         ),
                       ],
                       SizedBox(height: 18.h),
@@ -2488,6 +2471,26 @@ class _VisitAssessmentViewState extends State<_VisitAssessmentView> {
                         decoration: _fieldDecoration(),
                       ),
                       SizedBox(height: 24.h),
+                      if (_refsLoading)
+                        Padding(
+                          padding: EdgeInsets.all(16.r),
+                          child: Center(
+                            child: CircularProgressIndicator(
+                              color: AppColors.dashboardPrimary,
+                            ),
+                          ),
+                        )
+                      else ...[
+                        _nextVisitDateTile(),
+                        SizedBox(height: 18.h),
+                        _dropdownInt(
+                          label: 'Visit status',
+                          value: _visitStatusId,
+                          items: _visitStatuses,
+                          onChanged: (v) => setState(() => _visitStatusId = v),
+                        ),
+                        SizedBox(height: 24.h),
+                      ],
                       FilledButton.icon(
                         onPressed: (_submitting || _refsLoading)
                             ? null

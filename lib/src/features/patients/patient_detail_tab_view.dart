@@ -92,7 +92,6 @@ enum PatientDetailSection {
   medicalHistory,
   familyHistory,
   baselineLifestyle,
-  lifestyle,
   visitHistory,
 }
 
@@ -102,7 +101,6 @@ extension PatientDetailSectionUi on PatientDetailSection {
         PatientDetailSection.medicalHistory => 'Medical History',
         PatientDetailSection.familyHistory => 'Family History',
         PatientDetailSection.baselineLifestyle => 'Baseline Lifestyle',
-        PatientDetailSection.lifestyle => 'Lifestyle',
         PatientDetailSection.visitHistory => 'Visit History',
       };
 
@@ -114,9 +112,7 @@ extension PatientDetailSectionUi on PatientDetailSection {
         PatientDetailSection.familyHistory =>
           'Family relatives & hereditary conditions',
         PatientDetailSection.baselineLifestyle =>
-          'Baseline lifestyle & family HTN/stroke',
-        PatientDetailSection.lifestyle =>
-          'Meals, sleep, exercise, salt & alcohol',
+          'Meals, sleep, exercise, tobacco & habits',
         PatientDetailSection.visitHistory => 'Past visits & follow-ups',
       };
 
@@ -126,7 +122,6 @@ extension PatientDetailSectionUi on PatientDetailSection {
           Icons.medical_information_outlined,
         PatientDetailSection.familyHistory => Icons.family_restroom_outlined,
         PatientDetailSection.baselineLifestyle => Icons.spa_outlined,
-        PatientDetailSection.lifestyle => Icons.restaurant_outlined,
         PatientDetailSection.visitHistory => Icons.event_note_rounded,
       };
 
@@ -135,7 +130,6 @@ extension PatientDetailSectionUi on PatientDetailSection {
         PatientDetailSection.medicalHistory => AppColors.followAccentPurple,
         PatientDetailSection.familyHistory => AppColors.dashboardWarning,
         PatientDetailSection.baselineLifestyle => AppColors.followAccentGreen,
-        PatientDetailSection.lifestyle => AppColors.dashboardPrimaryDark,
         PatientDetailSection.visitHistory => AppColors.dashboardPrimaryDark,
       };
 }
@@ -1676,6 +1670,8 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
   Future<void> _saveBaselineLifestyle({
     required String successMessage,
     bool validateTobacco = false,
+    bool includeLifestyle = false,
+    bool popOnSuccess = false,
   }) async {
     final session = context.read<SessionController>();
     final token = session.state.accessToken?.trim();
@@ -1694,26 +1690,54 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
     final api = _patientApi!;
     final body = _buildBaselineLifestyleBody(pid);
 
-    setState(() => _savingBaseline = true);
+    if (includeLifestyle &&
+        _exerciseLevelLabel.trim().isEmpty &&
+        _exerciseLevelId != null) {
+      _exerciseLevelLabel = _exerciseLevelName(_exerciseLevelId);
+    }
+
+    setState(() {
+      _savingBaseline = true;
+      if (includeLifestyle) _savingLifestyle = true;
+    });
     try {
       if (_baselineLoaded) {
         await api.putBaselineLifestyle(body: body, bearerToken: token);
       } else {
         await api.postBaselineLifestyle(body: body, bearerToken: token);
       }
+      if (includeLifestyle) {
+        await api.upsertLifestyle(
+          body: _buildLifestyleBody(pid),
+          bearerToken: token,
+        );
+      }
       if (!mounted) return;
       setState(() {
         _baselineLoaded = true;
+        if (includeLifestyle) _lifestyleLoaded = true;
       });
       _syncCachedHistoryFromLocal();
       _updateCacheFromState();
       _toast(successMessage);
+      if (popOnSuccess && widget.fixedSection != null) {
+        widget.onBack();
+        return;
+      }
+      if (includeLifestyle) {
+        setState(() => _sectionReadOnly = true);
+      }
       await _loadClinical(session, token);
     } on Object catch (e) {
       if (!mounted || e is SessionEndedFailure) return;
       _toast(session.apiClient.mapError(e).message);
     } finally {
-      if (mounted) setState(() => _savingBaseline = false);
+      if (mounted) {
+        setState(() {
+          _savingBaseline = false;
+          _savingLifestyle = false;
+        });
+      }
     }
   }
 
@@ -1736,44 +1760,6 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
       body['exerciseLevelId'] = exerciseId;
     }
     return body;
-  }
-
-  Future<void> _saveLifestyle() async {
-    final session = context.read<SessionController>();
-    final token = session.state.accessToken?.trim();
-    if (token == null || token.isEmpty) {
-      _toast('Please sign in again.');
-      return;
-    }
-
-    // Keep selected exercise label even if reference list is empty after reload.
-    if (_exerciseLevelLabel.trim().isEmpty && _exerciseLevelId != null) {
-      _exerciseLevelLabel = _exerciseLevelName(_exerciseLevelId);
-    }
-
-    final pid = widget.summary.patientId;
-    final body = _buildLifestyleBody(pid);
-
-    setState(() => _savingLifestyle = true);
-    try {
-      await _patientApi!.upsertLifestyle(body: body, bearerToken: token);
-      if (!mounted) return;
-      setState(() => _lifestyleLoaded = true);
-      _syncCachedHistoryFromLocal();
-      _updateCacheFromState();
-      _toast('Lifestyle saved.');
-      if (widget.fixedSection != null) {
-        widget.onBack();
-        return;
-      }
-      setState(() => _sectionReadOnly = true);
-      await _loadLifestyle(session, token);
-    } on Object catch (e) {
-      if (!mounted || e is SessionEndedFailure) return;
-      _toast(session.apiClient.mapError(e).message);
-    } finally {
-      if (mounted) setState(() => _savingLifestyle = false);
-    }
   }
 
   void _openVisitAssessment() {
@@ -4762,106 +4748,30 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
   }
 
   Widget _baselineBody() {
-    if (_loadingDetail && !_bundleReady && !_baselineLoaded) {
-      return const SizedBox.shrink();
-    }
-    if (!_sectionEditable) {
-      final hasBaselineData =
-          _baselineLoaded || _familyHtn || _tobaccoUse;
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          if (!hasBaselineData)
-            _historyEmptyState(
-              icon: Icons.spa_outlined,
-              viewMessage:
-                  'No baseline lifestyle recorded for this patient yet.',
-              addLabel: 'Record baseline',
-              onAdd: _toggleSectionReadOnly,
-            )
-          else
-            _infoGroupCard(
-              icon: Icons.spa_outlined,
-              title: 'Baseline Lifestyle',
-              rows: [
-                (
-                  'Family history of HTN / stroke',
-                  _familyHtn ? 'Yes' : 'No',
-                ),
-                (
-                  'Tobacco use',
-                  _tobaccoUse ? 'Yes' : 'No',
-                ),
-                if (_tobaccoUse) ...[
-                  ('Tobacco type', _tobaccoTypeController.text),
-                  ('Quantity per day', _tobaccoQuantityController.text),
-                  (
-                    'Duration start',
-                    _tobaccoDurationStart != null
-                        ? _displayDate(_tobaccoDurationStart)
-                        : '',
-                  ),
-                  (
-                    'Duration end',
-                    _tobaccoDurationEnd != null
-                        ? _displayDate(_tobaccoDurationEnd)
-                        : '',
-                  ),
-                ],
-              ],
-            ),
-          SizedBox(height: MediaQuery.paddingOf(context).bottom + 12.h),
-        ],
-      );
-    }
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        _historySectionCard(
-          icon: Icons.spa_outlined,
-          title: 'Baseline lifestyle',
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                title: Text(
-                  'Family history of HTN / stroke',
-                  style:
-                      TextStyle(fontSize: 13.sp, fontWeight: FontWeight.w600),
-                ),
-                value: _familyHtn,
-                onChanged: (v) => setState(() => _familyHtn = v),
-              ),
-            ],
-          ),
-        ),
-        if (_sectionEditable)
-          _primaryCtaButton(
-            onPressed: _savingBaseline
-                ? null
-                : () => unawaited(
-                      _saveBaselineLifestyle(
-                        successMessage: 'Baseline lifestyle saved.',
-                      ),
-                    ),
-            label: _savingBaseline ? 'Saving…' : 'Save Baseline Lifestyle',
-          ),
-        SizedBox(height: MediaQuery.paddingOf(context).bottom + 12.h),
-      ],
-    );
-  }
-
-  Widget _lifestyleBody() {
-    if (_loadingDetail && !_bundleReady && !_lifestyleLoaded) {
+    if (_loadingDetail && !_bundleReady && !_baselineLoaded && !_lifestyleLoaded) {
       return const SizedBox.shrink();
     }
 
+    final hasData = _baselineLoaded ||
+        _lifestyleLoaded ||
+        _familyHtn ||
+        _tobaccoUse ||
+        _lifestyleFormTouched;
+
     if (!_sectionEditable) {
-      final hasData = _lifestyleLoaded || _lifestyleFormTouched;
       return PatientLifestyleView(
         data: hasData
             ? PatientLifestyleViewData(
+                familyHistoryOfHtnOrStroke: _familyHtn,
+                tobaccoUse: _tobaccoUse,
+                tobaccoType: _tobaccoTypeController.text,
+                tobaccoQuantityPerDay: _tobaccoQuantityController.text,
+                tobaccoDurationStart: _tobaccoDurationStart != null
+                    ? _displayDate(_tobaccoDurationStart)
+                    : '',
+                tobaccoDurationEnd: _tobaccoDurationEnd != null
+                    ? _displayDate(_tobaccoDurationEnd)
+                    : '',
                 breakfast: _breakfastController.text,
                 lunch: _lunchController.text,
                 snacks: _snacksController.text,
@@ -4878,6 +4788,8 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
     }
 
     return PatientLifestyleForm(
+      familyHtn: _familyHtn,
+      onFamilyHtnChanged: (v) => setState(() => _familyHtn = v),
       breakfastController: _breakfastController,
       lunchController: _lunchController,
       snacksController: _snacksController,
@@ -4888,11 +4800,17 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
       exerciseLevelId: _exerciseLevelId,
       highSaltDiet: _highSaltDiet,
       alcoholUse: _alcoholUse,
-      saving: _savingLifestyle,
+      saving: _savingBaseline || _savingLifestyle,
       onExerciseChanged: (v) => setState(() => _setExerciseLevel(v)),
       onHighSaltChanged: (v) => setState(() => _highSaltDiet = v),
       onAlcoholChanged: (v) => setState(() => _alcoholUse = v),
-      onSave: () => unawaited(_saveLifestyle()),
+      onSave: () => unawaited(
+            _saveBaselineLifestyle(
+              successMessage: 'Baseline lifestyle saved.',
+              includeLifestyle: true,
+              popOnSuccess: true,
+            ),
+          ),
       fieldDecoration: ({String? hint}) => _fieldDecoration(hint: hint),
     );
   }
@@ -5233,7 +5151,6 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
         _medicalBody(),
         familySection,
         _baselineBody(),
-        _lifestyleBody(),
         _visitsBody(),
       ],
     );
