@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 /// `GET /api/Patient/{patientId}` — `PatientProfileResponseModel` (camelCase JSON).
 class PatientProfileData {
   const PatientProfileData({
@@ -840,7 +842,7 @@ class PatientLifeStyle {
   }
 }
 
-/// `GET /api/Patient/counselling-instructions` — text-only counselling list.
+/// `GET /api/Patient/counselling-instructison` — text-only counselling list.
 class CounsellingInstruction {
   const CounsellingInstruction({
     required this.id,
@@ -853,12 +855,16 @@ class CounsellingInstruction {
   static CounsellingInstruction? tryFromJson(dynamic json) {
     if (json is! Map) return null;
     final m = Map<String, dynamic>.from(json);
-    final id = _readInt(m, 'id', 'Id');
-    if (id == null) return null;
+    final instructionName = _readString(m, 'instructionName', 'InstructionName') ??
+        _readString(m, 'instruction', 'Instruction') ??
+        _readString(m, 'name', 'Name') ??
+        '';
+    if (instructionName.isEmpty) return null;
+
+    final id = _readInt(m, 'id', 'Id') ?? 0;
     return CounsellingInstruction(
       id: id,
-      instructionName:
-          _readString(m, 'instructionName', 'InstructionName') ?? '',
+      instructionName: instructionName,
     );
   }
 }
@@ -866,22 +872,72 @@ class CounsellingInstruction {
 List<CounsellingInstruction> parseCounsellingInstructionsList(dynamic root) {
   final raw = _unwrapEnvelopeList(root);
   final out = <CounsellingInstruction>[];
-  for (final item in raw) {
-    final row = CounsellingInstruction.tryFromJson(item);
-    if (row != null) out.add(row);
+  for (var i = 0; i < raw.length; i++) {
+    final row = CounsellingInstruction.tryFromJson(raw[i]);
+    if (row != null) {
+      out.add(row);
+      continue;
+    }
+    final text = raw[i]?.toString().trim() ?? '';
+    if (text.isNotEmpty) {
+      out.add(CounsellingInstruction(id: i + 1, instructionName: text));
+    }
   }
-  out.sort((a, b) => a.id.compareTo(b.id));
+  out.sort((a, b) {
+    if (a.id != 0 && b.id != 0) return a.id.compareTo(b.id);
+    return a.instructionName.compareTo(b.instructionName);
+  });
   return out;
 }
 
 List<dynamic> _unwrapEnvelopeList(dynamic root) {
+  root = _normalizeJsonRoot(root);
   if (root is List) return root;
   if (root is Map) {
     final m = Map<String, dynamic>.from(root);
-    final inner = m['data'] ?? m['Data'];
-    if (inner is List) return inner;
+    final envelope = m['data'] ?? m['Data'] ?? m['result'] ?? m['Result'];
+    if (envelope is List) return envelope;
+    if (envelope is Map) {
+      final nested = _listFromMap(Map<String, dynamic>.from(envelope));
+      if (nested != null) return nested;
+    }
+    final direct = _listFromMap(m);
+    if (direct != null) return direct;
   }
   return const [];
+}
+
+dynamic _normalizeJsonRoot(dynamic root) {
+  if (root is String) {
+    final trimmed = root.trim();
+    if (trimmed.isEmpty) return root;
+    try {
+      return jsonDecode(trimmed);
+    } catch (_) {
+      return root;
+    }
+  }
+  return root;
+}
+
+List<dynamic>? _listFromMap(Map<String, dynamic> m) {
+  for (final key in const [
+    'counsellingInstructions',
+    'CounsellingInstructions',
+    'instructions',
+    'Instructions',
+    'items',
+    'Items',
+    'records',
+    'Records',
+    'results',
+    'Results',
+    r'$values',
+  ]) {
+    final value = m[key];
+    if (value is List) return value;
+  }
+  return null;
 }
 
 class PatientVisitRow {

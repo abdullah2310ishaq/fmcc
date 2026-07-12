@@ -1106,6 +1106,9 @@ class _VisitAssessmentViewState extends State<_VisitAssessmentView> {
       return;
     }
 
+    if (!mounted) return;
+    final counsellingItems = List<CounsellingInstruction>.from(items);
+
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -1140,7 +1143,7 @@ class _VisitAssessmentViewState extends State<_VisitAssessmentView> {
                   ],
                 ),
                 SizedBox(height: 8.h),
-                if (items.isEmpty)
+                if (counsellingItems.isEmpty)
                   Padding(
                     padding: EdgeInsets.symmetric(vertical: 24.h),
                     child: Text(
@@ -1158,40 +1161,40 @@ class _VisitAssessmentViewState extends State<_VisitAssessmentView> {
                     constraints: BoxConstraints(
                       maxHeight: MediaQuery.sizeOf(ctx).height * 0.55,
                     ),
-                    child: ListView.separated(
-                      shrinkWrap: true,
-                      itemCount: items.length,
-                      separatorBuilder: (_, __) => Divider(height: 20.h),
-                      itemBuilder: (_, i) {
-                        final row = items[i];
-                        return Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              '${i + 1}.',
-                              style: TextStyle(
-                                fontSize: 13.sp,
-                                fontWeight: FontWeight.w800,
-                                color: AppColors.followAccentGreen,
-                              ),
-                            ),
-                            SizedBox(width: 10.w),
-                            Expanded(
-                              child: Text(
-                                row.instructionName.trim().isEmpty
-                                    ? '—'
-                                    : row.instructionName.trim(),
-                                style: TextStyle(
-                                  fontSize: 14.sp,
-                                  fontWeight: FontWeight.w600,
-                                  color: AppColors.textPrimary,
-                                  height: 1.4,
+                    child: SingleChildScrollView(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          for (var i = 0; i < counsellingItems.length; i++) ...[
+                            if (i > 0) Divider(height: 20.h),
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  '${i + 1}.',
+                                  style: TextStyle(
+                                    fontSize: 13.sp,
+                                    fontWeight: FontWeight.w800,
+                                    color: AppColors.followAccentGreen,
+                                  ),
                                 ),
-                              ),
+                                SizedBox(width: 10.w),
+                                Expanded(
+                                  child: Text(
+                                    counsellingItems[i].instructionName.trim(),
+                                    style: TextStyle(
+                                      fontSize: 14.sp,
+                                      fontWeight: FontWeight.w600,
+                                      color: AppColors.textPrimary,
+                                      height: 1.4,
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
                           ],
-                        );
-                      },
+                        ],
+                      ),
                     ),
                   ),
               ],

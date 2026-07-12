@@ -556,19 +556,14 @@ class PatientApi {
     }
   }
 
-  /// `GET /api/Patient/counselling-instructions` — text-only list for Controlled BP.
+  /// `GET /api/Patient/counselling-instructison` — text-only list for Controlled BP.
   Future<List<CounsellingInstruction>> getCounsellingInstructions({
     required String bearerToken,
   }) async {
-    try {
-      final res = await _client.get(
-        Endpoints.patientCounsellingInstructions,
-        bearerToken: bearerToken,
-      );
-      return parseCounsellingInstructionsList(res.data);
-    } on DioException catch (e) {
-      if (e.response?.statusCode == 404) return const [];
-      rethrow;
-    }
+    final res = await _client.get(
+      Endpoints.patientCounsellingInstructions,
+      bearerToken: bearerToken,
+    );
+    return parseCounsellingInstructionsList(res.data);
   }
 }

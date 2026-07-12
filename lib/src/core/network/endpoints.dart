@@ -123,6 +123,8 @@ class Endpoints {
   static const String patientVisitCreate = '/api/Patient/visit';
   static const String patientVisitUpdate = '/api/Patient/visit';
   static const String patientVisitInstructions = '/api/Patient/instructions';
+  /// Text-only counselling list when visit BP is Controlled (GREEN).
+  /// Not the pre-visit carousel (`patientVisitInstructions`).
   static const String patientCounsellingInstructions =
-      '/api/Patient/counselling-instructions';
+      '/api/Patient/counselling-instructison';
 }
