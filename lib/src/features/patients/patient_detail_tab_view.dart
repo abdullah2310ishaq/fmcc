@@ -4851,7 +4851,6 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
               successMessage: 'Baseline lifestyle saved.',
               includeLifestyle: true,
               validateTobacco: true,
-              popOnSuccess: true,
             ),
           ),
       fieldDecoration: ({String? hint}) => _fieldDecoration(hint: hint),
