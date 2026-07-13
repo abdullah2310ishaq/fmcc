@@ -5,6 +5,7 @@ import 'package:doctor_app/src/core/theme/app_colors.dart';
 import 'package:doctor_app/src/features/home/health_worker_dashboard_models.dart';
 import 'package:doctor_app/src/features/patients/patient_detail_profile_banner.dart';
 import 'package:doctor_app/src/features/patients/patient_detail_tab_view.dart';
+import 'package:doctor_app/src/features/patients/patient_prescription_history_page.dart';
 import 'package:doctor_app/src/features/shell/tabs/visit_tab_page.dart';
 
 /// Patient overview — profile at top + one elevated card per history section.
@@ -84,9 +85,28 @@ class PatientDetailHubPage extends StatelessWidget {
           Expanded(
             child: ListView.separated(
               padding: EdgeInsets.fromLTRB(18.w, 20.h, 18.w, 28.h),
-              itemCount: PatientDetailSection.values.length,
+              itemCount: PatientDetailSection.values.length + 1,
               separatorBuilder: (_, __) => SizedBox(height: 12.h),
               itemBuilder: (context, index) {
+                if (index == PatientDetailSection.values.length) {
+                  return _SectionHubCard(
+                    sectionLabel: 'Prescription History',
+                    sectionSubtitle:
+                        'Read-only doctor prescriptions for this patient',
+                    sectionIcon: Icons.medication_liquid_outlined,
+                    sectionAccent: AppColors.dashboardActionRed,
+                    onTap: () {
+                      Navigator.of(context).push<void>(
+                        MaterialPageRoute<void>(
+                          builder: (ctx) => PatientPrescriptionHistoryPage(
+                            patientId: summary.patientId,
+                            patientName: summary.fullName,
+                          ),
+                        ),
+                      );
+                    },
+                  );
+                }
                 final section = PatientDetailSection.values[index];
                 return _SectionHubCard(
                   section: section,
@@ -103,16 +123,33 @@ class PatientDetailHubPage extends StatelessWidget {
 
 class _SectionHubCard extends StatelessWidget {
   const _SectionHubCard({
-    required this.section,
+    this.section,
+    this.sectionLabel,
+    this.sectionSubtitle,
+    this.sectionIcon,
+    this.sectionAccent,
     required this.onTap,
-  });
+  }) : assert(
+          section != null ||
+              (sectionLabel != null &&
+                  sectionSubtitle != null &&
+                  sectionIcon != null &&
+                  sectionAccent != null),
+        );
 
-  final PatientDetailSection section;
+  final PatientDetailSection? section;
+  final String? sectionLabel;
+  final String? sectionSubtitle;
+  final IconData? sectionIcon;
+  final Color? sectionAccent;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    final accent = section.accentColor;
+    final accent = sectionAccent ?? section!.accentColor;
+    final label = sectionLabel ?? section!.label;
+    final subtitle = sectionSubtitle ?? section!.subtitle;
+    final icon = sectionIcon ?? section!.icon;
     return Material(
       color: AppColors.surface,
       elevation: 3,
@@ -137,7 +174,7 @@ class _SectionHubCard extends StatelessWidget {
                   borderRadius: BorderRadius.circular(14.r),
                 ),
                 alignment: Alignment.center,
-                child: Icon(section.icon, size: 24.sp, color: accent),
+                child: Icon(icon, size: 24.sp, color: accent),
               ),
               SizedBox(width: 14.w),
               Expanded(
@@ -145,7 +182,7 @@ class _SectionHubCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      section.label,
+                      label,
                       style: TextStyle(
                         fontSize: 15.sp,
                         fontWeight: FontWeight.w800,
@@ -154,7 +191,7 @@ class _SectionHubCard extends StatelessWidget {
                     ),
                     SizedBox(height: 3.h),
                     Text(
-                      section.subtitle,
+                      subtitle,
                       style: TextStyle(
                         fontSize: 12.sp,
                         fontWeight: FontWeight.w600,

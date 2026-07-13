@@ -12,6 +12,11 @@ class SessionStorage {
   static const _kShowDeclinedOnce = 'session.showDeclinedOnce';
   static const _kUserId = 'session.userId';
   static const _kHealthWorkerId = 'session.healthWorkerId';
+  static const _kDoctorId = 'session.doctorId';
+  static const _kDoctorSpeciality = 'session.doctorSpeciality';
+  static const _kPmdcNumber = 'session.pmdcNumber';
+  static const _kHospitalName = 'session.hospitalName';
+  static const _kHospitalConfirmed = 'session.hospitalConfirmed';
 
   static const _kAccessToken = 'session.accessToken';
   static const _kRefreshToken = 'session.refreshToken';
@@ -30,6 +35,11 @@ class SessionStorage {
     final showDeclinedOnce = prefs.getBool(_kShowDeclinedOnce) ?? false;
     final userId = prefs.getString(_kUserId);
     final healthWorkerId = prefs.getString(_kHealthWorkerId);
+    final doctorId = prefs.getString(_kDoctorId);
+    final doctorSpeciality = prefs.getString(_kDoctorSpeciality);
+    final pmdcNumber = prefs.getString(_kPmdcNumber);
+    final hospitalName = prefs.getString(_kHospitalName);
+    final hospitalConfirmed = prefs.getBool(_kHospitalConfirmed) ?? false;
     final accessToken = await _secure.read(key: _kAccessToken);
     final refreshToken = await _secure.read(key: _kRefreshToken);
 
@@ -42,6 +52,11 @@ class SessionStorage {
       showDeclinedMessageOnce: showDeclinedOnce,
       userId: userId,
       healthWorkerId: healthWorkerId,
+      doctorId: doctorId,
+      doctorSpeciality: doctorSpeciality,
+      pmdcNumber: pmdcNumber,
+      hospitalName: hospitalName,
+      hospitalConfirmed: hospitalConfirmed,
       accessToken: accessToken,
       refreshToken: refreshToken,
     );
@@ -55,6 +70,8 @@ class SessionStorage {
     await prefs.setString(_kFullName, session.registrationDetails.fullName);
     await prefs.setString(_kPhone, session.registrationDetails.phone);
     await prefs.setBool(_kShowDeclinedOnce, session.showDeclinedMessageOnce);
+    await prefs.setBool(_kHospitalConfirmed, session.hospitalConfirmed);
+
     if (session.userId == null) {
       await prefs.remove(_kUserId);
     } else {
@@ -67,6 +84,15 @@ class SessionStorage {
     } else {
       await prefs.setString(_kHealthWorkerId, session.healthWorkerId!.trim());
     }
+
+    await _writeOptionalString(prefs, _kDoctorId, session.doctorId);
+    await _writeOptionalString(
+      prefs,
+      _kDoctorSpeciality,
+      session.doctorSpeciality,
+    );
+    await _writeOptionalString(prefs, _kPmdcNumber, session.pmdcNumber);
+    await _writeOptionalString(prefs, _kHospitalName, session.hospitalName);
 
     if (session.accessToken == null || session.accessToken!.trim().isEmpty) {
       await _secure.delete(key: _kAccessToken);
@@ -93,8 +119,25 @@ class SessionStorage {
     await prefs.remove(_kShowDeclinedOnce);
     await prefs.remove(_kUserId);
     await prefs.remove(_kHealthWorkerId);
+    await prefs.remove(_kDoctorId);
+    await prefs.remove(_kDoctorSpeciality);
+    await prefs.remove(_kPmdcNumber);
+    await prefs.remove(_kHospitalName);
+    await prefs.remove(_kHospitalConfirmed);
     await _secure.delete(key: _kAccessToken);
     await _secure.delete(key: _kRefreshToken);
+  }
+
+  static Future<void> _writeOptionalString(
+    SharedPreferences prefs,
+    String key,
+    String? value,
+  ) async {
+    if (value == null || value.trim().isEmpty) {
+      await prefs.remove(key);
+    } else {
+      await prefs.setString(key, value.trim());
+    }
   }
 
   static UserRole _readRole(String? raw) {

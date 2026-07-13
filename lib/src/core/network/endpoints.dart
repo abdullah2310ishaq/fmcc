@@ -28,6 +28,9 @@ class Endpoints {
   static String healthWorkerProfileGet(String userId) =>
       '/api/Profile/health-worker-profile/$userId';
 
+  static String doctorProfileGet(String userId) =>
+      '/api/Profile/doctor-profile/${Uri.encodeComponent(userId)}';
+
   // Reference (dropdown) endpoints
   static const String educationLevels = '/api/Reference/education-levels';
   static const String provinces = '/api/Reference/provinces';
@@ -127,4 +130,22 @@ class Endpoints {
   /// Not the pre-visit carousel (`patientVisitInstructions`).
   static const String patientCounsellingInstructions =
       '/api/Patient/counselling-instructison';
+
+  // Doctor module
+  static String doctorUnassignHospital(String doctorId) =>
+      '/api/doctor/${Uri.encodeComponent(doctorId)}/unassign-hospital';
+
+  static String doctorDashboard(String doctorId) =>
+      '/api/Doctor/${Uri.encodeComponent(doctorId)}/dashboard';
+
+  static String doctorEmergencyQueue(String doctorId) =>
+      '/api/Patient/emergency-queue/${Uri.encodeComponent(doctorId)}';
+
+  static const String doctorPrescription = '/api/Doctor/prescription';
+
+  static String doctorPrescriptions(String doctorId) =>
+      '/api/Doctor/${Uri.encodeComponent(doctorId)}/prescriptions';
+
+  static String patientPrescriptionHistory(String patientId) =>
+      '/api/Patient/prescription-history/${Uri.encodeComponent(patientId)}';
 }

@@ -61,8 +61,14 @@ class _SplashScreenState extends State<SplashScreen>
 
   void _goNext() {
     if (!mounted) return;
-    final session = context.read<SessionController>().state;
-    context.go(sessionDestination(session));
+    final controller = context.read<SessionController>();
+    context.go(
+      sessionDestination(
+        controller.state,
+        hasPendingDoctorHospitalConfirmation:
+            controller.hasPendingDoctorHospitalConfirmation,
+      ),
+    );
   }
 
   @override

@@ -37,6 +37,11 @@ class AppSession extends Equatable {
     required this.showDeclinedMessageOnce,
     required this.userId,
     this.healthWorkerId,
+    this.doctorId,
+    this.doctorSpeciality,
+    this.pmdcNumber,
+    this.hospitalName,
+    this.hospitalConfirmed = false,
     required this.accessToken,
     required this.refreshToken,
   });
@@ -50,6 +55,11 @@ class AppSession extends Equatable {
       showDeclinedMessageOnce: false,
       userId: null,
       healthWorkerId: null,
+      doctorId: null,
+      doctorSpeciality: null,
+      pmdcNumber: null,
+      hospitalName: null,
+      hospitalConfirmed: false,
       accessToken: null,
       refreshToken: null,
     );
@@ -69,6 +79,16 @@ class AppSession extends Equatable {
   /// LHW profile `healthWorkerId` (e.g. certificate code). Dashboard + patient assignment use this when set.
   final String? healthWorkerId;
 
+  /// Doctor id for Doctor APIs (defaults to [userId] when unset).
+  final String? doctorId;
+
+  final String? doctorSpeciality;
+  final String? pmdcNumber;
+  final String? hospitalName;
+
+  /// Doctor must confirm hospital before entering the doctor shell.
+  final bool hospitalConfirmed;
+
   /// Bearer token for authorized API calls.
   final String? accessToken;
 
@@ -76,6 +96,12 @@ class AppSession extends Equatable {
   final String? refreshToken;
 
   bool get hasCompletedRegistrationDetails => registrationDetails.isComplete;
+
+  String get doctorIdForApis {
+    final d = doctorId?.trim();
+    if (d != null && d.isNotEmpty) return d;
+    return userId?.trim() ?? '';
+  }
 
   /// Profile `healthWorkerId` only (e.g. `A171DE66`). Used for dashboard routes,
   /// `assignedHealthWorkerId` on patient create/update, and visit `healthWorkerId`.
@@ -94,6 +120,11 @@ class AppSession extends Equatable {
     bool? showDeclinedMessageOnce,
     Object? userId = _unset,
     Object? healthWorkerId = _unset,
+    Object? doctorId = _unset,
+    Object? doctorSpeciality = _unset,
+    Object? pmdcNumber = _unset,
+    Object? hospitalName = _unset,
+    bool? hospitalConfirmed,
     Object? accessToken = _unset,
     Object? refreshToken = _unset,
   }) {
@@ -108,6 +139,14 @@ class AppSession extends Equatable {
       healthWorkerId: healthWorkerId == _unset
           ? this.healthWorkerId
           : healthWorkerId as String?,
+      doctorId: doctorId == _unset ? this.doctorId : doctorId as String?,
+      doctorSpeciality: doctorSpeciality == _unset
+          ? this.doctorSpeciality
+          : doctorSpeciality as String?,
+      pmdcNumber: pmdcNumber == _unset ? this.pmdcNumber : pmdcNumber as String?,
+      hospitalName:
+          hospitalName == _unset ? this.hospitalName : hospitalName as String?,
+      hospitalConfirmed: hospitalConfirmed ?? this.hospitalConfirmed,
       accessToken:
           accessToken == _unset ? this.accessToken : accessToken as String?,
       refreshToken:
@@ -124,6 +163,11 @@ class AppSession extends Equatable {
         showDeclinedMessageOnce,
         userId,
         healthWorkerId,
+        doctorId,
+        doctorSpeciality,
+        pmdcNumber,
+        hospitalName,
+        hospitalConfirmed,
         accessToken,
         refreshToken,
       ];

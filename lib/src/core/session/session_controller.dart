@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 
 import 'package:doctor_app/src/core/auth/auth_api.dart';
+import 'package:doctor_app/src/core/auth/auth_models.dart';
 import 'package:doctor_app/src/core/logging/app_logger.dart';
 import 'package:doctor_app/src/core/network/api_client.dart';
 import 'package:doctor_app/src/core/network/api_failure.dart';
@@ -10,6 +11,8 @@ import 'package:doctor_app/src/core/reference/reference_api.dart';
 import 'package:doctor_app/src/core/reference/reference_models.dart';
 import 'package:doctor_app/src/core/session/app_session.dart';
 import 'package:doctor_app/src/core/session/session_storage.dart';
+import 'package:doctor_app/src/features/doctor/api/doctor_api.dart';
+import 'package:doctor_app/src/features/doctor/models/doctor_models.dart';
 import 'package:doctor_app/src/features/profile/health_worker_profile_models.dart';
 import 'package:doctor_app/src/features/profile/profile_api.dart';
 
@@ -24,6 +27,7 @@ class SessionController extends ChangeNotifier implements SessionAuthHooks {
     _authApi = AuthApi(_apiClient);
     _profileApi = ProfileApi(_apiClient);
     _referenceApi = ReferenceApi(_apiClient);
+    _doctorApi = DoctorApi(_apiClient);
   }
 
   final SessionStorage _storage;
@@ -31,9 +35,18 @@ class SessionController extends ChangeNotifier implements SessionAuthHooks {
   late final AuthApi _authApi;
   late final ProfileApi _profileApi;
   late final ReferenceApi _referenceApi;
+  late final DoctorApi _doctorApi;
   AppSession _state;
 
+  /// Held until the doctor confirms hospital assignment (not persisted).
+  PendingDoctorLogin? _pendingDoctorLogin;
+
   AppSession get state => _state;
+
+  PendingDoctorLogin? get pendingDoctorLogin => _pendingDoctorLogin;
+
+  bool get hasPendingDoctorHospitalConfirmation =>
+      _pendingDoctorLogin != null;
 
   /// Shared HTTP client (auth interceptors, refresh). Use for feature `*Api` classes.
   ApiClient get apiClient => _apiClient;
@@ -98,6 +111,26 @@ class SessionController extends ChangeNotifier implements SessionAuthHooks {
     await _setState(_state.copyWith(role: role));
   }
 
+  Future<DoctorProfileFields?> _loadDoctorProfileFields({
+    required String userId,
+    required String bearerToken,
+  }) async {
+    try {
+      final profile = await _profileApi.getDoctorProfile(
+        userId: userId,
+        bearerToken: bearerToken,
+      );
+      return profile?.toProfileFields();
+    } catch (e, st) {
+      AppLogger.instance.w(
+        '[AUTH] doctor profile prefetch failed userId=$userId',
+        error: e,
+        stackTrace: st,
+      );
+      return null;
+    }
+  }
+
   Future<void> signInWithGoogle({required bool isRegister}) async {
     // NOTE: UI layer handles real Google Sign-In; this method consumes IdToken.
     // For now we accept a debug token via env/fixtures until Google Sign-In is wired.
@@ -115,6 +148,37 @@ class SessionController extends ChangeNotifier implements SessionAuthHooks {
         idToken: idToken,
         role: _state.role,
       );
+
+      // Doctor: hold tokens until hospital confirmation — do not finalize session yet.
+      if (_state.role == UserRole.doctor) {
+        var profile = session.doctorProfile;
+        profile ??= await _loadDoctorProfileFields(
+          userId: session.userId,
+          bearerToken: session.accessToken,
+        );
+        profile ??= DoctorProfileFields(
+          doctorSpeciality: '',
+          pmdcNumber: '',
+          hospitalName: '',
+          doctorId: session.userId,
+        );
+
+        _pendingDoctorLogin = PendingDoctorLogin(
+          accessToken: session.accessToken,
+          refreshToken: session.refreshToken,
+          userId: session.userId,
+          doctorSpeciality: profile.doctorSpeciality,
+          pmdcNumber: profile.pmdcNumber,
+          hospitalName: profile.hospitalName,
+          doctorId: profile.doctorId,
+        );
+        notifyListeners();
+        AppLogger.instance.i(
+          '[AUTH] doctor google-login OK userId=${session.userId} '
+          'hospital=${profile.hospitalName} awaiting hospital confirmation',
+        );
+        return;
+      }
 
       final approval =
           session.isVerified ? ApprovalStatus.approved : ApprovalStatus.pending;
@@ -158,6 +222,7 @@ class SessionController extends ChangeNotifier implements SessionAuthHooks {
           accessToken: session.accessToken,
           refreshToken: session.refreshToken,
           registrationDetails: nextDetails ?? _state.registrationDetails,
+          hospitalConfirmed: false,
         ),
       );
       AppLogger.instance.i(
@@ -178,6 +243,13 @@ class SessionController extends ChangeNotifier implements SessionAuthHooks {
           error: e,
           stackTrace: st,
         );
+      } else if (e is ApiFailure) {
+        AppLogger.instance.e(
+          '[AUTH] google-login blocked: ${e.message}',
+          error: e,
+          stackTrace: st,
+        );
+        rethrow;
       } else {
         AppLogger.instance.e(
           '[AUTH] google-login unexpected error type=${e.runtimeType}',
@@ -189,7 +261,76 @@ class SessionController extends ChangeNotifier implements SessionAuthHooks {
     }
   }
 
+  /// Doctor confirmed they still work at the hospital — complete login.
+  Future<void> confirmDoctorHospital() async {
+    final pending = _pendingDoctorLogin;
+    if (pending == null) {
+      throw const ValidationFailure('No pending doctor login to confirm.');
+    }
+    _pendingDoctorLogin = null;
+    await _setState(
+      _state.copyWith(
+        isSignedIn: true,
+        approvalStatus: ApprovalStatus.approved,
+        showDeclinedMessageOnce: false,
+        userId: pending.userId,
+        doctorId: pending.resolvedDoctorId,
+        doctorSpeciality: pending.doctorSpeciality,
+        pmdcNumber: pending.pmdcNumber,
+        hospitalName: pending.hospitalName,
+        hospitalConfirmed: true,
+        accessToken: pending.accessToken,
+        refreshToken: pending.refreshToken,
+        registrationDetails: _state.registrationDetails.copyWith(
+          fullName: _state.registrationDetails.fullName.isNotEmpty
+              ? _state.registrationDetails.fullName
+              : 'Doctor',
+          phone: _state.registrationDetails.phone.isNotEmpty
+              ? _state.registrationDetails.phone
+              : '-',
+        ),
+      ),
+    );
+    AppLogger.instance.i(
+      '[AUTH] doctor hospital confirmed doctorId=${pending.resolvedDoctorId}',
+    );
+  }
+
+  /// Doctor said they no longer work at the hospital — unassign and abort login.
+  Future<void> declineDoctorHospital() async {
+    final pending = _pendingDoctorLogin;
+    if (pending == null) return;
+
+    try {
+      await _doctorApi.unassignHospital(
+        doctorId: pending.resolvedDoctorId,
+        bearerToken: pending.accessToken,
+      );
+    } catch (e, st) {
+      AppLogger.instance.e(
+        '[AUTH] doctor unassign-hospital failed',
+        error: e,
+        stackTrace: st,
+      );
+      // Still abort login even if unassign fails.
+    }
+
+    _pendingDoctorLogin = null;
+    await logout(keepRole: true);
+    await _setState(
+      _state.copyWith(showDeclinedMessageOnce: true),
+    );
+    AppLogger.instance.i('[AUTH] doctor hospital declined; login aborted');
+  }
+
+  Future<void> clearPendingDoctorLogin() async {
+    if (_pendingDoctorLogin == null) return;
+    _pendingDoctorLogin = null;
+    notifyListeners();
+  }
+
   Future<void> logout({bool keepRole = true}) async {
+    _pendingDoctorLogin = null;
     final next = _state.copyWith(
       isSignedIn: false,
       approvalStatus: ApprovalStatus.none,
@@ -197,6 +338,11 @@ class SessionController extends ChangeNotifier implements SessionAuthHooks {
       showDeclinedMessageOnce: false,
       userId: null,
       healthWorkerId: null,
+      doctorId: null,
+      doctorSpeciality: null,
+      pmdcNumber: null,
+      hospitalName: null,
+      hospitalConfirmed: false,
       accessToken: null,
       refreshToken: null,
       role: keepRole ? _state.role : UserRole.unknown,
@@ -387,12 +533,19 @@ class SessionController extends ChangeNotifier implements SessionAuthHooks {
   /// It signs out but keeps a one-time flag to show the declined message.
   Future<void> handleDeclinedOnLaunch() async {
     if (_state.approvalStatus != ApprovalStatus.declined) return;
+    _pendingDoctorLogin = null;
     final next = _state.copyWith(
       isSignedIn: false,
       approvalStatus: ApprovalStatus.none,
       registrationDetails: const RegistrationDetails(fullName: '', phone: ''),
       showDeclinedMessageOnce: true,
       userId: null,
+      healthWorkerId: null,
+      doctorId: null,
+      doctorSpeciality: null,
+      pmdcNumber: null,
+      hospitalName: null,
+      hospitalConfirmed: false,
       accessToken: null,
       refreshToken: null,
     );

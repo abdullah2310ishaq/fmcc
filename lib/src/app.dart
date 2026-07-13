@@ -9,6 +9,12 @@ import 'package:doctor_app/src/core/session/session_controller.dart';
 import 'package:doctor_app/src/core/theme/app_theme.dart';
 import 'package:doctor_app/src/features/approval/waiting_screen.dart';
 import 'package:doctor_app/src/features/auth/auth_screen.dart';
+import 'package:doctor_app/src/features/doctor/models/doctor_models.dart';
+import 'package:doctor_app/src/features/doctor/screens/create_prescription_screen.dart';
+import 'package:doctor_app/src/features/doctor/screens/doctor_patient_detail_screen.dart';
+import 'package:doctor_app/src/features/doctor/screens/doctor_shell.dart';
+import 'package:doctor_app/src/features/doctor/screens/edit_prescription_screen.dart';
+import 'package:doctor_app/src/features/doctor/screens/hospital_confirmation_screen.dart';
 import 'package:doctor_app/src/features/shell/home_shell.dart';
 import 'package:doctor_app/src/features/profile/edit_profile_screen.dart';
 import 'package:doctor_app/src/features/profile/profile_view_screen.dart';
@@ -37,15 +43,40 @@ String _redirectPath(GoRouterState state) {
   return p;
 }
 
+bool _isDoctorWorkspacePath(String loc) {
+  return loc == DoctorShell.routePath ||
+      loc == DoctorPatientDetailScreen.routePath ||
+      loc == CreatePrescriptionScreen.routePath ||
+      loc == EditPrescriptionScreen.routePath;
+}
+
 /// Resolves the correct landing route for the current [session].
 /// Used by the splash screen (after its animation) and the router redirect.
-String sessionDestination(AppSession session) {
-  if (session.role == UserRole.unknown) {
-    return RoleScreen.routePath;
+String sessionDestination(
+  AppSession session, {
+  bool hasPendingDoctorHospitalConfirmation = false,
+}) {
+  if (hasPendingDoctorHospitalConfirmation) {
+    return HospitalConfirmationScreen.routePath;
   }
   if (!_hasPersistedAuth(session)) {
+    if (session.role == UserRole.unknown) {
+      return RoleScreen.routePath;
+    }
     return AuthScreen.routePath;
   }
+
+  if (session.role == UserRole.doctor) {
+    if (session.approvalStatus == ApprovalStatus.pending) {
+      return WaitingScreen.routePath;
+    }
+    if (!session.hospitalConfirmed) {
+      // Incomplete doctor session — force re-auth.
+      return AuthScreen.routePath;
+    }
+    return DoctorShell.routePath;
+  }
+
   if (session.approvalStatus == ApprovalStatus.pending) {
     return WaitingScreen.routePath;
   }
@@ -161,6 +192,70 @@ GoRouter _buildRouter(SessionController sessionController) {
         builder: (context, state) => const HomeShell(),
       ),
       GoRoute(
+        path: HospitalConfirmationScreen.routePath,
+        builder: (context, state) => const HospitalConfirmationScreen(),
+      ),
+      GoRoute(
+        path: DoctorShell.routePath,
+        builder: (context, state) => const DoctorShell(),
+      ),
+      GoRoute(
+        path: DoctorPatientDetailScreen.routePath,
+        builder: (context, state) {
+          final extra = state.extra;
+          final map = extra is Map ? Map<String, dynamic>.from(extra) : const {};
+          return DoctorPatientDetailScreen(
+            patientId: map['patientId']?.toString() ?? '',
+            visitId: map['visitId']?.toString() ?? '',
+            patientNumber: int.tryParse(map['patientNumber']?.toString() ?? '') ?? 0,
+            fullName: map['fullName']?.toString() ?? '',
+          );
+        },
+      ),
+      GoRoute(
+        path: CreatePrescriptionScreen.routePath,
+        builder: (context, state) {
+          final extra = state.extra;
+          final map = extra is Map ? Map<String, dynamic>.from(extra) : const {};
+          return CreatePrescriptionScreen(
+            patientId: map['patientId']?.toString() ?? '',
+            visitId: map['visitId']?.toString() ?? '',
+            patientName: map['patientName']?.toString() ?? '',
+          );
+        },
+      ),
+      GoRoute(
+        path: EditPrescriptionScreen.routePath,
+        builder: (context, state) {
+          final extra = state.extra;
+          final map = extra is Map ? Map<String, dynamic>.from(extra) : const {};
+          final medicinesRaw = map['medicines'];
+          final medicines = <PrescriptionMedicineInput>[];
+          if (medicinesRaw is List) {
+            for (final item in medicinesRaw) {
+              if (item is PrescriptionMedicineInput) {
+                medicines.add(item);
+              }
+            }
+          }
+          return EditPrescriptionScreen(
+            prescriptionId: map['prescriptionId']?.toString() ?? '',
+            visitId: map['visitId']?.toString() ?? '',
+            patientId: map['patientId']?.toString() ?? '',
+            patientName: map['patientName']?.toString() ?? '',
+            initialTenureInDays:
+                int.tryParse(map['initialTenureInDays']?.toString() ?? '') ?? 0,
+            initialNotes: map['initialNotes']?.toString() ?? '',
+            continuedFromPrescriptionId:
+                map['continuedFromPrescriptionId']?.toString(),
+            nextVisitDate: map['nextVisitDate'] is DateTime
+                ? map['nextVisitDate'] as DateTime
+                : null,
+            medicines: medicines,
+          );
+        },
+      ),
+      GoRoute(
         path: ProfileViewScreen.routePath,
         builder: (context, state) => const ProfileViewScreen(),
       ),
@@ -187,7 +282,30 @@ GoRouter _buildRouter(SessionController sessionController) {
         return loc == AuthScreen.routePath ? null : AuthScreen.routePath;
       }
 
-      final dest = sessionDestination(session);
+      // Incomplete doctor session (signed in without hospital confirmation).
+      if (session.role == UserRole.doctor &&
+          session.isSignedIn &&
+          !session.hospitalConfirmed &&
+          !sessionController.hasPendingDoctorHospitalConfirmation) {
+        sessionController.logout(keepRole: true);
+        return loc == AuthScreen.routePath ? null : AuthScreen.routePath;
+      }
+
+      final dest = sessionDestination(
+        session,
+        hasPendingDoctorHospitalConfirmation:
+            sessionController.hasPendingDoctorHospitalConfirmation,
+      );
+
+      // Allow hospital confirmation only while pending.
+      if (dest == HospitalConfirmationScreen.routePath) {
+        return loc == HospitalConfirmationScreen.routePath ? null : dest;
+      }
+
+      // Allow doctor nested routes when doctor workspace is the destination.
+      if (dest == DoctorShell.routePath && _isDoctorWorkspacePath(loc)) {
+        return null;
+      }
 
       // Allow `/profile` whenever user is allowed on home (avoid matchedLocation mismatch).
       if (dest == HomeShell.routePath &&

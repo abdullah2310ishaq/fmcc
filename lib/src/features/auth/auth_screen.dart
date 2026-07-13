@@ -11,6 +11,7 @@ import 'package:provider/provider.dart';
 import 'package:doctor_app/src/core/auth/google_sign_in_config.dart';
 import 'package:doctor_app/src/core/logging/app_logger.dart';
 import 'package:doctor_app/src/core/network/api_failure.dart';
+import 'package:doctor_app/src/core/session/app_session.dart';
 import 'package:doctor_app/src/core/session/session_controller.dart';
 import 'package:doctor_app/src/core/theme/app_colors.dart';
 
@@ -38,18 +39,26 @@ class _AuthScreenState extends State<AuthScreen> {
     if (showDeclined) {
       WidgetsBinding.instance.addPostFrameCallback((_) async {
         if (!mounted) return;
+        final isDoctor = controller.state.role == UserRole.doctor;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
-              children: const [
-                Text('Your request was declined. Please contact admin.'),
-                SizedBox(height: 4),
+              children: [
+                Text(
+                  isDoctor
+                      ? 'Please contact the administration.'
+                      : 'Your request was declined. Please contact admin.',
+                ),
+                const SizedBox(height: 4),
                 Directionality(
                   textDirection: TextDirection.rtl,
                   child: Text(
-                      'آپ کی درخواست مسترد کر دی گئی ہے۔ براہِ کرم ایڈمن سے رابطہ کریں۔'),
+                    isDoctor
+                        ? 'براہِ کرم ایڈمنسٹریشن سے رابطہ کریں۔'
+                        : 'آپ کی درخواست مسترد کر دی گئی ہے۔ براہِ کرم ایڈمن سے رابطہ کریں۔',
+                  ),
                 ),
               ],
             ),
@@ -341,6 +350,9 @@ class _AuthScreenState extends State<AuthScreen> {
   }
 
   static String? _friendlyBackendError(Object error) {
+    if (error is ApiFailure) {
+      return error.message;
+    }
     final msg = error.toString();
     final m = msg.toLowerCase();
 

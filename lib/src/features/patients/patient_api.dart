@@ -5,6 +5,7 @@ import 'package:dio/dio.dart';
 import 'package:doctor_app/src/core/logging/app_logger.dart';
 import 'package:doctor_app/src/core/network/api_client.dart';
 import 'package:doctor_app/src/core/network/endpoints.dart';
+import 'package:doctor_app/src/features/doctor/models/doctor_models.dart';
 import 'package:doctor_app/src/features/patients/patient_api_models.dart';
 import 'package:doctor_app/src/features/visits/visit_instruction_models.dart';
 
@@ -565,5 +566,29 @@ class PatientApi {
       bearerToken: bearerToken,
     );
     return parseCounsellingInstructionsList(res.data);
+  }
+
+  /// `GET /api/Patient/prescription-history/{patientId}` — read-only Rx timeline.
+  Future<List<PatientPrescriptionHistoryItem>> getPrescriptionHistory({
+    required String patientId,
+    required String bearerToken,
+  }) async {
+    try {
+      final res = await _client.get(
+        Endpoints.patientPrescriptionHistory(patientId),
+        bearerToken: bearerToken,
+      );
+      final raw = unwrapListPayload(res.data);
+      if (raw is! List) return const [];
+      final out = <PatientPrescriptionHistoryItem>[];
+      for (final item in raw) {
+        final row = PatientPrescriptionHistoryItem.tryFromJson(item);
+        if (row != null) out.add(row);
+      }
+      return out;
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 404) return const [];
+      rethrow;
+    }
   }
 }

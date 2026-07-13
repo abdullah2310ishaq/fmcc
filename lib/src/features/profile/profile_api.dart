@@ -1,11 +1,23 @@
 import 'package:doctor_app/src/core/network/api_client.dart';
 import 'package:doctor_app/src/core/network/endpoints.dart';
+import 'package:doctor_app/src/features/profile/doctor_profile_models.dart';
 import 'package:doctor_app/src/features/profile/health_worker_profile_models.dart';
 
 class ProfileApi {
   ProfileApi(this._client);
 
   final ApiClient _client;
+
+  Future<DoctorProfile?> getDoctorProfile({
+    required String userId,
+    required String bearerToken,
+  }) async {
+    final res = await _client.get(
+      Endpoints.doctorProfileGet(userId),
+      bearerToken: bearerToken,
+    );
+    return DoctorProfile.tryFromApi(res.data);
+  }
 
   Future<HealthWorkerProfile?> getHealthWorkerProfile({
     required String userId,
