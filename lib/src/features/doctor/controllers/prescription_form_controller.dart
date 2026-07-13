@@ -259,10 +259,6 @@ class PrescriptionFormController extends ChangeNotifier {
           )
           .toList();
 
-      final continued = continuedFromPrescriptionId.trim().isEmpty
-          ? null
-          : continuedFromPrescriptionId.trim();
-
       final rxId = prescriptionId?.trim();
       if (rxId != null && rxId.isNotEmpty) {
         await _api.updatePrescription(
@@ -271,7 +267,7 @@ class PrescriptionFormController extends ChangeNotifier {
             doctorId: doctorId,
             tenureInDays: int.parse(tenureInDays.trim()),
             doctorNotes: doctorNotes.trim(),
-            continuedFromPrescriptionId: continued,
+            continuedFromPrescriptionId: null,
             medicines: medicineInputs,
           ),
           bearerToken: bearerToken,
@@ -284,8 +280,8 @@ class PrescriptionFormController extends ChangeNotifier {
             doctorId: doctorId,
             tenureInDays: int.parse(tenureInDays.trim()),
             doctorNotes: doctorNotes.trim(),
-            continuedFromPrescriptionId: continued,
-            nextVisitDate: nextVisitDate,
+            continuedFromPrescriptionId: null,
+            nextVisitDate: null,
             medicines: medicineInputs,
           ),
           bearerToken: bearerToken,

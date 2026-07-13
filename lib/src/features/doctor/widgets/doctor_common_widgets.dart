@@ -13,6 +13,10 @@ class DoctorMetricCard extends StatelessWidget {
     required this.icon,
     this.accent = AppColors.dashboardPrimary,
     this.onTap,
+    this.subtitle,
+    this.emphasized = false,
+    this.softMono = false,
+    this.animateCount = false,
   });
 
   final String title;
@@ -20,57 +24,133 @@ class DoctorMetricCard extends StatelessWidget {
   final IconData icon;
   final Color accent;
   final VoidCallback? onTap;
+  final String? subtitle;
+  final bool emphasized;
+  final bool softMono;
+  final bool animateCount;
 
   @override
   Widget build(BuildContext context) {
+    final valueColor = softMono
+        ? AppColors.dashboardPrimaryDark
+        : emphasized
+            ? accent
+            : AppColors.dashboardPrimaryDark;
+    final borderColor = emphasized
+        ? accent.withValues(alpha: 0.30)
+        : softMono
+            ? accent.withValues(alpha: 0.18)
+            : AppColors.dashboardPrimary.withValues(alpha: 0.14);
+
     final card = Container(
-      padding: EdgeInsets.all(16.w),
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        color: Colors.white,
         borderRadius: BorderRadius.circular(18.r),
-        border: Border.all(color: accent.withValues(alpha: 0.18)),
+        border: Border.all(color: borderColor, width: 1.25),
         boxShadow: [
           BoxShadow(
-            color: accent.withValues(alpha: 0.08),
-            blurRadius: 10,
+            color: (emphasized ? accent : AppColors.dashboardPrimary)
+                .withValues(alpha: emphasized ? 0.08 : 0.03),
+            blurRadius: emphasized ? 14 : 10,
             offset: const Offset(0, 4),
           ),
         ],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(icon, color: accent, size: 22.sp),
-              const Spacer(),
-              if (onTap != null)
-                Icon(
-                  CupertinoIcons.chevron_right,
-                  size: 16.sp,
-                  color: accent.withValues(alpha: 0.55),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(18.r),
+        child: Stack(
+          children: [
+            if (emphasized)
+              Positioned(
+                left: 0,
+                top: 0,
+                bottom: 0,
+                child: Container(
+                  width: 4.w,
+                  color: accent,
                 ),
-            ],
-          ),
-          SizedBox(height: 12.h),
-          Text(
-            value,
-            style: TextStyle(
-              fontSize: 22.sp,
-              fontWeight: FontWeight.w900,
-              color: AppColors.dashboardPrimaryDark,
+              ),
+            Padding(
+              padding: EdgeInsets.fromLTRB(
+                emphasized ? 16.w : 14.w,
+                14.h,
+                14.w,
+                14.h,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        width: 34.r,
+                        height: 34.r,
+                        decoration: BoxDecoration(
+                          color: accent.withValues(alpha: softMono ? 0.10 : 0.12),
+                          borderRadius: BorderRadius.circular(12.r),
+                        ),
+                        child: Icon(icon, color: accent, size: 17.sp),
+                      ),
+                      const Spacer(),
+                      if (onTap != null)
+                        Icon(
+                          CupertinoIcons.chevron_right,
+                          size: 15.sp,
+                          color: accent.withValues(alpha: 0.45),
+                        ),
+                    ],
+                  ),
+                  const Spacer(),
+                  if (animateCount)
+                    _AnimatedMetricValue(
+                      raw: value,
+                      style: TextStyle(
+                        fontSize: 24.sp,
+                        fontWeight: FontWeight.w900,
+                        color: valueColor,
+                        height: 1.05,
+                      ),
+                    )
+                  else
+                    Text(
+                      value,
+                      style: TextStyle(
+                        fontSize: 24.sp,
+                        fontWeight: FontWeight.w900,
+                        color: valueColor,
+                        height: 1.05,
+                      ),
+                    ),
+                  SizedBox(height: 4.h),
+                  Text(
+                    title,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 11.5.sp,
+                      fontWeight: FontWeight.w700,
+                      color: const Color(0xFF757575),
+                      height: 1.25,
+                    ),
+                  ),
+                  if (subtitle != null && subtitle!.trim().isNotEmpty) ...[
+                    SizedBox(height: 4.h),
+                    Text(
+                      subtitle!,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 10.sp,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textSecondary.withValues(alpha: 0.75),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
             ),
-          ),
-          SizedBox(height: 4.h),
-          Text(
-            title,
-            style: TextStyle(
-              fontSize: 12.sp,
-              fontWeight: FontWeight.w700,
-              color: AppColors.textSecondary,
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
 
@@ -80,9 +160,32 @@ class DoctorMetricCard extends StatelessWidget {
       color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(18.r),
+        borderRadius: BorderRadius.circular(22.r),
         child: card,
       ),
+    );
+  }
+}
+
+class _AnimatedMetricValue extends StatelessWidget {
+  const _AnimatedMetricValue({required this.raw, required this.style});
+
+  final String raw;
+  final TextStyle style;
+
+  @override
+  Widget build(BuildContext context) {
+    final n = int.tryParse(raw.replaceAll(RegExp(r'[^0-9]'), ''));
+    if (n == null) {
+      return Text(raw, style: style);
+    }
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0, end: n.toDouble()),
+      duration: const Duration(milliseconds: 650),
+      curve: Curves.easeOutCubic,
+      builder: (context, value, _) {
+        return Text(value.round().toString(), style: style);
+      },
     );
   }
 }

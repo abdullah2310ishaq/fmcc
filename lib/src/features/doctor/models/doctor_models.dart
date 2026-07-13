@@ -204,13 +204,6 @@ class PrescriptionMedicineInput {
       };
 }
 
-String? _prescriptionDateToJson(DateTime? value) {
-  if (value == null) return null;
-  final local = value.toLocal();
-  // Match visit API: anchor at local noon so the calendar day does not shift.
-  return DateTime(local.year, local.month, local.day, 12).toIso8601String();
-}
-
 class PrescriptionSubmitRequest {
   const PrescriptionSubmitRequest({
     required this.visitId,
@@ -233,25 +226,17 @@ class PrescriptionSubmitRequest {
   final List<PrescriptionMedicineInput> medicines;
 
   Map<String, dynamic> toJson() {
-    final map = <String, dynamic>{
+    return <String, dynamic>{
       'visitId': visitId,
       'patientId': patientId,
       'doctorId': doctorId,
       'tenureInDays': tenureInDays,
       'doctorNotes': doctorNotes,
       'medicines': medicines.map((m) => m.toJson()).toList(),
+      // Frontend no longer collects these — always send null.
+      'continuedFromPrescriptionId': null,
+      'nextVisitDate': null,
     };
-    final continued = continuedFromPrescriptionId?.trim();
-    if (continued != null && continued.isNotEmpty) {
-      map['continuedFromPrescriptionId'] = continued;
-    }
-    if (nextVisitDate != null) {
-      final encoded = _prescriptionDateToJson(nextVisitDate);
-      if (encoded != null) {
-        map['nextVisitDate'] = encoded;
-      }
-    }
-    return map;
   }
 }
 
@@ -274,18 +259,15 @@ class PrescriptionEditRequest {
   final List<PrescriptionMedicineInput> medicines;
 
   Map<String, dynamic> toJson() {
-    final map = <String, dynamic>{
+    return <String, dynamic>{
       'prescriptionId': prescriptionId,
       'doctorId': doctorId,
       'tenureInDays': tenureInDays,
       'doctorNotes': doctorNotes,
       'medicines': medicines.map((m) => m.toJson()).toList(),
+      // Frontend no longer collects this — always send null.
+      'continuedFromPrescriptionId': null,
     };
-    final continued = continuedFromPrescriptionId?.trim();
-    if (continued != null && continued.isNotEmpty) {
-      map['continuedFromPrescriptionId'] = continued;
-    }
-    return map;
   }
 }
 
