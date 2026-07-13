@@ -5,15 +5,19 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:go_router/go_router.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:provider/provider.dart';
 
+import 'package:doctor_app/src/core/auth/auth_api.dart';
 import 'package:doctor_app/src/core/auth/google_sign_in_config.dart';
 import 'package:doctor_app/src/core/logging/app_logger.dart';
 import 'package:doctor_app/src/core/network/api_failure.dart';
+import 'package:doctor_app/src/core/roles/role_ids.dart';
 import 'package:doctor_app/src/core/session/app_session.dart';
 import 'package:doctor_app/src/core/session/session_controller.dart';
 import 'package:doctor_app/src/core/theme/app_colors.dart';
+import 'package:doctor_app/src/features/role/role_screen.dart';
 
 class AuthScreen extends StatefulWidget {
   const AuthScreen({super.key});
@@ -263,8 +267,21 @@ class _AuthScreenState extends State<AuthScreen> {
   Future<void> _handleLogin() async {
     final session = context.read<SessionController>();
     final role = session.state.role;
+    if (role == UserRole.unknown) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Please select your role before signing in.'),
+          backgroundColor: AppColors.danger,
+          behavior: SnackBarBehavior.floating,
+          margin: EdgeInsets.all(16.w),
+        ),
+      );
+      context.go(RoleScreen.routePath);
+      return;
+    }
     AppLogger.instance.i(
-      '[AUTH] Login tap → role=$role isRegister=false '
+      '[AUTH] Login tap → role=$role roleId=${RoleIds.fromRole(role)} '
+      'isRegister=false '
       'webClientIdConfigured=${GoogleSignInConfig.webClientId.trim().isNotEmpty}',
     );
     setState(() => _busy = true);
@@ -350,7 +367,14 @@ class _AuthScreenState extends State<AuthScreen> {
   }
 
   static String? _friendlyBackendError(Object error) {
-    if (error is ApiFailure) {
+    if (error is ValidationFailure) {
+      return error.message;
+    }
+    if (error is UnauthorizedFailure) {
+      final msg = error.message.trim().toLowerCase();
+      if (msg.contains('authentication failed')) {
+        return AuthApi.doctorNotVerifiedMessage;
+      }
       return error.message;
     }
     final msg = error.toString();

@@ -9,6 +9,7 @@ import 'package:doctor_app/src/core/network/api_failure.dart';
 import 'package:doctor_app/src/core/network/session_auth_hooks.dart';
 import 'package:doctor_app/src/core/reference/reference_api.dart';
 import 'package:doctor_app/src/core/reference/reference_models.dart';
+import 'package:doctor_app/src/core/roles/role_ids.dart';
 import 'package:doctor_app/src/core/session/app_session.dart';
 import 'package:doctor_app/src/core/session/session_storage.dart';
 import 'package:doctor_app/src/features/doctor/api/doctor_api.dart';
@@ -238,11 +239,15 @@ class SessionController extends ChangeNotifier implements SessionAuthHooks {
         AppLogger.instance.e(
           '[AUTH] google-login API error '
           'dioType=${e.type} status=$status uri=$uri '
-          'method=${e.requestOptions.method} '
+          'method=${e.requestOptions.method} role=${_state.role} '
+          'roleId=${RoleIds.fromRole(_state.role)} '
           'responseData=$data message=${e.message}',
           error: e,
           stackTrace: st,
         );
+        if (_state.role == UserRole.doctor && status == 401) {
+          throw const ValidationFailure(AuthApi.doctorNotVerifiedMessage);
+        }
       } else if (e is ApiFailure) {
         AppLogger.instance.e(
           '[AUTH] google-login blocked: ${e.message}',
@@ -410,6 +415,64 @@ class SessionController extends ChangeNotifier implements SessionAuthHooks {
       );
     } catch (e) {
       throw _apiClient.mapError(e);
+    }
+  }
+
+  /// Cold-start doctor sessions may lack the backend `doctorId` used by queue/dashboard APIs.
+  Future<void> hydrateDoctorProfileIfNeeded() async {
+    if (_state.role != UserRole.doctor) return;
+    if (!_state.isSignedIn) return;
+    if (!_state.hospitalConfirmed) return;
+
+    final token = _state.accessToken?.trim();
+    final userId = _state.userId?.trim();
+    if (token == null ||
+        token.isEmpty ||
+        userId == null ||
+        userId.isEmpty) {
+      return;
+    }
+
+    final existingDoctorId = _state.doctorId?.trim();
+    if (existingDoctorId != null &&
+        existingDoctorId.isNotEmpty &&
+        existingDoctorId != userId) {
+      return;
+    }
+
+    try {
+      final profile = await _profileApi.getDoctorProfile(
+        userId: userId,
+        bearerToken: token,
+      );
+      if (profile == null) return;
+
+      final fields = profile.toProfileFields();
+      final nextDoctorId = fields.doctorId?.trim();
+      if (nextDoctorId == null || nextDoctorId.isEmpty) return;
+
+      await _setState(
+        _state.copyWith(
+          doctorId: nextDoctorId,
+          doctorSpeciality: fields.doctorSpeciality.isNotEmpty
+              ? fields.doctorSpeciality
+              : _state.doctorSpeciality,
+          pmdcNumber:
+              fields.pmdcNumber.isNotEmpty ? fields.pmdcNumber : _state.pmdcNumber,
+          hospitalName: fields.hospitalName.isNotEmpty
+              ? fields.hospitalName
+              : _state.hospitalName,
+        ),
+      );
+      AppLogger.instance.i(
+        '[AUTH] hydrated doctor profile doctorId=$nextDoctorId userId=$userId',
+      );
+    } catch (e, st) {
+      AppLogger.instance.w(
+        '[AUTH] doctor profile hydrate failed userId=$userId',
+        error: e,
+        stackTrace: st,
+      );
     }
   }
 

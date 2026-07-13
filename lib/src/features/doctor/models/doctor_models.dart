@@ -107,14 +107,21 @@ class DoctorQueuePatient {
   static DoctorQueuePatient? tryFromJson(dynamic json) {
     if (json is! Map) return null;
     final m = Map<String, dynamic>.from(json);
-    final patientId = _readString(m, 'patientId', 'PatientId');
+    final patientId = _readString(m, 'patientId', 'PatientId') ??
+        _readString(m, 'id', 'Id');
     if (patientId == null || patientId.isEmpty) return null;
     return DoctorQueuePatient(
       patientId: patientId,
-      visitId: _readString(m, 'visitId', 'VisitId') ?? '',
+      visitId: _readString(m, 'visitId', 'VisitId') ??
+          _readString(m, 'visitID', 'VisitID') ??
+          '',
       patientNumber: _readInt(m, 'patientNumber', 'PatientNumber') ?? 0,
-      firstName: _readString(m, 'firstName', 'FirstName') ?? '',
-      lastName: _readString(m, 'lastName', 'LastName') ?? '',
+      firstName: _readString(m, 'firstName', 'FirstName') ??
+          _readString(m, 'patientFirstName', 'PatientFirstName') ??
+          '',
+      lastName: _readString(m, 'lastName', 'LastName') ??
+          _readString(m, 'patientLastName', 'PatientLastName') ??
+          '',
       visitActionId: _readInt(m, 'visitActionId', 'VisitActionId') ?? 0,
     );
   }
@@ -136,12 +143,19 @@ class PrescriptionMedicineInput {
   final int durationInDays;
 
   Map<String, dynamic> toJson() => {
-        'medicineId': medicineId,
+        if (medicineId > 0) 'medicineId': medicineId,
         'customMedicineName': customMedicineName,
         'dosageAmount': dosageAmount,
         'frequency': frequency,
         'durationInDays': durationInDays,
       };
+}
+
+String? _prescriptionDateToJson(DateTime? value) {
+  if (value == null) return null;
+  final local = value.toLocal();
+  // Match visit API: anchor at local noon so the calendar day does not shift.
+  return DateTime(local.year, local.month, local.day, 12).toIso8601String();
 }
 
 class UpsertPrescriptionRequest {
@@ -185,7 +199,10 @@ class UpsertPrescriptionRequest {
       map['continuedFromPrescriptionId'] = continued;
     }
     if (nextVisitDate != null) {
-      map['nextVisitDate'] = nextVisitDate!.toUtc().toIso8601String();
+      final encoded = _prescriptionDateToJson(nextVisitDate);
+      if (encoded != null) {
+        map['nextVisitDate'] = encoded;
+      }
     }
     return map;
   }
@@ -328,8 +345,21 @@ dynamic unwrapListPayload(dynamic root) {
   if (root is List) return root;
   if (root is Map) {
     final m = Map<String, dynamic>.from(root);
-    final inner = m['data'] ?? m['Data'] ?? m['result'] ?? m['Result'];
-    if (inner is List) return inner;
+    for (final key in [
+      'data',
+      'Data',
+      'result',
+      'Result',
+      'patients',
+      'Patients',
+      'items',
+      'Items',
+      'queue',
+      'Queue',
+    ]) {
+      final inner = m[key];
+      if (inner is List) return inner;
+    }
   }
   return root;
 }

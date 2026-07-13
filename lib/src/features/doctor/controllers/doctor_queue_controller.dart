@@ -23,6 +23,14 @@ class DoctorQueueController extends ChangeNotifier {
   bool get loading => _loading;
   String? get error => _error;
 
+  /// Counts from queue API rows (`visitActionId` per patient).
+  int get emergencyCount => _patients.where((p) => p.isEmergency).length;
+
+  int get normalCount => _patients.where((p) => p.isNormal).length;
+
+  List<DoctorQueuePatient> get emergencyPatients =>
+      _patients.where((p) => p.isEmergency).toList();
+
   Future<void> refreshFromSession(AppSession session) async {
     if (session.role != UserRole.doctor) {
       _patients = const [];

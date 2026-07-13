@@ -417,7 +417,8 @@ class PatientApi {
       return parsed;
     } on DioException catch (e) {
       if (e.response?.statusCode == 404) {
-        AppLogger.instance.i('[PatientApi] GET $path → 404 (no family history yet)');
+        AppLogger.instance
+            .i('[PatientApi] GET $path → 404 (no family history yet)');
         return const PatientFamilyHistoryData(relatives: []);
       }
       rethrow;

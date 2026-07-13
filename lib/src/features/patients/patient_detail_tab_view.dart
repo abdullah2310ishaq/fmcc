@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:provider/provider.dart';
 
+import 'package:doctor_app/src/core/format/gender_label.dart';
 import 'package:doctor_app/src/core/format/name_initials.dart';
 import 'package:doctor_app/src/core/input_format/cnic_input_formatter.dart';
 import 'package:doctor_app/src/core/input_format/pakistan_phone_input_formatter.dart';
@@ -49,12 +50,7 @@ String patientDetailShortVisit(DateTime? d) {
   return '${d.day} ${months[d.month - 1]} ${d.year}';
 }
 
-String _summaryGenderLabel(String gender) {
-  final g = gender.trim().toLowerCase();
-  if (g == 'male' || g == 'm') return 'Male';
-  if (g == 'female' || g == 'f') return 'Female';
-  return gender.trim().isNotEmpty ? gender.trim() : '—';
-}
+String _summaryGenderLabel(String gender) => GenderLabel.format(gender);
 
 Color _avatarForCondition(String primary) {
   final p = primary.toLowerCase();

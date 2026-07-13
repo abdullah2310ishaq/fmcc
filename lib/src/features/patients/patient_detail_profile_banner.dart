@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 
+import 'package:doctor_app/src/core/format/gender_label.dart';
 import 'package:doctor_app/src/core/format/name_initials.dart';
 import 'package:doctor_app/src/core/theme/app_colors.dart';
 import 'package:doctor_app/src/features/home/health_worker_dashboard_models.dart';
@@ -23,12 +24,7 @@ Color patientAvatarColorForCondition(String primary) {
   return AppColors.patientAvatarBlue;
 }
 
-String patientGenderLabel(String gender) {
-  final g = gender.trim().toLowerCase();
-  if (g == 'male' || g == 'm') return 'Male';
-  if (g == 'female' || g == 'f') return 'Female';
-  return gender.trim().isNotEmpty ? gender.trim() : '—';
-}
+String patientGenderLabel(String gender) => GenderLabel.format(gender);
 
 /// Gradient profile header shown on the patient detail hub only.
 class PatientDetailProfileBanner extends StatelessWidget {

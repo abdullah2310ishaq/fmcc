@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 
 import 'package:doctor_app/src/core/session/session_controller.dart';
 import 'package:doctor_app/src/core/theme/app_colors.dart';
+import 'package:doctor_app/src/features/doctor/widgets/doctor_safe_area.dart';
 
 /// Asks the doctor to confirm they still work at the assigned hospital.
 class HospitalConfirmationScreen extends StatefulWidget {
@@ -64,7 +65,7 @@ class _HospitalConfirmationScreenState
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      body: SafeArea(
+      body: DoctorPageSafeArea(
         child: Padding(
           padding: EdgeInsets.symmetric(horizontal: 24.w),
           child: Column(

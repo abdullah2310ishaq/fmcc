@@ -4,6 +4,7 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import 'package:doctor_app/src/core/format/gender_label.dart';
 import 'package:doctor_app/src/core/session/session_controller.dart';
 import 'package:doctor_app/src/core/theme/app_colors.dart';
 import 'package:doctor_app/src/features/doctor/controllers/doctor_prescriptions_controller.dart';
@@ -23,7 +24,8 @@ class DoctorPrescriptionsScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final controller = context.watch<DoctorPrescriptionsController>();
 
-    return SafeArea(
+    return ColoredBox(
+      color: AppColors.background,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -192,7 +194,7 @@ class _PrescriptionCard extends StatelessWidget {
             ],
           ),
           Text(
-            '$dateLabel · #${item.patientNumber} · ${item.patientGender}',
+            '$dateLabel · #${item.patientNumber} · ${GenderLabel.format(item.patientGender)}',
             style: TextStyle(fontSize: 12.sp, color: AppColors.textSecondary),
           ),
           if (item.reasonForVisit.trim().isNotEmpty) ...[

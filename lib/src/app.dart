@@ -15,6 +15,10 @@ import 'package:doctor_app/src/features/doctor/screens/doctor_patient_detail_scr
 import 'package:doctor_app/src/features/doctor/screens/doctor_shell.dart';
 import 'package:doctor_app/src/features/doctor/screens/edit_prescription_screen.dart';
 import 'package:doctor_app/src/features/doctor/screens/hospital_confirmation_screen.dart';
+import 'package:doctor_app/src/features/doctor/screens/metrics/doctor_earnings_today_screen.dart';
+import 'package:doctor_app/src/features/doctor/screens/metrics/doctor_emergency_queue_detail_screen.dart';
+import 'package:doctor_app/src/features/doctor/screens/metrics/doctor_patients_seen_today_screen.dart';
+import 'package:doctor_app/src/features/doctor/screens/metrics/doctor_prescriptions_today_screen.dart';
 import 'package:doctor_app/src/features/shell/home_shell.dart';
 import 'package:doctor_app/src/features/profile/edit_profile_screen.dart';
 import 'package:doctor_app/src/features/profile/profile_view_screen.dart';
@@ -47,7 +51,11 @@ bool _isDoctorWorkspacePath(String loc) {
   return loc == DoctorShell.routePath ||
       loc == DoctorPatientDetailScreen.routePath ||
       loc == CreatePrescriptionScreen.routePath ||
-      loc == EditPrescriptionScreen.routePath;
+      loc == EditPrescriptionScreen.routePath ||
+      loc == DoctorEmergencyQueueDetailScreen.routePath ||
+      loc == DoctorPatientsSeenTodayScreen.routePath ||
+      loc == DoctorEarningsTodayScreen.routePath ||
+      loc == DoctorPrescriptionsTodayScreen.routePath;
 }
 
 /// Resolves the correct landing route for the current [session].
@@ -254,6 +262,23 @@ GoRouter _buildRouter(SessionController sessionController) {
             medicines: medicines,
           );
         },
+      ),
+      GoRoute(
+        path: DoctorEmergencyQueueDetailScreen.routePath,
+        builder: (context, state) =>
+            const DoctorEmergencyQueueDetailScreen(),
+      ),
+      GoRoute(
+        path: DoctorPatientsSeenTodayScreen.routePath,
+        builder: (context, state) => const DoctorPatientsSeenTodayScreen(),
+      ),
+      GoRoute(
+        path: DoctorEarningsTodayScreen.routePath,
+        builder: (context, state) => const DoctorEarningsTodayScreen(),
+      ),
+      GoRoute(
+        path: DoctorPrescriptionsTodayScreen.routePath,
+        builder: (context, state) => const DoctorPrescriptionsTodayScreen(),
       ),
       GoRoute(
         path: ProfileViewScreen.routePath,

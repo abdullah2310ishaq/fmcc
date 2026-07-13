@@ -1,5 +1,6 @@
 import 'package:doctor_app/src/core/auth/auth_models.dart';
 import 'package:doctor_app/src/core/auth/jwt_utils.dart';
+import 'package:doctor_app/src/core/logging/app_logger.dart';
 import 'package:doctor_app/src/core/network/api_client.dart';
 import 'package:doctor_app/src/core/network/api_failure.dart';
 import 'package:doctor_app/src/core/network/endpoints.dart';
@@ -25,6 +26,10 @@ class AuthApi {
         'IdToken': idToken,
         'RoleId': RoleIds.fromRole(role),
       },
+    );
+
+    AppLogger.instance.i(
+      '[AUTH] google-login request role=$role roleId=${RoleIds.fromRole(role)}',
     );
 
     final dynamic data = res.data;
