@@ -38,10 +38,17 @@ class _CreatePrescriptionScreenState extends State<CreatePrescriptionScreen> {
     final session = context.read<SessionController>();
 
     return ChangeNotifierProvider(
-      create: (_) => PrescriptionFormController(
-        api: DoctorApi(session.apiClient),
-        apiClient: session.apiClient,
-      ),
+      create: (_) {
+        final form = PrescriptionFormController(
+          api: DoctorApi(session.apiClient),
+          apiClient: session.apiClient,
+        );
+        final token = session.state.accessToken?.trim() ?? '';
+        if (token.isNotEmpty) {
+          form.loadActiveMedicines(token);
+        }
+        return form;
+      },
       child: Consumer<PrescriptionFormController>(
         builder: (context, form, _) {
           Future<void> onBack() => DoctorNavigationGuard.popWithDiscardCheck(

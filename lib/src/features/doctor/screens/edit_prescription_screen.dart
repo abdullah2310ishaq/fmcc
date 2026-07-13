@@ -62,6 +62,10 @@ class _EditPrescriptionScreenState extends State<EditPrescriptionScreen> {
           nextVisit: widget.nextVisitDate,
           existingMedicines: widget.medicines,
         );
+        final token = session.state.accessToken?.trim() ?? '';
+        if (token.isNotEmpty) {
+          c.loadActiveMedicines(token);
+        }
         return c;
       },
       child: Consumer<PrescriptionFormController>(

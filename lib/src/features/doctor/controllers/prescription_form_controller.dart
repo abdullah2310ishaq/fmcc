@@ -2,6 +2,8 @@ import 'package:flutter/foundation.dart';
 
 import 'package:doctor_app/src/core/network/api_client.dart';
 import 'package:doctor_app/src/core/network/api_failure.dart';
+import 'package:doctor_app/src/core/reference/reference_api.dart';
+import 'package:doctor_app/src/core/reference/reference_models.dart';
 import 'package:doctor_app/src/features/doctor/api/doctor_api.dart';
 import 'package:doctor_app/src/features/doctor/models/doctor_models.dart';
 
@@ -12,6 +14,7 @@ class MedicineFormRow {
     this.dosageAmount = '',
     this.frequency = '',
     this.durationInDays = '',
+    this.useCustomName = false,
   });
 
   int medicineId;
@@ -19,19 +22,29 @@ class MedicineFormRow {
   String dosageAmount;
   String frequency;
   String durationInDays;
+
+  /// When true, doctor typed a custom name ("Other") instead of picking a list item.
+  bool useCustomName;
 }
 
 class PrescriptionFormController extends ChangeNotifier {
   PrescriptionFormController({
     required DoctorApi api,
     required ApiClient apiClient,
+    ReferenceApi? referenceApi,
   })  : _api = api,
-        _apiClient = apiClient;
+        _apiClient = apiClient,
+        _referenceApi = referenceApi ?? ReferenceApi(apiClient);
 
   final DoctorApi _api;
   final ApiClient _apiClient;
+  final ReferenceApi _referenceApi;
 
   final List<MedicineFormRow> medicines = [MedicineFormRow()];
+
+  List<ActiveMedicine> activeMedicines = const [];
+  bool loadingMedicines = false;
+  String? medicinesLoadError;
 
   String tenureInDays = '';
   String doctorNotes = '';
@@ -48,6 +61,90 @@ class PrescriptionFormController extends ChangeNotifier {
     if (_dirty) return;
     _dirty = true;
     notifyListeners();
+  }
+
+  Future<void> loadActiveMedicines(String bearerToken) async {
+    if (bearerToken.trim().isEmpty) return;
+    loadingMedicines = true;
+    medicinesLoadError = null;
+    notifyListeners();
+    try {
+      activeMedicines = await _referenceApi.getActiveMedicines(
+        bearerToken: bearerToken,
+      );
+      _reconcileRowsWithCatalog();
+    } catch (e) {
+      medicinesLoadError = e is ApiFailure
+          ? e.message
+          : _apiClient.mapError(e).message;
+    } finally {
+      loadingMedicines = false;
+      notifyListeners();
+    }
+  }
+
+  void _reconcileRowsWithCatalog() {
+    if (activeMedicines.isEmpty) return;
+    for (final m in medicines) {
+      if (m.useCustomName) continue;
+      ActiveMedicine? match;
+      if (m.medicineId > 0) {
+        for (final e in activeMedicines) {
+          if (e.medicineId == m.medicineId) {
+            match = e;
+            break;
+          }
+        }
+      }
+      if (match == null) {
+        final name = m.customMedicineName.trim().toLowerCase();
+        if (name.isNotEmpty) {
+          for (final e in activeMedicines) {
+            if (e.medicineName.trim().toLowerCase() == name) {
+              match = e;
+              break;
+            }
+          }
+        }
+      }
+      if (match != null) {
+        m.medicineId = match.medicineId;
+        m.customMedicineName = match.medicineName;
+        m.useCustomName = false;
+      } else if (m.customMedicineName.trim().isNotEmpty) {
+        m.medicineId = 0;
+        m.useCustomName = true;
+      }
+    }
+  }
+
+  void selectMedicine(int index, ActiveMedicine medicine) {
+    if (index < 0 || index >= medicines.length) return;
+    final m = medicines[index];
+    m.medicineId = medicine.medicineId;
+    m.customMedicineName = medicine.medicineName;
+    m.useCustomName = false;
+    markDirty();
+    notifyListeners();
+  }
+
+  void selectOtherMedicine(int index) {
+    if (index < 0 || index >= medicines.length) return;
+    final m = medicines[index];
+    m.medicineId = 0;
+    m.customMedicineName = '';
+    m.useCustomName = true;
+    markDirty();
+    notifyListeners();
+  }
+
+  void setCustomMedicineName(int index, String value) {
+    if (index < 0 || index >= medicines.length) return;
+    final m = medicines[index];
+    m.customMedicineName = value;
+    m.medicineId = 0;
+    m.useCustomName = true;
+    markDirty();
   }
 
   void addMedicine() {
@@ -92,9 +189,11 @@ class PrescriptionFormController extends ChangeNotifier {
                   dosageAmount: m.dosageAmount,
                   frequency: m.frequency,
                   durationInDays: m.durationInDays.toString(),
+                  useCustomName: m.medicineId <= 0,
                 ),
               ),
       );
+    _reconcileRowsWithCatalog();
     _dirty = false;
     notifyListeners();
   }
@@ -109,6 +208,9 @@ class PrescriptionFormController extends ChangeNotifier {
     }
     for (var i = 0; i < medicines.length; i++) {
       final m = medicines[i];
+      if (!m.useCustomName && m.medicineId <= 0 && m.customMedicineName.trim().isEmpty) {
+        return 'Medicine ${i + 1}: select a medicine.';
+      }
       if (m.customMedicineName.trim().isEmpty) {
         return 'Medicine ${i + 1}: name is required.';
       }
@@ -148,7 +250,7 @@ class PrescriptionFormController extends ChangeNotifier {
       final medicineInputs = medicines
           .map(
             (m) => PrescriptionMedicineInput(
-              medicineId: m.medicineId,
+              medicineId: m.useCustomName ? 0 : m.medicineId,
               customMedicineName: m.customMedicineName.trim(),
               dosageAmount: m.dosageAmount.trim(),
               frequency: m.frequency.trim(),

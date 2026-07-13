@@ -166,10 +166,11 @@ class _DoctorProfileScreenState extends State<DoctorProfileScreen> {
 
   Widget _buildBody(AppSession session) {
     final p = _profile;
+    // Prefer Google account identity from session; fill gaps from API.
     final name = _displayName(session, p);
     final email = _firstNonEmpty([
-      p?.email,
       session.registrationDetails.email,
+      p?.email,
     ]);
     final phone = _firstNonEmpty([
       p?.phoneNumber,
@@ -184,7 +185,8 @@ class _DoctorProfileScreenState extends State<DoctorProfileScreen> {
     final hospital = _firstNonEmpty([p?.hospitalName, session.hospitalName],
         fallback: 'Not assigned');
     final doctorId = _firstNonEmpty([p?.doctorId, session.doctorIdForApis]);
-    final verified = p?.isVerified ?? session.hospitalConfirmed;
+    // Doctors only enter the workspace after verified login + hospital confirm.
+    final verified = session.hospitalConfirmed || (p?.isVerified ?? false);
     final gender = p?.gender.trim() ?? '';
     final cnic = p?.cnic.trim() ?? '';
     final fee = p?.feePerPatient;
@@ -283,6 +285,8 @@ class _DoctorProfileScreenState extends State<DoctorProfileScreen> {
               ),
             ),
           ),
+        _viewOnlyBanner(),
+        SizedBox(height: 12.h),
         _heroCard(
           name: name,
           email: email,
@@ -364,14 +368,51 @@ class _DoctorProfileScreenState extends State<DoctorProfileScreen> {
     );
   }
 
+  Widget _viewOnlyBanner() {
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.all(12.w),
+      decoration: BoxDecoration(
+        color: AppColors.dashboardChipBlueBg.withValues(alpha: 0.7),
+        borderRadius: BorderRadius.circular(14.r),
+        border: Border.all(
+          color: AppColors.dashboardPrimary.withValues(alpha: 0.2),
+        ),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(
+            CupertinoIcons.lock_fill,
+            size: 18.sp,
+            color: AppColors.dashboardPrimary,
+          ),
+          SizedBox(width: 8.w),
+          Expanded(
+            child: Text(
+              'This profile is view only. Contact hospital administration to change these details.',
+              style: TextStyle(
+                fontSize: 12.sp,
+                fontWeight: FontWeight.w700,
+                color: AppColors.dashboardPrimaryDark,
+                height: 1.35,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   static String _displayName(AppSession session, DoctorProfile? profile) {
+    final fromGoogle = session.registrationDetails.fullName.trim();
+    if (fromGoogle.isNotEmpty && fromGoogle != 'Doctor' && fromGoogle != '—') {
+      return fromGoogle;
+    }
+
     final apiName = profile?.fullName.trim() ?? '';
     if (apiName.isNotEmpty) return apiName;
 
-    final fromSession = session.registrationDetails.fullName.trim();
-    if (fromSession.isNotEmpty && fromSession != 'Doctor') {
-      return fromSession;
-    }
     final userId = session.userId?.trim();
     if (userId != null && userId.isNotEmpty) return userId;
     return 'Doctor';

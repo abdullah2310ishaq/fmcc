@@ -8,7 +8,6 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:provider/provider.dart';
-
 import 'package:doctor_app/src/core/auth/auth_api.dart';
 import 'package:doctor_app/src/core/auth/google_sign_in_config.dart';
 import 'package:doctor_app/src/core/logging/app_logger.dart';
@@ -17,6 +16,7 @@ import 'package:doctor_app/src/core/roles/role_ids.dart';
 import 'package:doctor_app/src/core/session/app_session.dart';
 import 'package:doctor_app/src/core/session/session_controller.dart';
 import 'package:doctor_app/src/core/theme/app_colors.dart';
+import 'package:doctor_app/src/features/doctor/screens/doctor_not_verified_screen.dart';
 import 'package:doctor_app/src/features/role/role_screen.dart';
 
 class AuthScreen extends StatefulWidget {
@@ -30,10 +30,7 @@ class AuthScreen extends StatefulWidget {
 
 class _AuthScreenState extends State<AuthScreen> {
   bool _busy = false;
-  final GoogleSignIn _googleSignIn = GoogleSignIn(
-    serverClientId: GoogleSignInConfig.webClientId,
-    scopes: const ['email', 'profile', 'openid'],
-  );
+  final GoogleSignIn _googleSignIn = GoogleSignInConfig.createClient();
 
   @override
   void didChangeDependencies() {
@@ -85,66 +82,108 @@ class _AuthScreenState extends State<AuthScreen> {
   Widget build(BuildContext context) {
     final bottomInset = MediaQuery.paddingOf(context).bottom;
 
-    return Scaffold(
-      backgroundColor: Colors.white,
-      body: SafeArea(
-        child: Stack(
-          children: [
-            Padding(
-              padding: EdgeInsets.fromLTRB(
-                24.w,
-                0,
-                24.w,
-                16.h + bottomInset,
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop || _busy) return;
+        unawaited(_goBackToRole());
+      },
+      child: Scaffold(
+        backgroundColor: Colors.white,
+        body: SafeArea(
+          child: Stack(
+            children: [
+              Padding(
+                padding: EdgeInsets.fromLTRB(
+                  24.w,
+                  8.h,
+                  24.w,
+                  16.h + bottomInset,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const Spacer(flex: 3),
+                    Center(
+                      child: Image.asset(
+                        'assets/logo.png',
+                        width: 200.w,
+                        fit: BoxFit.contain,
+                      ),
+                    ),
+                    SizedBox(height: 32.h),
+                    Text(
+                      'Sign in',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 24.sp,
+                        fontWeight: FontWeight.w900,
+                        color: AppColors.dashboardPrimaryDark,
+                        letterSpacing: -0.3,
+                      ),
+                    ),
+                    SizedBox(height: 10.h),
+                    Text(
+                      'Sign in with your verified government Google\naccount to access the health worker portal.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 14.sp,
+                        fontWeight: FontWeight.w500,
+                        color: AppColors.textSecondary,
+                        height: 1.45,
+                      ),
+                    ),
+                    SizedBox(height: 32.h),
+                    _buildGoogleButton(
+                      onPressed: _busy ? null : () => unawaited(_handleLogin()),
+                      text: 'Continue with Google',
+                      isLoading: _busy,
+                    ),
+                    SizedBox(height: 14.h),
+                    SizedBox(
+                      height: 48.h,
+                      child: OutlinedButton.icon(
+                        onPressed:
+                            _busy ? null : () => unawaited(_goBackToRole()),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: AppColors.dashboardPrimaryDark,
+                          side: BorderSide(
+                            color: AppColors.dashboardPrimary.withValues(
+                              alpha: 0.35,
+                            ),
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16.r),
+                          ),
+                        ),
+                        icon: Icon(Icons.swap_horiz_rounded, size: 20.sp),
+                        label: Text(
+                          'Choose a different role',
+                          style: TextStyle(
+                            fontSize: 14.sp,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const Spacer(flex: 4),
+                  ],
+                ),
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  const Spacer(flex: 3),
-                  Center(
-                    child: Image.asset(
-                      'assets/logo.png',
-                      width: 200.w,
-                      fit: BoxFit.contain,
-                    ),
-                  ),
-                  SizedBox(height: 32.h),
-                  Text(
-                    'Sign in',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 24.sp,
-                      fontWeight: FontWeight.w900,
-                      color: AppColors.dashboardPrimaryDark,
-                      letterSpacing: -0.3,
-                    ),
-                  ),
-                  SizedBox(height: 10.h),
-                  Text(
-                    'Sign in with your verified government Google\naccount to access the health worker portal.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 14.sp,
-                      fontWeight: FontWeight.w500,
-                      color: AppColors.textSecondary,
-                      height: 1.45,
-                    ),
-                  ),
-                  SizedBox(height: 32.h),
-                  _buildGoogleButton(
-                    onPressed: _busy ? null : () => unawaited(_handleLogin()),
-                    text: 'Continue with Google',
-                    isLoading: _busy,
-                  ),
-                  const Spacer(flex: 4),
-                ],
-              ),
-            ),
-            if (_busy) const _SigningInOverlay(),
-          ],
+              if (_busy) const _SigningInOverlay(),
+            ],
+          ),
         ),
       ),
     );
+  }
+
+  Future<void> _goBackToRole() async {
+    final session = context.read<SessionController>();
+    // Clear role so router allows `/role` (signed-out + role set → `/auth`).
+    await session.selectRole(UserRole.unknown);
+    if (!mounted) return;
+    context.go(RoleScreen.routePath);
   }
 
   Widget _buildGoogleButton({
@@ -205,7 +244,16 @@ class _AuthScreenState extends State<AuthScreen> {
 
   Future<String> _getGoogleIdToken() async {
     try {
-      AppLogger.instance.i('[AUTH] GoogleSignIn.signIn() starting…');
+      // Always clear the previous Google session so the account picker is shown
+      // every login (multiple accounts / switch account).
+      try {
+        await _googleSignIn.signOut();
+      } on Object catch (e) {
+        AppLogger.instance.w('[AUTH] GoogleSignIn.signOut before picker: $e');
+      }
+
+      AppLogger.instance
+          .i('[AUTH] GoogleSignIn.signIn() starting (account picker)…');
       final account = await _googleSignIn.signIn();
       if (account == null) {
         AppLogger.instance.w(
@@ -300,6 +348,12 @@ class _AuthScreenState extends State<AuthScreen> {
       if (!mounted) return;
       _logAuthScreenFailure(phase: 'sign_in_flow', error: e, stackTrace: st);
 
+      // Doctor not verified → full screen (not toast), then OK logs out to role.
+      if (_isDoctorNotVerifiedError(e)) {
+        context.go(DoctorNotVerifiedScreen.routePath);
+        return;
+      }
+
       final friendly = _friendlyBackendError(e);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -334,6 +388,23 @@ class _AuthScreenState extends State<AuthScreen> {
     } finally {
       if (mounted) setState(() => _busy = false);
     }
+  }
+
+  static bool _isDoctorNotVerifiedError(Object error) {
+    if (error is ValidationFailure &&
+        error.message == AuthApi.doctorNotVerifiedMessage) {
+      return true;
+    }
+    if (error is UnauthorizedFailure) {
+      final msg = error.message.trim().toLowerCase();
+      if (msg.contains('authentication failed') ||
+          msg.contains('not verified')) {
+        return true;
+      }
+    }
+    final text = error.toString().toLowerCase();
+    return text.contains('not verified') &&
+        text.contains('contact the administration');
   }
 
   /// Structured log so console shows failure kind (Google vs API vs mapped).

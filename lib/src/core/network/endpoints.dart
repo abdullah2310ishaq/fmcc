@@ -95,6 +95,7 @@ class Endpoints {
   static const String symptoms = '/api/Reference/symptoms';
   static const String surgicalProcedures = '/api/Reference/surgical-procedures';
   static const String medicineCategories = '/api/Reference/medicine-categories';
+  static const String activeMedicines = '/api/Reference/active-medicines';
   static const String physicalActivityLevels =
       '/api/Reference/physical-activity-levels';
   static const String exerciseLevels = '/api/Reference/exercise-levels';
@@ -126,6 +127,7 @@ class Endpoints {
   static const String patientVisitCreate = '/api/Patient/visit';
   static const String patientVisitUpdate = '/api/Patient/visit';
   static const String patientVisitInstructions = '/api/Patient/instructions';
+
   /// Text-only counselling list when visit BP is Controlled (GREEN).
   /// Not the pre-visit carousel (`patientVisitInstructions`).
   static const String patientCounsellingInstructions =

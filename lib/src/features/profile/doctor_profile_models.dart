@@ -87,11 +87,27 @@ class DoctorProfile {
       if (parts.isNotEmpty) hospital = parts.join(', ');
     }
 
+    var firstName = _readString(m, 'firstName', 'FirstName') ?? '';
+    var lastName = _readString(m, 'lastName', 'LastName') ?? '';
+    if (firstName.trim().isEmpty && lastName.trim().isEmpty) {
+      final combined = _readString(m, 'fullName', 'FullName') ??
+          _readString(m, 'name', 'Name') ??
+          _readString(m, 'doctorName', 'DoctorName') ??
+          '';
+      final parts = combined.trim().split(RegExp(r'\s+'));
+      if (parts.isNotEmpty && parts.first.isNotEmpty) {
+        firstName = parts.first;
+        if (parts.length > 1) {
+          lastName = parts.sublist(1).join(' ');
+        }
+      }
+    }
+
     return DoctorProfile(
       userId: userId.isNotEmpty ? userId : doctorId,
       doctorId: doctorId,
-      firstName: _readString(m, 'firstName', 'FirstName') ?? '',
-      lastName: _readString(m, 'lastName', 'LastName') ?? '',
+      firstName: firstName,
+      lastName: lastName,
       email: _readString(m, 'email', 'Email') ?? '',
       phoneNumber: _readString(m, 'phoneNumber', 'PhoneNumber') ?? '',
       specialtyName: specialty.trim(),

@@ -18,6 +18,7 @@ import 'package:doctor_app/src/features/doctor/screens/doctor_shell.dart';
 import 'package:doctor_app/src/features/doctor/screens/doctor_prescription_detail_screen.dart';
 import 'package:doctor_app/src/features/doctor/screens/edit_prescription_screen.dart';
 import 'package:doctor_app/src/features/doctor/screens/hospital_confirmation_screen.dart';
+import 'package:doctor_app/src/features/doctor/screens/doctor_not_verified_screen.dart';
 import 'package:doctor_app/src/features/doctor/screens/metrics/doctor_earnings_today_screen.dart';
 import 'package:doctor_app/src/features/doctor/screens/metrics/doctor_emergency_queue_detail_screen.dart';
 import 'package:doctor_app/src/features/doctor/screens/metrics/doctor_patients_seen_today_screen.dart';
@@ -214,6 +215,10 @@ GoRouter _buildRouter(SessionController sessionController) {
         builder: (context, state) => const HospitalConfirmationScreen(),
       ),
       GoRoute(
+        path: DoctorNotVerifiedScreen.routePath,
+        builder: (context, state) => const DoctorNotVerifiedScreen(),
+      ),
+      GoRoute(
         path: DoctorShell.routePath,
         builder: (context, state) => const DoctorShell(),
       ),
@@ -320,6 +325,9 @@ GoRouter _buildRouter(SessionController sessionController) {
       // Always let the splash screen show on launch; it self-navigates
       // to the resolved destination after its animation.
       if (loc == SplashScreen.routePath) return null;
+
+      // Unverified-doctor info screen: stay until user taps OK → logout.
+      if (loc == DoctorNotVerifiedScreen.routePath) return null;
 
       // If declined: force sign out and show auth with message (auth screen will display it).
       if (session.approvalStatus == ApprovalStatus.declined) {

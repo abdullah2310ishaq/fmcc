@@ -3,6 +3,7 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import 'package:doctor_app/src/core/auth/google_sign_in_config.dart';
 import 'package:doctor_app/src/core/session/session_controller.dart';
 import 'package:doctor_app/src/core/theme/app_colors.dart';
 import 'package:doctor_app/src/features/patients/patient_detail_cache.dart';
@@ -24,7 +25,22 @@ class LogoutFlow {
     await Future<void>.delayed(const Duration(milliseconds: 160));
     if (!context.mounted) return;
 
+    // Capture before async work — the calling route may unmount after logout.
     final rootNav = Navigator.of(context, rootNavigator: true);
+    final router = GoRouter.of(context);
+    final session = context.read<SessionController>();
+    PatientDetailCache? patientCache;
+    VisitInstructionsCache? visitCache;
+    try {
+      patientCache = context.read<PatientDetailCache>();
+    } on Object {
+      // Provider may be unavailable on some routes.
+    }
+    try {
+      visitCache = context.read<VisitInstructionsCache>();
+    } on Object {
+      // Optional cache — ignore if missing.
+    }
 
     showDialog<void>(
       context: context,
@@ -38,33 +54,27 @@ class LogoutFlow {
     );
 
     try {
-      try {
-        context.read<PatientDetailCache>().clearAll();
-      } on Object {
-        // Provider may be unavailable on some routes.
-      }
+      patientCache?.clearAll();
       try {
         await PatientDetailDiskCache.clearAll();
       } on Object {
         // Disk cache is optional — ignore failures.
       }
-      try {
-        context.read<VisitInstructionsCache>().clear();
-      } on Object {
-        // Optional cache — ignore if missing.
-      }
+      visitCache?.clear();
 
-      await context.read<SessionController>().logout(keepRole: keepRole);
-
-      // Brief beat so GoRouter redirect feels intentional, not abrupt.
-      await Future<void>.delayed(const Duration(milliseconds: 280));
-      if (!keepRole && context.mounted) {
-        context.go(RoleScreen.routePath);
-      }
+      await GoogleSignInConfig.signOutCachedAccount();
+      await session.logout(keepRole: keepRole);
     } finally {
-      if (rootNav.mounted) {
+      // Close the loading dialog BEFORE navigating. Popping after
+      // `context.go` can remove the new route and leave a black screen.
+      if (rootNav.canPop()) {
         rootNav.pop();
       }
+    }
+
+    if (!keepRole) {
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      router.go(RoleScreen.routePath);
     }
   }
 }

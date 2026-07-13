@@ -145,15 +145,46 @@ class AuthApi {
   }) {
     if (data is! Map) return null;
     final m = Map<String, dynamic>.from(data);
-    final inner = m['data'] ?? m['Data'] ?? m['result'] ?? m['Result'];
-    if (inner is Map) {
-      final fromInner = DoctorProfileFields.tryFromJson(
-        inner,
+    final candidates = <Map<String, dynamic>>[m];
+
+    for (final key in [
+      'data',
+      'Data',
+      'result',
+      'Result',
+      'doctor',
+      'Doctor',
+      'profile',
+      'Profile',
+    ]) {
+      final inner = m[key];
+      if (inner is Map) {
+        candidates.add(Map<String, dynamic>.from(inner));
+        final nested = Map<String, dynamic>.from(inner);
+        for (final nestedKey in ['doctor', 'Doctor', 'profile', 'Profile']) {
+          final deeper = nested[nestedKey];
+          if (deeper is Map) {
+            candidates.add(Map<String, dynamic>.from(deeper));
+          }
+        }
+      }
+    }
+
+    DoctorProfileFields? best;
+    for (final candidate in candidates) {
+      final parsed = DoctorProfileFields.tryFromJson(
+        candidate,
         fallbackUserId: fallbackUserId,
       );
-      if (fromInner != null) return fromInner;
+      if (parsed == null) continue;
+      best = best?.mergePreferringNonEmpty(parsed) ?? parsed;
+      if (best.hospitalName.trim().isNotEmpty &&
+          best.doctorSpeciality.trim().isNotEmpty &&
+          best.pmdcNumber.trim().isNotEmpty) {
+        break;
+      }
     }
-    return DoctorProfileFields.tryFromJson(m, fallbackUserId: fallbackUserId);
+    return best;
   }
 
   static String? _extractUserId(dynamic data) {

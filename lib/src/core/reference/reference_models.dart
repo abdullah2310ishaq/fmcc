@@ -52,6 +52,46 @@ class NamedReferenceItem {
   }
 }
 
+/// Active medicine from `GET /api/Reference/active-medicines`.
+class ActiveMedicine {
+  const ActiveMedicine({
+    required this.medicineId,
+    required this.medicineName,
+    this.categoryName = '',
+  });
+
+  final int medicineId;
+  final String medicineName;
+  final String categoryName;
+
+  factory ActiveMedicine.fromJson(Map<String, dynamic> json) {
+    return ActiveMedicine(
+      medicineId: _readInt(
+        json['medicineId'] ??
+            json['MedicineId'] ??
+            json['id'] ??
+            json['Id'],
+      ),
+      medicineName: _firstNonEmptyField(json, const [
+        'medicineName',
+        'MedicineName',
+        'name',
+        'Name',
+        'label',
+        'Label',
+        'title',
+        'Title',
+      ]),
+      categoryName: _firstNonEmptyField(json, const [
+        'categoryName',
+        'CategoryName',
+        'medicineCategoryName',
+        'MedicineCategoryName',
+      ]),
+    );
+  }
+}
+
 class EducationLevel {
   const EducationLevel({
     required this.id,

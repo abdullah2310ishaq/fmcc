@@ -119,8 +119,17 @@ class SessionController extends ChangeNotifier implements SessionAuthHooks {
     RegistrationDetails? base,
   }) {
     final claims = JwtUtils.tryDecodePayload(idToken);
-    final email = (claims['email'] ?? '').toString().trim();
-    final name = (claims['name'] ?? claims['given_name'] ?? '')
+    final email = (claims['email'] ??
+            claims['Email'] ??
+            claims['preferred_username'] ??
+            '')
+        .toString()
+        .trim();
+    final name = (claims['name'] ??
+            claims['Name'] ??
+            claims['given_name'] ??
+            claims['givenName'] ??
+            '')
         .toString()
         .trim();
     final current = base ?? _state.registrationDetails;
@@ -171,17 +180,24 @@ class SessionController extends ChangeNotifier implements SessionAuthHooks {
 
       // Doctor: hold tokens until hospital confirmation — do not finalize session yet.
       if (_state.role == UserRole.doctor) {
+        final googleDetails = _registrationFromGoogleToken(idToken);
         var profile = session.doctorProfile;
-        profile ??= await _loadDoctorProfileFields(
-          doctorId: session.userId,
+
+        // Prefer login HospitalName; fill gaps from GET /api/Doctor/{id}.
+        final fromApi = await _loadDoctorProfileFields(
+          doctorId: profile?.doctorId?.trim().isNotEmpty == true
+              ? profile!.doctorId!.trim()
+              : session.userId,
           bearerToken: session.accessToken,
         );
-        profile ??= DoctorProfileFields(
-          doctorSpeciality: '',
-          pmdcNumber: '',
-          hospitalName: '',
-          doctorId: session.userId,
-        );
+        profile = (profile ??
+                DoctorProfileFields(
+                  doctorSpeciality: '',
+                  pmdcNumber: '',
+                  hospitalName: '',
+                  doctorId: session.userId,
+                ))
+            .mergePreferringNonEmpty(fromApi);
 
         _pendingDoctorLogin = PendingDoctorLogin(
           accessToken: session.accessToken,
@@ -194,12 +210,23 @@ class SessionController extends ChangeNotifier implements SessionAuthHooks {
         );
         await _setState(
           _state.copyWith(
-            registrationDetails: _registrationFromGoogleToken(idToken),
+            // Keep Google identity for profile display even before confirm.
+            registrationDetails: googleDetails,
+            hospitalName: profile.hospitalName.isNotEmpty
+                ? profile.hospitalName
+                : _state.hospitalName,
+            doctorSpeciality: profile.doctorSpeciality.isNotEmpty
+                ? profile.doctorSpeciality
+                : _state.doctorSpeciality,
+            pmdcNumber: profile.pmdcNumber.isNotEmpty
+                ? profile.pmdcNumber
+                : _state.pmdcNumber,
           ),
         );
         AppLogger.instance.i(
           '[AUTH] doctor google-login OK userId=${session.userId} '
-          'hospital=${profile.hospitalName} awaiting hospital confirmation',
+          'hospital=${profile.hospitalName} name=${googleDetails.fullName} '
+          'email=${googleDetails.email} awaiting hospital confirmation',
         );
         return;
       }
@@ -299,6 +326,8 @@ class SessionController extends ChangeNotifier implements SessionAuthHooks {
       throw const ValidationFailure('No pending doctor login to confirm.');
     }
     _pendingDoctorLogin = null;
+    final googleName = _state.registrationDetails.fullName.trim();
+    final googleEmail = _state.registrationDetails.email.trim();
     await _setState(
       _state.copyWith(
         isSignedIn: true,
@@ -313,9 +342,8 @@ class SessionController extends ChangeNotifier implements SessionAuthHooks {
         accessToken: pending.accessToken,
         refreshToken: pending.refreshToken,
         registrationDetails: _state.registrationDetails.copyWith(
-          fullName: _state.registrationDetails.fullName.trim().isNotEmpty
-              ? _state.registrationDetails.fullName
-              : 'Doctor',
+          fullName: googleName.isNotEmpty ? googleName : 'Doctor',
+          email: googleEmail,
           phone: _state.registrationDetails.phone.trim().isNotEmpty
               ? _state.registrationDetails.phone
               : '—',
@@ -327,7 +355,9 @@ class SessionController extends ChangeNotifier implements SessionAuthHooks {
     );
   }
 
-  /// Doctor said they no longer work at the hospital — unassign and abort login.
+  /// Doctor said they no longer work at the hospital — unassign only.
+  /// Pending login stays until [LogoutFlow] so the confirmation route remains
+  /// under the unassigned message sheet.
   Future<void> declineDoctorHospital() async {
     final pending = _pendingDoctorLogin;
     if (pending == null) return;
@@ -346,12 +376,9 @@ class SessionController extends ChangeNotifier implements SessionAuthHooks {
       // Still abort login even if unassign fails.
     }
 
-    _pendingDoctorLogin = null;
-    await logout(keepRole: true);
-    await _setState(
-      _state.copyWith(showDeclinedMessageOnce: true),
+    AppLogger.instance.i(
+      '[AUTH] doctor hospital declined; awaiting OK → logout to role',
     );
-    AppLogger.instance.i('[AUTH] doctor hospital declined; login aborted');
   }
 
   Future<void> clearPendingDoctorLogin() async {

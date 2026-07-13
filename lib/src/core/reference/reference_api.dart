@@ -112,6 +112,38 @@ class ReferenceApi {
   }) =>
       _namedClinicalList(Endpoints.medicineCategories, bearerToken);
 
+  Future<List<ActiveMedicine>> getActiveMedicines({
+    required String bearerToken,
+  }) async {
+    final path = Endpoints.activeMedicines;
+    final res = await _client.get(
+      path,
+      bearerToken: bearerToken,
+    );
+    final data = res.data;
+    _logReferenceRaw(path, data);
+    final parsed = _parseList(data, ActiveMedicine.fromJson);
+    if (parsed.isEmpty && data != null) {
+      AppLogger.instance.w(
+        '[ReferenceAPI] GET $path parsed 0 rows — verify medicineId/medicineName fields in RAW payload above',
+      );
+    }
+    _logParsedSummary(
+      path,
+      parsed.length,
+      parsed
+          .map(
+            (e) => {
+              'medicineId': e.medicineId,
+              'medicineName': e.medicineName,
+              'categoryName': e.categoryName,
+            },
+          )
+          .toList(),
+    );
+    return parsed;
+  }
+
   Future<List<NamedReferenceItem>> getPhysicalActivityLevels({
     required String bearerToken,
   }) =>

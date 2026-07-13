@@ -12,20 +12,56 @@ class DoctorProfileFields {
   final String hospitalName;
   final String? doctorId;
 
+  DoctorProfileFields mergePreferringNonEmpty(DoctorProfileFields? other) {
+    if (other == null) return this;
+    return DoctorProfileFields(
+      doctorSpeciality: doctorSpeciality.trim().isNotEmpty
+          ? doctorSpeciality
+          : other.doctorSpeciality,
+      pmdcNumber: pmdcNumber.trim().isNotEmpty ? pmdcNumber : other.pmdcNumber,
+      hospitalName:
+          hospitalName.trim().isNotEmpty ? hospitalName : other.hospitalName,
+      doctorId: (doctorId?.trim().isNotEmpty == true)
+          ? doctorId
+          : other.doctorId,
+    );
+  }
+
   static DoctorProfileFields? tryFromJson(
     dynamic json, {
     String? fallbackUserId,
   }) {
     if (json is! Map) return null;
     final m = Map<String, dynamic>.from(json);
-    final hospital = _readString(m, 'hospitalName', 'HospitalName');
+
+    // Some payloads nest doctor fields under `doctor` / `Doctor`.
+    Map<String, dynamic>? nestedDoctor;
+    final doctorNode = m['doctor'] ?? m['Doctor'] ?? m['profile'] ?? m['Profile'];
+    if (doctorNode is Map) {
+      nestedDoctor = Map<String, dynamic>.from(doctorNode);
+    }
+
+    final hospital = _readHospitalName(m) ??
+        (nestedDoctor != null ? _readHospitalName(nestedDoctor) : null);
     final specialty = _readString(m, 'doctorSpeciality', 'DoctorSpeciality') ??
         _readString(m, 'specialtyName', 'SpecialtyName') ??
+        (nestedDoctor != null
+            ? (_readString(nestedDoctor, 'doctorSpeciality', 'DoctorSpeciality') ??
+                _readString(nestedDoctor, 'specialtyName', 'SpecialtyName'))
+            : null) ??
         '';
-    final pmdc = _readString(m, 'pmdcNumber', 'PMDCNumber') ?? '';
+    final pmdc = _readString(m, 'pmdcNumber', 'PMDCNumber') ??
+        (nestedDoctor != null
+            ? _readString(nestedDoctor, 'pmdcNumber', 'PMDCNumber')
+            : null) ??
+        '';
     final doctorId = _readString(m, 'doctorId', 'DoctorId') ??
         _readString(m, 'id', 'Id') ??
         _readString(m, 'professionId', 'ProfessionId') ??
+        (nestedDoctor != null
+            ? (_readString(nestedDoctor, 'doctorId', 'DoctorId') ??
+                _readString(nestedDoctor, 'id', 'Id'))
+            : null) ??
         fallbackUserId;
 
     if ((hospital == null || hospital.trim().isEmpty) &&
@@ -41,6 +77,23 @@ class DoctorProfileFields {
       hospitalName: (hospital ?? '').trim(),
       doctorId: doctorId?.trim(),
     );
+  }
+
+  static String? _readHospitalName(Map<String, dynamic> m) {
+    final direct = _readString(m, 'hospitalName', 'HospitalName') ??
+        _readString(m, 'hospital', 'Hospital') ??
+        _readString(m, 'assignedHospitalName', 'AssignedHospitalName') ??
+        _readString(m, 'hospital_name', 'Hospital_Name');
+    if (direct != null && direct.trim().isNotEmpty) return direct.trim();
+
+    final hospitalObj = m['hospital'] ?? m['Hospital'];
+    if (hospitalObj is Map) {
+      final hm = Map<String, dynamic>.from(hospitalObj);
+      final nested = _readString(hm, 'name', 'Name') ??
+          _readString(hm, 'hospitalName', 'HospitalName');
+      if (nested != null && nested.trim().isNotEmpty) return nested.trim();
+    }
+    return null;
   }
 }
 
