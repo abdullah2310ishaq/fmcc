@@ -6,8 +6,10 @@ import 'package:doctor_app/src/core/network/api_failure.dart';
 import 'package:doctor_app/src/core/session/session_controller.dart';
 import 'package:doctor_app/src/core/theme/app_colors.dart';
 import 'package:doctor_app/src/features/doctor/api/doctor_api.dart';
+import 'package:doctor_app/src/features/doctor/controllers/doctor_prescriptions_controller.dart';
 import 'package:doctor_app/src/features/doctor/controllers/prescription_form_controller.dart';
 import 'package:doctor_app/src/features/doctor/models/doctor_models.dart';
+import 'package:doctor_app/src/features/doctor/widgets/doctor_navigation_guard.dart';
 import 'package:doctor_app/src/features/doctor/widgets/prescription_form_widgets.dart';
 
 class EditPrescriptionScreen extends StatefulWidget {
@@ -64,15 +66,26 @@ class _EditPrescriptionScreenState extends State<EditPrescriptionScreen> {
       },
       child: Consumer<PrescriptionFormController>(
         builder: (context, form, _) {
-          return Scaffold(
-            backgroundColor: AppColors.dashboardBackground,
-            body: Column(
-              children: [
-                PrescriptionPatientBanner(
-                  patientName: widget.patientName,
-                  title: 'Edit prescription',
-                  onBack: () => context.pop(),
-                ),
+          Future<void> onBack() => DoctorNavigationGuard.popWithDiscardCheck(
+                context,
+                hasUnsavedChanges: form.hasUnsavedChanges,
+              );
+
+          return PopScope(
+            canPop: !form.hasUnsavedChanges,
+            onPopInvokedWithResult: (didPop, _) async {
+              if (didPop) return;
+              await onBack();
+            },
+            child: Scaffold(
+              backgroundColor: AppColors.dashboardBackground,
+              body: Column(
+                children: [
+                  PrescriptionPatientBanner(
+                    patientName: widget.patientName,
+                    title: 'Edit prescription',
+                    onBack: onBack,
+                  ),
                 Expanded(
                   child: Form(
                     key: _formKey,
@@ -91,6 +104,7 @@ class _EditPrescriptionScreenState extends State<EditPrescriptionScreen> {
                 ),
               ],
             ),
+          ),
           );
         },
       ),
@@ -114,6 +128,8 @@ class _EditPrescriptionScreenState extends State<EditPrescriptionScreen> {
         bearerToken: token,
         prescriptionId: widget.prescriptionId,
       );
+      if (!context.mounted) return;
+      await context.read<DoctorPrescriptionsController>().refreshFromSession(s);
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(

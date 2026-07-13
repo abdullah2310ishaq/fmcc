@@ -1186,6 +1186,160 @@
             }
           }
         }
+      },
+      "/api/Doctor/{doctorId}/dashboard": {
+        "get": {
+          "tags": [
+            "Doctor"
+          ],
+          "parameters": [
+            {
+              "name": "doctorId",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string"
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "OK"
+            }
+          }
+        }
+      },
+      "/api/Doctor/{doctorId}/prescriptions": {
+        "get": {
+          "tags": [
+            "Doctor"
+          ],
+          "parameters": [
+            {
+              "name": "doctorId",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string"
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "OK"
+            }
+          }
+        }
+      },
+      "/api/Doctor/prescription": {
+        "post": {
+          "tags": [
+            "Doctor"
+          ],
+          "requestBody": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PrescriptionSubmitModel"
+                }
+              }
+            },
+            "required": true
+          },
+          "responses": {
+            "200": {
+              "description": "OK"
+            }
+          }
+        },
+        "put": {
+          "tags": [
+            "Doctor"
+          ],
+          "requestBody": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PrescriptionEditModel"
+                }
+              }
+            },
+            "required": true
+          },
+          "responses": {
+            "200": {
+              "description": "OK"
+            }
+          }
+        }
+      },
+      "/api/Doctor/{doctorId}/unassign-hospital": {
+        "post": {
+          "tags": [
+            "Doctor"
+          ],
+          "parameters": [
+            {
+              "name": "doctorId",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string"
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "OK"
+            }
+          }
+        }
+      },
+      "/api/Patient/emergency-queue/{doctorId}": {
+        "get": {
+          "tags": [
+            "Patient",
+            "Doctor"
+          ],
+          "parameters": [
+            {
+              "name": "doctorId",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string"
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "OK"
+            }
+          }
+        }
+      },
+      "/api/Patient/prescription-history/{patientId}": {
+        "get": {
+          "tags": [
+            "Patient",
+            "Doctor"
+          ],
+          "parameters": [
+            {
+              "name": "patientId",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string"
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "OK"
+            }
+          }
+        }
       }
     },
     "components": {
@@ -1236,6 +1390,95 @@
             "tehsilId": {
               "type": "integer",
               "format": "int32"
+            }
+          },
+          "additionalProperties": false
+        },
+        "PrescriptionMedicineModel": {
+          "type": "object",
+          "properties": {
+            "medicineId": {
+              "type": "integer",
+              "format": "int32"
+            },
+            "customMedicineName": {
+              "type": "string"
+            },
+            "dosageAmount": {
+              "type": "string"
+            },
+            "frequency": {
+              "type": "string"
+            },
+            "durationInDays": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          "additionalProperties": false
+        },
+        "PrescriptionSubmitModel": {
+          "type": "object",
+          "properties": {
+            "visitId": {
+              "type": "string"
+            },
+            "patientId": {
+              "type": "string"
+            },
+            "doctorId": {
+              "type": "string"
+            },
+            "tenureInDays": {
+              "type": "integer",
+              "format": "int32"
+            },
+            "doctorNotes": {
+              "type": "string"
+            },
+            "continuedFromPrescriptionId": {
+              "type": "string",
+              "nullable": true
+            },
+            "nextVisitDate": {
+              "type": "string",
+              "format": "date-time",
+              "nullable": true
+            },
+            "medicines": {
+              "type": "array",
+              "items": {
+                "$ref": "#/components/schemas/PrescriptionMedicineModel"
+              }
+            }
+          },
+          "additionalProperties": false
+        },
+        "PrescriptionEditModel": {
+          "type": "object",
+          "properties": {
+            "prescriptionId": {
+              "type": "string"
+            },
+            "doctorId": {
+              "type": "string"
+            },
+            "tenureInDays": {
+              "type": "integer",
+              "format": "int32"
+            },
+            "doctorNotes": {
+              "type": "string"
+            },
+            "continuedFromPrescriptionId": {
+              "type": "string",
+              "nullable": true
+            },
+            "medicines": {
+              "type": "array",
+              "items": {
+                "$ref": "#/components/schemas/PrescriptionMedicineModel"
+              }
             }
           },
           "additionalProperties": false
@@ -1878,6 +2121,9 @@
       },
       {
         "name": "Reference"
+      },
+      {
+        "name": "Doctor"
       }
     ]
   }

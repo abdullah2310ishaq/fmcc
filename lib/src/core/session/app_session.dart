@@ -8,22 +8,29 @@ class RegistrationDetails extends Equatable {
   const RegistrationDetails({
     required this.fullName,
     required this.phone,
+    this.email = '',
   });
 
   final String fullName;
   final String phone;
+  final String email;
 
   bool get isComplete => fullName.trim().isNotEmpty && phone.trim().isNotEmpty;
 
-  RegistrationDetails copyWith({String? fullName, String? phone}) {
+  RegistrationDetails copyWith({
+    String? fullName,
+    String? phone,
+    String? email,
+  }) {
     return RegistrationDetails(
       fullName: fullName ?? this.fullName,
       phone: phone ?? this.phone,
+      email: email ?? this.email,
     );
   }
 
   @override
-  List<Object?> get props => [fullName, phone];
+  List<Object?> get props => [fullName, phone, email];
 }
 
 class AppSession extends Equatable {
@@ -51,7 +58,7 @@ class AppSession extends Equatable {
       role: UserRole.unknown,
       isSignedIn: false,
       approvalStatus: ApprovalStatus.none,
-      registrationDetails: RegistrationDetails(fullName: '', phone: ''),
+      registrationDetails: RegistrationDetails(fullName: '', phone: '', email: ''),
       showDeclinedMessageOnce: false,
       userId: null,
       healthWorkerId: null,

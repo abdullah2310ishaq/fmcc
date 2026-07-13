@@ -7,6 +7,8 @@ import 'package:doctor_app/src/core/session/session_controller.dart';
 import 'package:doctor_app/src/core/theme/app_colors.dart';
 import 'package:doctor_app/src/features/doctor/api/doctor_api.dart';
 import 'package:doctor_app/src/features/doctor/controllers/prescription_form_controller.dart';
+import 'package:doctor_app/src/features/doctor/controllers/doctor_prescriptions_controller.dart';
+import 'package:doctor_app/src/features/doctor/widgets/doctor_navigation_guard.dart';
 import 'package:doctor_app/src/features/doctor/widgets/prescription_form_widgets.dart';
 
 class CreatePrescriptionScreen extends StatefulWidget {
@@ -42,14 +44,25 @@ class _CreatePrescriptionScreenState extends State<CreatePrescriptionScreen> {
       ),
       child: Consumer<PrescriptionFormController>(
         builder: (context, form, _) {
-          return Scaffold(
-            backgroundColor: AppColors.dashboardBackground,
-            body: Column(
-              children: [
-                PrescriptionPatientBanner(
-                  patientName: widget.patientName,
-                  onBack: () => context.pop(),
-                ),
+          Future<void> onBack() => DoctorNavigationGuard.popWithDiscardCheck(
+                context,
+                hasUnsavedChanges: form.hasUnsavedChanges,
+              );
+
+          return PopScope(
+            canPop: !form.hasUnsavedChanges,
+            onPopInvokedWithResult: (didPop, _) async {
+              if (didPop) return;
+              await onBack();
+            },
+            child: Scaffold(
+              backgroundColor: AppColors.dashboardBackground,
+              body: Column(
+                children: [
+                  PrescriptionPatientBanner(
+                    patientName: widget.patientName,
+                    onBack: onBack,
+                  ),
                 Expanded(
                   child: Form(
                     key: _formKey,
@@ -66,6 +79,7 @@ class _CreatePrescriptionScreenState extends State<CreatePrescriptionScreen> {
                 ),
               ],
             ),
+          ),
           );
         },
       ),
@@ -88,6 +102,8 @@ class _CreatePrescriptionScreenState extends State<CreatePrescriptionScreen> {
         doctorId: s.doctorIdForApis,
         bearerToken: token,
       );
+      if (!context.mounted) return;
+      await context.read<DoctorPrescriptionsController>().refreshFromSession(s);
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(

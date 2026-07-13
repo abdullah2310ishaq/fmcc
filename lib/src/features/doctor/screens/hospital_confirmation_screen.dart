@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:provider/provider.dart';
 
+import 'package:doctor_app/src/core/presentation/app_confirm_dialogs.dart';
+import 'package:doctor_app/src/core/session/logout_flow.dart';
 import 'package:doctor_app/src/core/session/session_controller.dart';
 import 'package:doctor_app/src/core/theme/app_colors.dart';
 import 'package:doctor_app/src/features/doctor/widgets/doctor_safe_area.dart';
@@ -63,7 +65,16 @@ class _HospitalConfirmationScreenState
         ? pending!.hospitalName
         : 'your hospital';
 
-    return Scaffold(
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) async {
+        if (didPop || _busy) return;
+        final leave = await AppConfirmDialogs.showLogout(context);
+        if (leave == true && context.mounted) {
+          await LogoutFlow.run(context);
+        }
+      },
+      child: Scaffold(
       backgroundColor: AppColors.background,
       body: DoctorPageSafeArea(
         child: Padding(
@@ -169,6 +180,7 @@ class _HospitalConfirmationScreenState
           ),
         ),
       ),
+    ),
     );
   }
 }

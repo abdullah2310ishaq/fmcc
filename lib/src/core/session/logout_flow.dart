@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import 'package:doctor_app/src/core/session/session_controller.dart';
 import 'package:doctor_app/src/core/theme/app_colors.dart';
 import 'package:doctor_app/src/features/patients/patient_detail_cache.dart';
 import 'package:doctor_app/src/features/patients/patient_detail_disk_cache.dart';
+import 'package:doctor_app/src/features/role/role_screen.dart';
 import 'package:doctor_app/src/features/visits/visit_instructions_cache.dart';
 
 /// Confirmed logout — branded loading overlay, cache clear, session sign-out.
@@ -14,7 +16,7 @@ class LogoutFlow {
 
   static Future<void> run(
     BuildContext context, {
-    bool keepRole = true,
+    bool keepRole = false,
   }) async {
     if (!context.mounted) return;
 
@@ -56,6 +58,9 @@ class LogoutFlow {
 
       // Brief beat so GoRouter redirect feels intentional, not abrupt.
       await Future<void>.delayed(const Duration(milliseconds: 280));
+      if (!keepRole && context.mounted) {
+        context.go(RoleScreen.routePath);
+      }
     } finally {
       if (rootNav.mounted) {
         rootNav.pop();

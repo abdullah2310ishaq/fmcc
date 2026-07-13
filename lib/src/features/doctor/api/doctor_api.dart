@@ -1,6 +1,7 @@
 import 'package:doctor_app/src/core/network/api_client.dart';
 import 'package:doctor_app/src/core/network/endpoints.dart';
 import 'package:doctor_app/src/features/doctor/models/doctor_models.dart';
+import 'package:doctor_app/src/features/profile/doctor_profile_models.dart';
 
 class DoctorApi {
   DoctorApi(this._client);
@@ -15,6 +16,17 @@ class DoctorApi {
       Endpoints.doctorUnassignHospital(doctorId),
       bearerToken: bearerToken,
     );
+  }
+
+  Future<DoctorProfile?> getDoctor({
+    required String doctorId,
+    required String bearerToken,
+  }) async {
+    final res = await _client.get(
+      Endpoints.doctorById(doctorId),
+      bearerToken: bearerToken,
+    );
+    return DoctorProfile.tryFromApi(res.data);
   }
 
   Future<DoctorDashboardStats> getDashboard({
@@ -43,8 +55,19 @@ class DoctorApi {
     return _parseQueue(unwrapListPayload(res.data));
   }
 
-  Future<void> upsertPrescription({
-    required UpsertPrescriptionRequest request,
+  Future<void> createPrescription({
+    required PrescriptionSubmitRequest request,
+    required String bearerToken,
+  }) async {
+    await _client.post(
+      Endpoints.doctorPrescription,
+      body: request.toJson(),
+      bearerToken: bearerToken,
+    );
+  }
+
+  Future<void> updatePrescription({
+    required PrescriptionEditRequest request,
     required String bearerToken,
   }) async {
     await _client.put(

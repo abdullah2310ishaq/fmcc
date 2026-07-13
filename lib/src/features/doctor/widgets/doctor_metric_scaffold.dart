@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 import 'package:doctor_app/src/core/theme/app_colors.dart';
+import 'package:doctor_app/src/core/theme/app_gradients.dart';
 import 'package:doctor_app/src/features/doctor/widgets/doctor_safe_area.dart';
 
 class DoctorMetricDetailScaffold extends StatelessWidget {
@@ -37,18 +38,12 @@ class DoctorMetricDetailScaffold extends StatelessWidget {
         children: [
           Container(
             decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  accent.withValues(alpha: 0.95),
-                  AppColors.dashboardPrimary,
-                ],
-              ),
+              gradient: AppGradients.header,
               borderRadius: BorderRadius.only(
                 bottomLeft: Radius.circular(28.r),
                 bottomRight: Radius.circular(28.r),
               ),
+              border: Border.all(color: AppColors.registrationFieldBorder),
             ),
             child: Padding(
               padding: EdgeInsets.fromLTRB(8.w, top + 4.h, 16.w, 20.h),
@@ -59,7 +54,7 @@ class DoctorMetricDetailScaffold extends StatelessWidget {
                     onPressed: onBack,
                     icon: Icon(
                       CupertinoIcons.back,
-                      color: Colors.white,
+                      color: AppColors.dashboardPrimaryDark,
                       size: 24.sp,
                     ),
                   ),
@@ -71,10 +66,17 @@ class DoctorMetricDetailScaffold extends StatelessWidget {
                           width: 44.r,
                           height: 44.r,
                           decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.18),
+                            color: AppColors.surface,
                             borderRadius: BorderRadius.circular(14.r),
+                            border: Border.all(
+                              color: AppColors.registrationFieldBorder,
+                            ),
                           ),
-                          child: Icon(icon, color: Colors.white, size: 22.sp),
+                          child: Icon(
+                            icon,
+                            color: AppColors.dashboardPrimary,
+                            size: 22.sp,
+                          ),
                         ),
                         SizedBox(width: 12.w),
                         Expanded(
@@ -86,7 +88,7 @@ class DoctorMetricDetailScaffold extends StatelessWidget {
                                 style: TextStyle(
                                   fontSize: 22.sp,
                                   fontWeight: FontWeight.w900,
-                                  color: Colors.white,
+                                  color: AppColors.dashboardPrimaryDark,
                                 ),
                               ),
                               SizedBox(height: 4.h),
@@ -95,7 +97,7 @@ class DoctorMetricDetailScaffold extends StatelessWidget {
                                 style: TextStyle(
                                   fontSize: 12.sp,
                                   fontWeight: FontWeight.w600,
-                                  color: Colors.white.withValues(alpha: 0.85),
+                                  color: AppColors.textSecondary,
                                 ),
                               ),
                             ],

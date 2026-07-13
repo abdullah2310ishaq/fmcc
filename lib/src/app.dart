@@ -9,10 +9,13 @@ import 'package:doctor_app/src/core/session/session_controller.dart';
 import 'package:doctor_app/src/core/theme/app_theme.dart';
 import 'package:doctor_app/src/features/approval/waiting_screen.dart';
 import 'package:doctor_app/src/features/auth/auth_screen.dart';
+import 'package:doctor_app/src/features/doctor/api/doctor_api.dart';
+import 'package:doctor_app/src/features/doctor/controllers/doctor_prescriptions_controller.dart';
 import 'package:doctor_app/src/features/doctor/models/doctor_models.dart';
 import 'package:doctor_app/src/features/doctor/screens/create_prescription_screen.dart';
 import 'package:doctor_app/src/features/doctor/screens/doctor_patient_detail_screen.dart';
 import 'package:doctor_app/src/features/doctor/screens/doctor_shell.dart';
+import 'package:doctor_app/src/features/doctor/screens/doctor_prescription_detail_screen.dart';
 import 'package:doctor_app/src/features/doctor/screens/edit_prescription_screen.dart';
 import 'package:doctor_app/src/features/doctor/screens/hospital_confirmation_screen.dart';
 import 'package:doctor_app/src/features/doctor/screens/metrics/doctor_earnings_today_screen.dart';
@@ -52,6 +55,7 @@ bool _isDoctorWorkspacePath(String loc) {
       loc == DoctorPatientDetailScreen.routePath ||
       loc == CreatePrescriptionScreen.routePath ||
       loc == EditPrescriptionScreen.routePath ||
+      loc == DoctorPrescriptionDetailScreen.routePath ||
       loc == DoctorEmergencyQueueDetailScreen.routePath ||
       loc == DoctorPatientsSeenTodayScreen.routePath ||
       loc == DoctorEarningsTodayScreen.routePath ||
@@ -139,6 +143,12 @@ class _DoctorAppState extends State<DoctorApp> with WidgetsBindingObserver {
     return MultiProvider(
       providers: [
         ChangeNotifierProvider.value(value: widget.sessionController),
+        ChangeNotifierProvider(
+          create: (context) => DoctorPrescriptionsController(
+            api: DoctorApi(context.read<SessionController>().apiClient),
+            apiClient: context.read<SessionController>().apiClient,
+          ),
+        ),
         ChangeNotifierProvider(create: (_) => PatientDirectoryCoordinator()),
         ChangeNotifierProvider(create: (_) => PatientDetailCache()),
         ChangeNotifierProvider(create: (_) => VisitInstructionsCache()),
@@ -264,6 +274,16 @@ GoRouter _buildRouter(SessionController sessionController) {
         },
       ),
       GoRoute(
+        path: DoctorPrescriptionDetailScreen.routePath,
+        builder: (context, state) {
+          final extra = state.extra;
+          if (extra is! DoctorPrescriptionSummary) {
+            return const _MissingPrescriptionDetail();
+          }
+          return DoctorPrescriptionDetailScreen(item: extra);
+        },
+      ),
+      GoRoute(
         path: DoctorEmergencyQueueDetailScreen.routePath,
         builder: (context, state) =>
             const DoctorEmergencyQueueDetailScreen(),
@@ -343,4 +363,20 @@ GoRouter _buildRouter(SessionController sessionController) {
       return loc == dest ? null : dest;
     },
   );
+}
+
+class _MissingPrescriptionDetail extends StatelessWidget {
+  const _MissingPrescriptionDetail();
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Center(
+        child: TextButton(
+          onPressed: () => context.pop(),
+          child: const Text('Prescription not found — go back'),
+        ),
+      ),
+    );
+  }
 }

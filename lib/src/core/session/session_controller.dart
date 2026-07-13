@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 
 import 'package:doctor_app/src/core/auth/auth_api.dart';
 import 'package:doctor_app/src/core/auth/auth_models.dart';
+import 'package:doctor_app/src/core/auth/jwt_utils.dart';
 import 'package:doctor_app/src/core/logging/app_logger.dart';
 import 'package:doctor_app/src/core/network/api_client.dart';
 import 'package:doctor_app/src/core/network/api_failure.dart';
@@ -14,6 +15,7 @@ import 'package:doctor_app/src/core/session/app_session.dart';
 import 'package:doctor_app/src/core/session/session_storage.dart';
 import 'package:doctor_app/src/features/doctor/api/doctor_api.dart';
 import 'package:doctor_app/src/features/doctor/models/doctor_models.dart';
+import 'package:doctor_app/src/features/profile/doctor_profile_models.dart';
 import 'package:doctor_app/src/features/profile/health_worker_profile_models.dart';
 import 'package:doctor_app/src/features/profile/profile_api.dart';
 
@@ -112,19 +114,36 @@ class SessionController extends ChangeNotifier implements SessionAuthHooks {
     await _setState(_state.copyWith(role: role));
   }
 
+  RegistrationDetails _registrationFromGoogleToken(
+    String idToken, {
+    RegistrationDetails? base,
+  }) {
+    final claims = JwtUtils.tryDecodePayload(idToken);
+    final email = (claims['email'] ?? '').toString().trim();
+    final name = (claims['name'] ?? claims['given_name'] ?? '')
+        .toString()
+        .trim();
+    final current = base ?? _state.registrationDetails;
+    return current.copyWith(
+      fullName:
+          current.fullName.trim().isNotEmpty ? current.fullName : name,
+      email: current.email.trim().isNotEmpty ? current.email : email,
+    );
+  }
+
   Future<DoctorProfileFields?> _loadDoctorProfileFields({
-    required String userId,
+    required String doctorId,
     required String bearerToken,
   }) async {
     try {
-      final profile = await _profileApi.getDoctorProfile(
-        userId: userId,
+      final profile = await _doctorApi.getDoctor(
+        doctorId: doctorId,
         bearerToken: bearerToken,
       );
       return profile?.toProfileFields();
     } catch (e, st) {
       AppLogger.instance.w(
-        '[AUTH] doctor profile prefetch failed userId=$userId',
+        '[AUTH] doctor profile prefetch failed doctorId=$doctorId',
         error: e,
         stackTrace: st,
       );
@@ -154,7 +173,7 @@ class SessionController extends ChangeNotifier implements SessionAuthHooks {
       if (_state.role == UserRole.doctor) {
         var profile = session.doctorProfile;
         profile ??= await _loadDoctorProfileFields(
-          userId: session.userId,
+          doctorId: session.userId,
           bearerToken: session.accessToken,
         );
         profile ??= DoctorProfileFields(
@@ -173,7 +192,11 @@ class SessionController extends ChangeNotifier implements SessionAuthHooks {
           hospitalName: profile.hospitalName,
           doctorId: profile.doctorId,
         );
-        notifyListeners();
+        await _setState(
+          _state.copyWith(
+            registrationDetails: _registrationFromGoogleToken(idToken),
+          ),
+        );
         AppLogger.instance.i(
           '[AUTH] doctor google-login OK userId=${session.userId} '
           'hospital=${profile.hospitalName} awaiting hospital confirmation',
@@ -222,7 +245,10 @@ class SessionController extends ChangeNotifier implements SessionAuthHooks {
           healthWorkerId: healthWorkerIdFromProfile,
           accessToken: session.accessToken,
           refreshToken: session.refreshToken,
-          registrationDetails: nextDetails ?? _state.registrationDetails,
+          registrationDetails: _registrationFromGoogleToken(
+            idToken,
+            base: nextDetails ?? _state.registrationDetails,
+          ),
           hospitalConfirmed: false,
         ),
       );
@@ -287,12 +313,12 @@ class SessionController extends ChangeNotifier implements SessionAuthHooks {
         accessToken: pending.accessToken,
         refreshToken: pending.refreshToken,
         registrationDetails: _state.registrationDetails.copyWith(
-          fullName: _state.registrationDetails.fullName.isNotEmpty
+          fullName: _state.registrationDetails.fullName.trim().isNotEmpty
               ? _state.registrationDetails.fullName
               : 'Doctor',
-          phone: _state.registrationDetails.phone.isNotEmpty
+          phone: _state.registrationDetails.phone.trim().isNotEmpty
               ? _state.registrationDetails.phone
-              : '-',
+              : '—',
         ),
       ),
     );
@@ -339,7 +365,7 @@ class SessionController extends ChangeNotifier implements SessionAuthHooks {
     final next = _state.copyWith(
       isSignedIn: false,
       approvalStatus: ApprovalStatus.none,
-      registrationDetails: const RegistrationDetails(fullName: '', phone: ''),
+      registrationDetails: const RegistrationDetails(fullName: '', phone: '', email: ''),
       showDeclinedMessageOnce: false,
       userId: null,
       healthWorkerId: null,
@@ -418,6 +444,22 @@ class SessionController extends ChangeNotifier implements SessionAuthHooks {
     }
   }
 
+  Future<DoctorProfile?> fetchDoctorProfile() async {
+    final token = _state.accessToken?.trim();
+    final doctorId = _state.doctorIdForApis.trim();
+    if (token == null || token.isEmpty || doctorId.isEmpty) {
+      return null;
+    }
+    try {
+      return await _doctorApi.getDoctor(
+        doctorId: doctorId,
+        bearerToken: token,
+      );
+    } catch (e) {
+      throw _apiClient.mapError(e);
+    }
+  }
+
   /// Cold-start doctor sessions may lack the backend `doctorId` used by queue/dashboard APIs.
   Future<void> hydrateDoctorProfileIfNeeded() async {
     if (_state.role != UserRole.doctor) return;
@@ -425,24 +467,21 @@ class SessionController extends ChangeNotifier implements SessionAuthHooks {
     if (!_state.hospitalConfirmed) return;
 
     final token = _state.accessToken?.trim();
-    final userId = _state.userId?.trim();
-    if (token == null ||
-        token.isEmpty ||
-        userId == null ||
-        userId.isEmpty) {
+    final doctorId = _state.doctorIdForApis.trim();
+    if (token == null || token.isEmpty || doctorId.isEmpty) {
       return;
     }
 
     final existingDoctorId = _state.doctorId?.trim();
     if (existingDoctorId != null &&
         existingDoctorId.isNotEmpty &&
-        existingDoctorId != userId) {
+        existingDoctorId != _state.userId?.trim()) {
       return;
     }
 
     try {
-      final profile = await _profileApi.getDoctorProfile(
-        userId: userId,
+      final profile = await _doctorApi.getDoctor(
+        doctorId: doctorId,
         bearerToken: token,
       );
       if (profile == null) return;
@@ -450,6 +489,10 @@ class SessionController extends ChangeNotifier implements SessionAuthHooks {
       final fields = profile.toProfileFields();
       final nextDoctorId = fields.doctorId?.trim();
       if (nextDoctorId == null || nextDoctorId.isEmpty) return;
+
+      final apiName = profile.fullName;
+      final apiEmail = profile.email.trim();
+      final apiPhone = profile.phoneNumber.trim();
 
       await _setState(
         _state.copyWith(
@@ -462,14 +505,25 @@ class SessionController extends ChangeNotifier implements SessionAuthHooks {
           hospitalName: fields.hospitalName.isNotEmpty
               ? fields.hospitalName
               : _state.hospitalName,
+          registrationDetails: _state.registrationDetails.copyWith(
+            fullName: apiName.isNotEmpty
+                ? apiName
+                : _state.registrationDetails.fullName,
+            email: apiEmail.isNotEmpty
+                ? apiEmail
+                : _state.registrationDetails.email,
+            phone: apiPhone.isNotEmpty
+                ? apiPhone
+                : _state.registrationDetails.phone,
+          ),
         ),
       );
       AppLogger.instance.i(
-        '[AUTH] hydrated doctor profile doctorId=$nextDoctorId userId=$userId',
+        '[AUTH] hydrated doctor profile doctorId=$nextDoctorId',
       );
     } catch (e, st) {
       AppLogger.instance.w(
-        '[AUTH] doctor profile hydrate failed userId=$userId',
+        '[AUTH] doctor profile hydrate failed doctorId=$doctorId',
         error: e,
         stackTrace: st,
       );
@@ -600,7 +654,7 @@ class SessionController extends ChangeNotifier implements SessionAuthHooks {
     final next = _state.copyWith(
       isSignedIn: false,
       approvalStatus: ApprovalStatus.none,
-      registrationDetails: const RegistrationDetails(fullName: '', phone: ''),
+      registrationDetails: const RegistrationDetails(fullName: '', phone: '', email: ''),
       showDeclinedMessageOnce: true,
       userId: null,
       healthWorkerId: null,

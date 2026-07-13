@@ -8,6 +8,8 @@ import 'package:doctor_app/src/core/format/gender_label.dart';
 import 'package:doctor_app/src/core/format/name_initials.dart';
 import 'package:doctor_app/src/core/session/session_controller.dart';
 import 'package:doctor_app/src/core/theme/app_colors.dart';
+import 'package:doctor_app/src/core/theme/app_gradients.dart';
+import 'package:doctor_app/src/features/doctor/controllers/doctor_prescriptions_controller.dart';
 import 'package:doctor_app/src/features/doctor/screens/create_prescription_screen.dart';
 import 'package:doctor_app/src/features/doctor/widgets/doctor_safe_area.dart';
 import 'package:doctor_app/src/features/patients/patient_api.dart';
@@ -100,8 +102,8 @@ class _DoctorPatientDetailScreenState extends State<DoctorPatientDetailScreen> {
     return widget.fullName.trim().isNotEmpty ? widget.fullName : 'Patient';
   }
 
-  void _openPrescription() {
-    context.push(
+  Future<void> _openPrescription() async {
+    final saved = await context.push<bool>(
       CreatePrescriptionScreen.routePath,
       extra: {
         'patientId': widget.patientId,
@@ -109,6 +111,11 @@ class _DoctorPatientDetailScreenState extends State<DoctorPatientDetailScreen> {
         'patientName': _displayName,
       },
     );
+    if (saved == true && mounted) {
+      await context.read<DoctorPrescriptionsController>().refreshFromSession(
+            context.read<SessionController>().state,
+          );
+    }
   }
 
   @override
@@ -288,24 +295,17 @@ class _PatientHeroHeader extends StatelessWidget {
 
     return Container(
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Color(0xFF0D47A1),
-            Color(0xFF1565C0),
-            Color(0xFF42A5F5),
-          ],
-        ),
+        gradient: AppGradients.header,
         borderRadius: BorderRadius.only(
           bottomLeft: Radius.circular(28.r),
           bottomRight: Radius.circular(28.r),
         ),
+        border: Border.all(color: AppColors.registrationFieldBorder),
         boxShadow: [
           BoxShadow(
-            color: AppColors.dashboardPrimary.withValues(alpha: 0.25),
-            blurRadius: 16,
-            offset: const Offset(0, 8),
+            color: AppColors.dashboardPrimary.withValues(alpha: 0.08),
+            blurRadius: 14,
+            offset: const Offset(0, 6),
           ),
         ],
       ),
@@ -318,7 +318,7 @@ class _PatientHeroHeader extends StatelessWidget {
               onPressed: onBack,
               icon: Icon(
                 CupertinoIcons.back,
-                color: Colors.white,
+                color: AppColors.dashboardPrimaryDark,
                 size: 24.sp,
               ),
             ),
@@ -365,7 +365,7 @@ class _PatientHeroHeader extends StatelessWidget {
                           style: TextStyle(
                             fontSize: 20.sp,
                             fontWeight: FontWeight.w900,
-                            color: Colors.white,
+                            color: AppColors.dashboardPrimaryDark,
                             height: 1.2,
                           ),
                         ),
@@ -375,7 +375,7 @@ class _PatientHeroHeader extends StatelessWidget {
                           style: TextStyle(
                             fontSize: 12.sp,
                             fontWeight: FontWeight.w600,
-                            color: Colors.white.withValues(alpha: 0.85),
+                            color: AppColors.textSecondary,
                           ),
                         ),
                       ],
@@ -433,21 +433,21 @@ class _HeroChip extends StatelessWidget {
     return Container(
       padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 6.h),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.16),
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.22)),
+        border: Border.all(color: AppColors.registrationFieldBorder),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 13.sp, color: Colors.white),
+          Icon(icon, size: 13.sp, color: AppColors.dashboardPrimary),
           SizedBox(width: 5.w),
           Text(
             label,
             style: TextStyle(
               fontSize: 11.sp,
               fontWeight: FontWeight.w700,
-              color: Colors.white,
+              color: AppColors.dashboardPrimaryDark,
             ),
           ),
         ],

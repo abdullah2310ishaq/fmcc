@@ -7,10 +7,12 @@ import 'package:provider/provider.dart';
 
 import 'package:doctor_app/src/core/format/name_initials.dart';
 import 'package:doctor_app/src/core/network/api_failure.dart';
+import 'package:doctor_app/src/core/presentation/app_confirm_dialogs.dart';
 import 'package:doctor_app/src/core/session/app_session.dart';
 import 'package:doctor_app/src/core/session/logout_flow.dart';
 import 'package:doctor_app/src/core/session/session_controller.dart';
 import 'package:doctor_app/src/core/theme/app_colors.dart';
+import 'package:doctor_app/src/core/theme/app_gradients.dart';
 import 'package:doctor_app/src/features/profile/edit_profile_screen.dart';
 import 'package:doctor_app/src/features/profile/health_worker_profile_models.dart';
 
@@ -24,11 +26,7 @@ class ProfileViewScreen extends StatefulWidget {
   static const routePath = '/profile';
 
   /// Soft light-blue → white band used by the hero card.
-  static const LinearGradient headerGradient = LinearGradient(
-    colors: [AppColors.dashboardChipBlueBg, AppColors.surface],
-    begin: Alignment.topLeft,
-    end: Alignment.bottomRight,
-  );
+  static const LinearGradient headerGradient = AppGradients.header;
 
   @override
   State<ProfileViewScreen> createState() => _ProfileViewScreenState();
@@ -166,95 +164,7 @@ class _ProfileViewScreenState extends State<ProfileViewScreen> {
   }
 
   Future<void> _confirmLogout() async {
-    final shouldLogout = await showModalBottomSheet<bool>(
-      context: context,
-      backgroundColor: Colors.transparent,
-      builder: (context) {
-        return SafeArea(
-          top: false,
-          child: Container(
-            margin: EdgeInsets.all(14.w),
-            padding: EdgeInsets.fromLTRB(18.w, 18.h, 18.w, 16.h),
-            decoration: BoxDecoration(
-              color: AppColors.surface,
-              borderRadius: BorderRadius.circular(22.r),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.12),
-                  blurRadius: 24,
-                  offset: const Offset(0, 12),
-                ),
-              ],
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Text(
-                  'Log out?',
-                  style: TextStyle(
-                    fontSize: 20.sp,
-                    fontWeight: FontWeight.w900,
-                    color: AppColors.textPrimary,
-                  ),
-                ),
-                SizedBox(height: 6.h),
-                Text(
-                  'You will need to sign in again with your verified Google account.',
-                  style: TextStyle(
-                    fontSize: 13.sp,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.textSecondary,
-                    height: 1.35,
-                  ),
-                ),
-                SizedBox(height: 18.h),
-                FilledButton(
-                  onPressed: () => Navigator.of(context).pop(true),
-                  style: FilledButton.styleFrom(
-                    backgroundColor: AppColors.danger,
-                    foregroundColor: AppColors.surface,
-                    minimumSize: Size(double.infinity, 50.h),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14.r),
-                    ),
-                  ),
-                  child: Text(
-                    'Logout',
-                    style: TextStyle(
-                      fontSize: 15.sp,
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                ),
-                SizedBox(height: 10.h),
-                OutlinedButton(
-                  onPressed: () => Navigator.of(context).pop(false),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: AppColors.dashboardPrimaryDark,
-                    side: const BorderSide(
-                      color: AppColors.registrationFieldBorder,
-                    ),
-                    minimumSize: Size(double.infinity, 50.h),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14.r),
-                    ),
-                  ),
-                  child: Text(
-                    'Cancel',
-                    style: TextStyle(
-                      fontSize: 15.sp,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-
+    final shouldLogout = await AppConfirmDialogs.showLogout(context);
     if (shouldLogout != true || !mounted) return;
     await LogoutFlow.run(context);
   }

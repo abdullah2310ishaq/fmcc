@@ -158,9 +158,8 @@ String? _prescriptionDateToJson(DateTime? value) {
   return DateTime(local.year, local.month, local.day, 12).toIso8601String();
 }
 
-class UpsertPrescriptionRequest {
-  const UpsertPrescriptionRequest({
-    this.prescriptionId,
+class PrescriptionSubmitRequest {
+  const PrescriptionSubmitRequest({
     required this.visitId,
     required this.patientId,
     required this.doctorId,
@@ -171,7 +170,6 @@ class UpsertPrescriptionRequest {
     required this.medicines,
   });
 
-  final String? prescriptionId;
   final String visitId;
   final String patientId;
   final String doctorId;
@@ -190,10 +188,6 @@ class UpsertPrescriptionRequest {
       'doctorNotes': doctorNotes,
       'medicines': medicines.map((m) => m.toJson()).toList(),
     };
-    final rxId = prescriptionId?.trim();
-    if (rxId != null && rxId.isNotEmpty) {
-      map['prescriptionId'] = rxId;
-    }
     final continued = continuedFromPrescriptionId?.trim();
     if (continued != null && continued.isNotEmpty) {
       map['continuedFromPrescriptionId'] = continued;
@@ -203,6 +197,40 @@ class UpsertPrescriptionRequest {
       if (encoded != null) {
         map['nextVisitDate'] = encoded;
       }
+    }
+    return map;
+  }
+}
+
+/// `PUT /api/Doctor/prescription` — PrescriptionEditModel.
+class PrescriptionEditRequest {
+  const PrescriptionEditRequest({
+    required this.prescriptionId,
+    required this.doctorId,
+    required this.tenureInDays,
+    required this.doctorNotes,
+    this.continuedFromPrescriptionId,
+    required this.medicines,
+  });
+
+  final String prescriptionId;
+  final String doctorId;
+  final int tenureInDays;
+  final String doctorNotes;
+  final String? continuedFromPrescriptionId;
+  final List<PrescriptionMedicineInput> medicines;
+
+  Map<String, dynamic> toJson() {
+    final map = <String, dynamic>{
+      'prescriptionId': prescriptionId,
+      'doctorId': doctorId,
+      'tenureInDays': tenureInDays,
+      'doctorNotes': doctorNotes,
+      'medicines': medicines.map((m) => m.toJson()).toList(),
+    };
+    final continued = continuedFromPrescriptionId?.trim();
+    if (continued != null && continued.isNotEmpty) {
+      map['continuedFromPrescriptionId'] = continued;
     }
     return map;
   }

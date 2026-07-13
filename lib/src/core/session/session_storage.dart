@@ -9,6 +9,7 @@ class SessionStorage {
   static const _kApproval = 'session.approval';
   static const _kFullName = 'session.fullName';
   static const _kPhone = 'session.phone';
+  static const _kEmail = 'session.email';
   static const _kShowDeclinedOnce = 'session.showDeclinedOnce';
   static const _kUserId = 'session.userId';
   static const _kHealthWorkerId = 'session.healthWorkerId';
@@ -30,8 +31,16 @@ class SessionStorage {
     final approval = _readApproval(prefs.getString(_kApproval));
     final isSignedIn = prefs.getBool(_kSignedIn) ?? false;
 
+    // Logged-out cold starts always begin at the role picker — do not restore
+    // a stale persisted role from a previous session.
+    if (!isSignedIn && role != UserRole.unknown) {
+      await prefs.setString(_kRole, _writeRole(UserRole.unknown));
+    }
+    final effectiveRole = isSignedIn ? role : UserRole.unknown;
+
     final fullName = prefs.getString(_kFullName) ?? '';
     final phone = prefs.getString(_kPhone) ?? '';
+    final email = prefs.getString(_kEmail) ?? '';
     final showDeclinedOnce = prefs.getBool(_kShowDeclinedOnce) ?? false;
     final userId = prefs.getString(_kUserId);
     final healthWorkerId = prefs.getString(_kHealthWorkerId);
@@ -44,11 +53,11 @@ class SessionStorage {
     final refreshToken = await _secure.read(key: _kRefreshToken);
 
     return AppSession(
-      role: role,
+      role: effectiveRole,
       isSignedIn: isSignedIn,
       approvalStatus: approval,
       registrationDetails:
-          RegistrationDetails(fullName: fullName, phone: phone),
+          RegistrationDetails(fullName: fullName, phone: phone, email: email),
       showDeclinedMessageOnce: showDeclinedOnce,
       userId: userId,
       healthWorkerId: healthWorkerId,
@@ -69,6 +78,7 @@ class SessionStorage {
     await prefs.setString(_kApproval, _writeApproval(session.approvalStatus));
     await prefs.setString(_kFullName, session.registrationDetails.fullName);
     await prefs.setString(_kPhone, session.registrationDetails.phone);
+    await prefs.setString(_kEmail, session.registrationDetails.email);
     await prefs.setBool(_kShowDeclinedOnce, session.showDeclinedMessageOnce);
     await prefs.setBool(_kHospitalConfirmed, session.hospitalConfirmed);
 
@@ -116,6 +126,7 @@ class SessionStorage {
     await prefs.remove(_kApproval);
     await prefs.remove(_kFullName);
     await prefs.remove(_kPhone);
+    await prefs.remove(_kEmail);
     await prefs.remove(_kShowDeclinedOnce);
     await prefs.remove(_kUserId);
     await prefs.remove(_kHealthWorkerId);

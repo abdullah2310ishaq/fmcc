@@ -10,6 +10,7 @@ import 'package:doctor_app/src/features/doctor/controllers/doctor_queue_controll
 import 'package:doctor_app/src/features/doctor/models/doctor_models.dart';
 import 'package:doctor_app/src/features/doctor/screens/doctor_patient_detail_screen.dart';
 import 'package:doctor_app/src/features/doctor/widgets/doctor_common_widgets.dart';
+import 'package:doctor_app/src/features/doctor/widgets/doctor_screen_header.dart';
 
 class DoctorQueueScreen extends StatefulWidget {
   const DoctorQueueScreen({super.key});
@@ -254,119 +255,38 @@ class _AssignedPatientsHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final hospital = hospitalName?.trim();
 
-    return Container(
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Color(0xFF0D47A1),
-            Color(0xFF1565C0),
-            Color(0xFF1976D2),
-          ],
-        ),
-        borderRadius: BorderRadius.only(
-          bottomLeft: Radius.circular(28.r),
-          bottomRight: Radius.circular(28.r),
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.dashboardPrimary.withValues(alpha: 0.28),
-            blurRadius: 18,
-            offset: const Offset(0, 8),
+    return DoctorScreenHeader(
+      title: 'Assigned Patients',
+      subtitle: hospital != null && hospital.isNotEmpty
+          ? hospital
+          : 'Your clinical queue for today',
+      trailing: DoctorHeaderRefreshButton(
+        loading: loading,
+        onPressed: onRefresh,
+      ),
+      bottom: Row(
+        children: [
+          DoctorQueueStatChip(
+            label: 'Total',
+            value: '$totalCount',
+            icon: CupertinoIcons.person_2_fill,
+            accent: AppColors.dashboardPrimary,
+          ),
+          SizedBox(width: 8.w),
+          DoctorQueueStatChip(
+            label: 'Emergency',
+            value: '$emergencyCount',
+            icon: CupertinoIcons.exclamationmark_triangle_fill,
+            accent: AppColors.danger,
+          ),
+          SizedBox(width: 8.w),
+          DoctorQueueStatChip(
+            label: 'Normal',
+            value: '$normalCount',
+            icon: CupertinoIcons.checkmark_seal_fill,
+            accent: AppColors.success,
           ),
         ],
-      ),
-      child: Padding(
-        padding: EdgeInsets.fromLTRB(18.w, 12.h, 12.w, 18.h),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Assigned Patients',
-                        style: TextStyle(
-                          fontSize: 24.sp,
-                          fontWeight: FontWeight.w900,
-                          color: Colors.white,
-                          height: 1.1,
-                        ),
-                      ),
-                      SizedBox(height: 6.h),
-                      Text(
-                        hospital != null && hospital.isNotEmpty
-                            ? hospital
-                            : 'Your clinical queue for today',
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: 12.sp,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.white.withValues(alpha: 0.82),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                Material(
-                  color: Colors.white.withValues(alpha: 0.14),
-                  borderRadius: BorderRadius.circular(12.r),
-                  child: InkWell(
-                    onTap: loading ? null : onRefresh,
-                    borderRadius: BorderRadius.circular(12.r),
-                    child: Padding(
-                      padding: EdgeInsets.all(10.r),
-                      child: loading
-                          ? SizedBox(
-                              width: 20.sp,
-                              height: 20.sp,
-                              child: const CupertinoActivityIndicator(
-                                color: Colors.white,
-                              ),
-                            )
-                          : Icon(
-                              CupertinoIcons.arrow_clockwise,
-                              color: Colors.white,
-                              size: 20.sp,
-                            ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            SizedBox(height: 16.h),
-            Row(
-              children: [
-                DoctorQueueStatChip(
-                  label: 'Total',
-                  value: '$totalCount',
-                  icon: CupertinoIcons.person_2_fill,
-                  accent: AppColors.dashboardPrimary,
-                ),
-                SizedBox(width: 8.w),
-                DoctorQueueStatChip(
-                  label: 'Emergency',
-                  value: '$emergencyCount',
-                  icon: CupertinoIcons.exclamationmark_triangle_fill,
-                  accent: AppColors.danger,
-                ),
-                SizedBox(width: 8.w),
-                DoctorQueueStatChip(
-                  label: 'Normal',
-                  value: '$normalCount',
-                  icon: CupertinoIcons.checkmark_seal_fill,
-                  accent: AppColors.success,
-                ),
-              ],
-            ),
-          ],
-        ),
       ),
     );
   }

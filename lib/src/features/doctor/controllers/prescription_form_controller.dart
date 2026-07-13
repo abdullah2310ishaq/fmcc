@@ -40,20 +40,32 @@ class PrescriptionFormController extends ChangeNotifier {
 
   bool submitting = false;
   String? formError;
+  bool _dirty = false;
+
+  bool get hasUnsavedChanges => _dirty;
+
+  void markDirty() {
+    if (_dirty) return;
+    _dirty = true;
+    notifyListeners();
+  }
 
   void addMedicine() {
     medicines.add(MedicineFormRow());
+    markDirty();
     notifyListeners();
   }
 
   void removeMedicine(int index) {
     if (medicines.length <= 1) return;
     medicines.removeAt(index);
+    markDirty();
     notifyListeners();
   }
 
   void setNextVisitDate(DateTime? value) {
     nextVisitDate = value;
+    markDirty();
     notifyListeners();
   }
 
@@ -83,6 +95,7 @@ class PrescriptionFormController extends ChangeNotifier {
                 ),
               ),
       );
+    _dirty = false;
     notifyListeners();
   }
 
@@ -132,34 +145,51 @@ class PrescriptionFormController extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final request = UpsertPrescriptionRequest(
-        prescriptionId: prescriptionId,
-        visitId: visitId,
-        patientId: patientId,
-        doctorId: doctorId,
-        tenureInDays: int.parse(tenureInDays.trim()),
-        doctorNotes: doctorNotes.trim(),
-        continuedFromPrescriptionId:
-            continuedFromPrescriptionId.trim().isEmpty
-                ? null
-                : continuedFromPrescriptionId.trim(),
-        nextVisitDate: nextVisitDate,
-        medicines: medicines
-            .map(
-              (m) => PrescriptionMedicineInput(
-                medicineId: m.medicineId,
-                customMedicineName: m.customMedicineName.trim(),
-                dosageAmount: m.dosageAmount.trim(),
-                frequency: m.frequency.trim(),
-                durationInDays: int.parse(m.durationInDays.trim()),
-              ),
-            )
-            .toList(),
-      );
-      await _api.upsertPrescription(
-        request: request,
-        bearerToken: bearerToken,
-      );
+      final medicineInputs = medicines
+          .map(
+            (m) => PrescriptionMedicineInput(
+              medicineId: m.medicineId,
+              customMedicineName: m.customMedicineName.trim(),
+              dosageAmount: m.dosageAmount.trim(),
+              frequency: m.frequency.trim(),
+              durationInDays: int.parse(m.durationInDays.trim()),
+            ),
+          )
+          .toList();
+
+      final continued = continuedFromPrescriptionId.trim().isEmpty
+          ? null
+          : continuedFromPrescriptionId.trim();
+
+      final rxId = prescriptionId?.trim();
+      if (rxId != null && rxId.isNotEmpty) {
+        await _api.updatePrescription(
+          request: PrescriptionEditRequest(
+            prescriptionId: rxId,
+            doctorId: doctorId,
+            tenureInDays: int.parse(tenureInDays.trim()),
+            doctorNotes: doctorNotes.trim(),
+            continuedFromPrescriptionId: continued,
+            medicines: medicineInputs,
+          ),
+          bearerToken: bearerToken,
+        );
+      } else {
+        await _api.createPrescription(
+          request: PrescriptionSubmitRequest(
+            visitId: visitId,
+            patientId: patientId,
+            doctorId: doctorId,
+            tenureInDays: int.parse(tenureInDays.trim()),
+            doctorNotes: doctorNotes.trim(),
+            continuedFromPrescriptionId: continued,
+            nextVisitDate: nextVisitDate,
+            medicines: medicineInputs,
+          ),
+          bearerToken: bearerToken,
+        );
+      }
+      _dirty = false;
     } catch (e) {
       if (e is! ApiFailure) {
         formError = _apiClient.mapError(e).message;

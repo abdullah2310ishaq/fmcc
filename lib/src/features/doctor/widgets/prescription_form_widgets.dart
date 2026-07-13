@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 import 'package:doctor_app/src/core/theme/app_colors.dart';
+import 'package:doctor_app/src/features/doctor/widgets/doctor_screen_header.dart';
 import 'package:doctor_app/src/features/doctor/widgets/doctor_safe_area.dart';
 import 'package:doctor_app/src/features/doctor/controllers/prescription_form_controller.dart';
 
@@ -20,76 +21,12 @@ class PrescriptionPatientBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Color(0xFF0D47A1),
-            Color(0xFF1565C0),
-            Color(0xFF42A5F5),
-          ],
-        ),
-        borderRadius: BorderRadius.only(
-          bottomLeft: Radius.circular(24.r),
-          bottomRight: Radius.circular(24.r),
-        ),
-      ),
-      child: DoctorTopInset(
-        child: Padding(
-          padding: EdgeInsets.fromLTRB(8.w, 0, 16.w, 20.h),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              IconButton(
-                onPressed: onBack,
-                icon: Icon(
-                  CupertinoIcons.back,
-                  color: Colors.white,
-                  size: 24.sp,
-                ),
-              ),
-              Padding(
-                padding: EdgeInsets.symmetric(horizontal: 8.w),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: TextStyle(
-                        fontSize: 22.sp,
-                        fontWeight: FontWeight.w900,
-                        color: Colors.white,
-                      ),
-                    ),
-                    SizedBox(height: 6.h),
-                    Row(
-                      children: [
-                        Icon(
-                          CupertinoIcons.person_fill,
-                          size: 14.sp,
-                          color: Colors.white.withValues(alpha: 0.9),
-                        ),
-                        SizedBox(width: 6.w),
-                        Expanded(
-                          child: Text(
-                            patientName,
-                            style: TextStyle(
-                              fontSize: 14.sp,
-                              fontWeight: FontWeight.w700,
-                              color: Colors.white.withValues(alpha: 0.92),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
+    return DoctorTopInset(
+      child: DoctorScreenHeader(
+        includeTopInset: false,
+        title: title,
+        subtitle: patientName,
+        onBack: onBack,
       ),
     );
   }
@@ -183,7 +120,10 @@ class PrescriptionDetailsSection extends StatelessWidget {
               if (n == null || n <= 0) return 'Enter valid days';
               return null;
             },
-            onChanged: (v) => form.tenureInDays = v,
+            onChanged: (v) {
+              form.tenureInDays = v;
+              form.markDirty();
+            },
           ),
           SizedBox(height: 16.h),
           PrescriptionFormField(
@@ -192,7 +132,10 @@ class PrescriptionDetailsSection extends StatelessWidget {
             icon: CupertinoIcons.text_alignleft,
             initialValue: form.doctorNotes,
             maxLines: 4,
-            onChanged: (v) => form.doctorNotes = v,
+            onChanged: (v) {
+              form.doctorNotes = v;
+              form.markDirty();
+            },
           ),
           SizedBox(height: 16.h),
           PrescriptionFormField(
@@ -200,7 +143,10 @@ class PrescriptionDetailsSection extends StatelessWidget {
             hint: 'Previous prescription ID',
             icon: CupertinoIcons.link,
             initialValue: form.continuedFromPrescriptionId,
-            onChanged: (v) => form.continuedFromPrescriptionId = v,
+            onChanged: (v) {
+              form.continuedFromPrescriptionId = v;
+              form.markDirty();
+            },
           ),
           SizedBox(height: 16.h),
           _NextVisitPicker(form: form),
@@ -401,7 +347,10 @@ class PrescriptionMedicineFormCard extends StatelessWidget {
             initialValue: m.customMedicineName,
             validator: (v) =>
                 (v == null || v.trim().isEmpty) ? 'Required' : null,
-            onChanged: (v) => m.customMedicineName = v,
+            onChanged: (v) {
+              m.customMedicineName = v;
+              form.markDirty();
+            },
           ),
           SizedBox(height: 14.h),
           PrescriptionFormField(
@@ -411,7 +360,10 @@ class PrescriptionMedicineFormCard extends StatelessWidget {
             initialValue: m.dosageAmount,
             validator: (v) =>
                 (v == null || v.trim().isEmpty) ? 'Required' : null,
-            onChanged: (v) => m.dosageAmount = v,
+            onChanged: (v) {
+              m.dosageAmount = v;
+              form.markDirty();
+            },
           ),
           SizedBox(height: 14.h),
           PrescriptionFormField(
@@ -421,7 +373,10 @@ class PrescriptionMedicineFormCard extends StatelessWidget {
             initialValue: m.frequency,
             validator: (v) =>
                 (v == null || v.trim().isEmpty) ? 'Required' : null,
-            onChanged: (v) => m.frequency = v,
+            onChanged: (v) {
+              m.frequency = v;
+              form.markDirty();
+            },
           ),
           SizedBox(height: 14.h),
           PrescriptionFormField(
@@ -435,7 +390,10 @@ class PrescriptionMedicineFormCard extends StatelessWidget {
               if (n == null || n <= 0) return 'Required';
               return null;
             },
-            onChanged: (v) => m.durationInDays = v,
+            onChanged: (v) {
+              m.durationInDays = v;
+              form.markDirty();
+            },
           ),
         ],
       ),

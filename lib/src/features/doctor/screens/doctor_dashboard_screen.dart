@@ -78,15 +78,17 @@ class DoctorDashboardScreen extends StatelessWidget {
                     ),
                   ),
                   IconButton(
-                    onPressed: () async {
-                      await context.read<SessionController>().logout();
+                    onPressed: () {
+                      context.read<DoctorShellTabController>().selectTab(
+                            DoctorShellTabController.profileTab,
+                          );
                     },
                     icon: Icon(
-                      CupertinoIcons.square_arrow_right,
-                      color: AppColors.danger,
-                      size: 22.sp,
+                      CupertinoIcons.person_crop_circle,
+                      color: AppColors.dashboardPrimary,
+                      size: 24.sp,
                     ),
-                    tooltip: 'Sign out',
+                    tooltip: 'Profile',
                   ),
                 ],
               ),

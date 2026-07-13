@@ -131,9 +131,9 @@ class Endpoints {
   static const String patientCounsellingInstructions =
       '/api/Patient/counselling-instructison';
 
-  // Doctor module
+  // Doctor module (OpenAPI: MedicalApi.postman_collection.json)
   static String doctorUnassignHospital(String doctorId) =>
-      '/api/doctor/${Uri.encodeComponent(doctorId)}/unassign-hospital';
+      '/api/Doctor/${Uri.encodeComponent(doctorId)}/unassign-hospital';
 
   static String doctorDashboard(String doctorId) =>
       '/api/Doctor/${Uri.encodeComponent(doctorId)}/dashboard';
@@ -145,6 +145,10 @@ class Endpoints {
 
   static String doctorPrescriptions(String doctorId) =>
       '/api/Doctor/${Uri.encodeComponent(doctorId)}/prescriptions';
+
+  /// Full doctor record for profile screen.
+  static String doctorById(String doctorId) =>
+      '/api/Doctor/${Uri.encodeComponent(doctorId)}';
 
   static String patientPrescriptionHistory(String patientId) =>
       '/api/Patient/prescription-history/${Uri.encodeComponent(patientId)}';

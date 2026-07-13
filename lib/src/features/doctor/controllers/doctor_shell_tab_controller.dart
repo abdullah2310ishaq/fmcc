@@ -5,13 +5,14 @@ class DoctorShellTabController extends ChangeNotifier {
   static const dashboardTab = 0;
   static const patientsTab = 1;
   static const prescriptionsTab = 2;
+  static const profileTab = 3;
 
   int _tabIndex = dashboardTab;
 
   int get tabIndex => _tabIndex;
 
   void selectTab(int index) {
-    if (index < dashboardTab || index > prescriptionsTab) return;
+    if (index < dashboardTab || index > profileTab) return;
     if (_tabIndex == index) return;
     _tabIndex = index;
     notifyListeners();
