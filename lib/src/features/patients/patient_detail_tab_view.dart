@@ -104,7 +104,7 @@ extension PatientDetailSectionUi on PatientDetailSection {
         PatientDetailSection.personalInfo =>
           'Demographics, contact & address',
         PatientDetailSection.medicalHistory =>
-          'Chronic, surgical, drug & tobacco history',
+          'Chronic, surgical & drug history',
         PatientDetailSection.familyHistory =>
           'Family relatives & hereditary conditions',
         PatientDetailSection.baselineLifestyle =>
@@ -130,14 +130,13 @@ extension PatientDetailSectionUi on PatientDetailSection {
       };
 }
 
-enum _MedicalHistoryTab { chronic, surgical, drug, tobacco }
+enum _MedicalHistoryTab { chronic, surgical, drug }
 
 extension on _MedicalHistoryTab {
   String get label => switch (this) {
         _MedicalHistoryTab.chronic => 'Chronic History',
         _MedicalHistoryTab.surgical => 'Surgical History',
         _MedicalHistoryTab.drug => 'Drug History',
-        _MedicalHistoryTab.tobacco => 'Tobacco History',
       };
 }
 
@@ -974,8 +973,6 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
       _tobaccoDurationStart != null ||
       _tobaccoDurationEnd != null;
 
-  bool get _tobaccoFieldsEditable => _sectionEditable;
-
   PatientBaselineLifestyle? _baselineFromLocalForm() {
     if (!_baselineLoaded && !_tobaccoFormTouched) {
       return _cachedHistory?.baseline;
@@ -1573,9 +1570,6 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
       _toast('Please sign in again.');
       return;
     }
-    if (_medicalTab == _MedicalHistoryTab.tobacco) {
-      return;
-    }
     final pid = widget.summary.patientId;
     final api = _patientApi!;
 
@@ -1597,7 +1591,6 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
             api: api,
             token: token,
           ),
-        _MedicalHistoryTab.tobacco => true,
       };
       if (!saved || !mounted) return;
 
@@ -1800,48 +1793,6 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
             ? widget.summary.gender
             : '—',
         lastVisit: patientDetailShortVisit(widget.summary.lastVisitDate),
-      ),
-    );
-  }
-
-  Widget _tobaccoDateField({
-    required String label,
-    required DateTime? date,
-    required VoidCallback onTap,
-    VoidCallback? onClear,
-  }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(12.r),
-      child: InputDecorator(
-        decoration: _fieldDecoration(hint: label),
-        child: Row(
-          children: [
-            Expanded(
-              child: Text(
-                _displayDate(date),
-                style: TextStyle(
-                  fontSize: 14.sp,
-                  fontWeight: FontWeight.w600,
-                  color: date == null
-                      ? AppColors.textSecondary
-                      : AppColors.textPrimary,
-                ),
-              ),
-            ),
-            if (onClear != null)
-              IconButton(
-                onPressed: onClear,
-                icon: Icon(Icons.close, size: 18.sp),
-                tooltip: 'Clear',
-              ),
-            Icon(
-              Icons.calendar_today_outlined,
-              size: 18.sp,
-              color: AppColors.textSecondary,
-            ),
-          ],
-        ),
       ),
     );
   }
@@ -3865,126 +3816,6 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
     }
   }
 
-  Future<void> _offerDeleteTobacco() async {
-    final ok = await _confirmDeleteHistoryEntry(
-      title: 'Clear tobacco history?',
-      message:
-          'Tobacco details will be removed for this patient when you confirm.',
-    );
-    if (!mounted || !ok) return;
-
-    setState(() {
-      _tobaccoUse = false;
-      _tobaccoTypeController.clear();
-      _tobaccoQuantityController.clear();
-      _tobaccoDurationStart = null;
-      _tobaccoDurationEnd = null;
-    });
-
-    await _saveBaselineLifestyle(
-      successMessage: 'Tobacco history cleared.',
-    );
-  }
-
-  Widget _tobaccoHistoryBody() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        if (_baselineLoaded && _sectionEditable)
-          Align(
-            alignment: Alignment.centerRight,
-            child: _historyEntryMoreMenu(
-              onDelete: () => unawaited(_offerDeleteTobacco()),
-            ),
-          ),
-        SwitchListTile(
-          contentPadding: EdgeInsets.zero,
-          title: Text(
-            'Tobacco use',
-            style: TextStyle(
-              fontSize: 13.sp,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          subtitle: Text(
-            _sectionEditable
-                ? (_tobaccoUse
-                    ? 'Add tobacco details below'
-                    : 'Turn on if patient uses tobacco')
-                : (!_baselineLoaded
-                    ? 'Tap Edit above to record tobacco history'
-                    : (_tobaccoUse
-                        ? 'Patient uses tobacco'
-                        : 'No tobacco use recorded')),
-            style: TextStyle(
-              fontSize: 12.sp,
-              fontWeight: FontWeight.w500,
-              color: AppColors.textSecondary,
-            ),
-          ),
-          value: _tobaccoUse,
-          onChanged: _tobaccoFieldsEditable
-              ? (v) => setState(() => _tobaccoUse = v)
-              : null,
-        ),
-        if (_tobaccoUse) ...[
-          SizedBox(height: 8.h),
-          if (_tobaccoFieldsEditable) ...[
-            TextFormField(
-              controller: _tobaccoTypeController,
-              style: TextStyle(
-                fontSize: 14.sp,
-                fontWeight: FontWeight.w600,
-                color: AppColors.textPrimary,
-              ),
-              decoration: _fieldDecoration(
-                hint: 'Tobacco type (e.g. Cigarette, Huqqa)',
-              ),
-            ),
-            SizedBox(height: 10.h),
-            TextFormField(
-              controller: _tobaccoQuantityController,
-              keyboardType: TextInputType.number,
-              style: TextStyle(
-                fontSize: 14.sp,
-                fontWeight: FontWeight.w600,
-                color: AppColors.textPrimary,
-              ),
-              decoration: _fieldDecoration(
-                hint: 'Quantity per day (optional)',
-              ),
-            ),
-            SizedBox(height: 10.h),
-            _tobaccoDateField(
-              label: 'Duration start',
-              date: _tobaccoDurationStart,
-              onTap: () => unawaited(_pickTobaccoDate(isStart: true)),
-            ),
-            SizedBox(height: 10.h),
-            _tobaccoDateField(
-              label: 'Duration end (optional)',
-              date: _tobaccoDurationEnd,
-              onTap: () => unawaited(_pickTobaccoDate(isStart: false)),
-              onClear: _tobaccoDurationEnd == null
-                  ? null
-                  : () => setState(() => _tobaccoDurationEnd = null),
-            ),
-          ] else
-            _infoGroupCard(
-              icon: Icons.smoking_rooms_outlined,
-              title: 'Tobacco details',
-              rows: [
-                ('Type', _tobaccoTypeController.text),
-                ('Quantity per day', _tobaccoQuantityController.text),
-                ('Duration start', _displayDateOrDash(_tobaccoDurationStart)),
-                ('Duration end', _displayDateOrDash(_tobaccoDurationEnd)),
-              ],
-            ),
-        ],
-      ],
-    );
-  }
-
   Widget _historySectionCard({
     required IconData icon,
     required String title,
@@ -4682,25 +4513,7 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
               ],
             ),
           ),
-        if (_medicalTab == _MedicalHistoryTab.tobacco)
-          _historySectionCard(
-            icon: Icons.smoking_rooms_outlined,
-            title: 'Tobacco history',
-            child: _tobaccoHistoryBody(),
-          ),
-        if (_medicalTab == _MedicalHistoryTab.tobacco && _sectionEditable)
-          _primaryCtaButton(
-            onPressed: _savingBaseline
-                ? null
-                : () => unawaited(
-                      _saveBaselineLifestyle(
-                        successMessage: 'Tobacco history saved.',
-                        validateTobacco: true,
-                      ),
-                    ),
-            label: _savingBaseline ? 'Saving…' : 'Save Tobacco History',
-          )
-        else if (_sectionEditable)
+        if (_sectionEditable)
           _primaryCtaButton(
             onPressed: _savingMedical ? null : _saveMedicalAndLifestyle,
             label: _savingMedical ? 'Saving…' : 'Save Medical History',
@@ -4763,11 +4576,7 @@ class _PatientDetailTabViewState extends State<PatientDetailTabView> {
           onPressed: _addDrugDraft,
           label: 'Add category'
         ),
-      _MedicalHistoryTab.tobacco => (onPressed: () {}, label: ''),
     };
-    if (_medicalTab == _MedicalHistoryTab.tobacco) {
-      return const SizedBox.shrink();
-    }
     return _historyHeaderAddButton(
       label: action.label,
       onPressed: action.onPressed,
