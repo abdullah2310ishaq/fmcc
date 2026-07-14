@@ -22,10 +22,10 @@ class DoctorDashboardScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    
     final session = context.watch<SessionController>().state;
     final controller = context.watch<DoctorDashboardController>();
     final queue = context.watch<DoctorQueueController>();
-    final rx = context.watch<DoctorPrescriptionsController>();
     final stats = controller.stats;
     final emergencyCount = queue.emergencyCount;
     final doctorName = session.registrationDetails.fullName.trim();
